@@ -11,8 +11,10 @@ A Rust-based translation and transcription inference service.
 
 ## Prerequisites
 
-- [Rust](https://www.rust-lang.org/tools/install)
-- GitHub CLI (optional, for deployment)
+- [Rust](https://www.rust-lang.org/tools/install) (latest stable)
+- **PDF Support (optional):**
+  - `poppler-utils` (for `pdftotext`)
+  - `paps` (for text-to-PDF conversion)
 
 ## Setup
 
