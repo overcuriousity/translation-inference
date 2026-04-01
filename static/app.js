@@ -513,7 +513,7 @@ function appendDocResult(item) {
 }
 
 // ── Bitvault integration ──────────────────────────────────────────────────
-async function saveToBitvault(text) {
+async function saveToBitvault(text, tab) {
   try {
     const res = await fetch('/api/save-to-bitvault', {
       method:  'POST',
@@ -524,24 +524,35 @@ async function saveToBitvault(text) {
     let data = null;
     try { data = JSON.parse(bodyText); } catch (_) { /* non-JSON response */ }
     if (res.ok) {
-      if (data && data.url) window.open(data.url, '_blank', 'noopener,noreferrer');
-      showNotification('Saved to Bitvault', 'success');
+      if (data && data.url) {
+        tab.location.href = data.url;
+        showNotification('Saved to Bitvault', 'success');
+      } else {
+        tab.close();
+        showNotification('Save succeeded but no URL returned', 'error');
+      }
     } else {
+      tab.close();
       showNotification((data && data.error) || bodyText || 'Save failed', 'error');
     }
   } catch (_) {
+    tab.close();
     showNotification('Network error', 'error');
   }
 }
 
 saveSrcBtn.addEventListener('click', () => {
   const text = sourceText.value.trim();
-  if (text) saveToBitvault(text);
+  if (!text) return;
+  const tab = window.open('', '_blank');
+  saveToBitvault(text, tab);
 });
 
 saveOutBtn.addEventListener('click', () => {
   const text = (lastTranslatedText || '').trim();
-  if (text) saveToBitvault(text);
+  if (!text) return;
+  const tab = window.open('', '_blank');
+  saveToBitvault(text, tab);
 });
 
 let notifTimer = null;

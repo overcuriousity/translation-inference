@@ -4,8 +4,10 @@ use axum::{
     Json,
 };
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 use url::Url;
+
+const MAX_PROXY_BYTES: usize = 512 * 1024; // 512 KB
 
 use crate::{
     models::{ErrorResponse, SaveToBitvaultRequest, SaveToBitvaultResponse},
@@ -103,20 +105,44 @@ pub async fn get_proxy_text(
         ));
     }
 
-    let text = state.client.http
+    let resp = state.client.http
         .get(&q.url)
+        .timeout(Duration::from_secs(30))
         .send()
         .await
         .map_err(|e| (
             StatusCode::BAD_GATEWAY,
             Json(ErrorResponse { error: format!("Failed to fetch from Bitvault: {e}") }),
-        ))?
-        .text()
-        .await
-        .map_err(|e| (
-            StatusCode::BAD_GATEWAY,
-            Json(ErrorResponse { error: format!("Failed to read Bitvault response: {e}") }),
         ))?;
 
+    if !resp.status().is_success() {
+        let upstream_status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+        return Err((
+            StatusCode::BAD_GATEWAY,
+            Json(ErrorResponse { error: format!("Bitvault responded with {upstream_status}: {body}") }),
+        ));
+    }
+
+    if resp.content_length().map_or(false, |n| n > MAX_PROXY_BYTES as u64) {
+        return Err((
+            StatusCode::BAD_GATEWAY,
+            Json(ErrorResponse { error: "Bitvault response exceeds size limit".into() }),
+        ));
+    }
+
+    let bytes = resp.bytes().await.map_err(|e| (
+        StatusCode::BAD_GATEWAY,
+        Json(ErrorResponse { error: format!("Failed to read Bitvault response: {e}") }),
+    ))?;
+
+    if bytes.len() > MAX_PROXY_BYTES {
+        return Err((
+            StatusCode::BAD_GATEWAY,
+            Json(ErrorResponse { error: "Bitvault response exceeds size limit".into() }),
+        ));
+    }
+
+    let text = String::from_utf8_lossy(&bytes).into_owned();
     Ok(text)
 }
