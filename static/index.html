@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Translation</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-left">
+      <span class="app-title">Translation</span>
+    </div>
+    <div class="header-controls">
+      <div class="select-group">
+        <label class="select-label">Text</label>
+        <select id="model-select" class="select-compact" title="Translation Model"></select>
+      </div>
+      <div class="select-group">
+        <label class="select-label">Audio</label>
+        <select id="whisper-model-select" class="select-compact" title="Transcription Model"></select>
+      </div>
+      <button id="settings-btn" class="settings-btn" title="API Settings">
+
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- API config panel -->
+  <div id="config-panel" class="config-panel hidden">
+    <div class="config-inner">
+      <div class="config-title">API Configuration</div>
+      <div class="config-row">
+        <input id="config-endpoint" type="url" class="config-input" placeholder="Endpoint URL" />
+        <input id="config-apikey" type="password" class="config-input" placeholder="API Key" />
+        <button id="config-connect-btn" class="btn-primary">Connect</button>
+        <span id="config-msg" class="config-msg"></span>
+      </div>
+    </div>
+  </div>
+
+  <main class="panels">
+    <!-- Source panel -->
+    <div class="panel panel-source">
+      <div class="panel-header">
+        <select id="source-lang" class="lang-select"></select>
+        <span id="detected-lang" class="detected-badge hidden"></span>
+      </div>
+      <div class="textarea-container">
+        <textarea
+          id="source-text"
+          class="panel-textarea"
+          placeholder="Enter text or upload files…"
+          spellcheck="false"
+        ></textarea>
+        <div id="drop-overlay" class="drop-overlay hidden">
+          <div class="drop-msg">Drop files to transcribe or translate</div>
+        </div>
+      </div>
+
+      <!-- Document list -->
+      <div id="doc-list" class="doc-list hidden"></div>
+
+      <div class="panel-footer">
+        <div class="footer-left">
+          <label class="icon-btn" title="Upload Audio/Video">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+            <input type="file" id="audio-input" accept="audio/*,video/*" hidden />
+          </label>
+          <label class="icon-btn" title="Upload Document">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            <input type="file" id="doc-input" accept=".pdf,.docx,.odt" multiple hidden />
+          </label>
+          <span id="char-count" class="char-count">0</span>
+        </div>
+        <div class="footer-right">
+          <button id="clear-btn" class="btn-ghost" title="Clear">Clear</button>
+          <button id="translate-btn" class="btn-primary hidden">Translate</button>
+        </div>
+      </div>
+      <div id="transcribe-status" class="status-bar hidden"></div>
+    </div>
+
+    <button id="swap-btn" class="swap-btn" title="Swap languages">
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 16-4-4 4-4"/><path d="m17 8 4 4-4 4"/><path d="M3 12h18"/></svg>
+    </button>
+
+    <!-- Output panel -->
+    <div class="panel panel-output">
+      <div class="panel-header">
+        <select id="target-lang" class="lang-select"></select>
+      </div>
+      <div id="output-text" class="panel-output-content">
+        <span class="placeholder">Translation will appear here…</span>
+      </div>
+
+      <div id="results-doc-list" class="doc-list hidden"></div>
+
+      <div class="panel-footer">
+        <div class="footer-left">
+          <span id="chunk-progress" class="chunk-progress hidden"></span>
+        </div>
+        <div class="footer-right">
+          <button id="copy-btn" class="icon-btn hidden" title="Copy translation">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <div id="notification" class="notification hidden"></div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

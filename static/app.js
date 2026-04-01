@@ -1,0 +1,504 @@
+'use strict';
+
+// ── State ────────────────────────────────────────────────────────────────
+let availableLanguages = [];
+let availableModels    = [];
+let userEndpoint       = '';
+let userApiKey         = '';
+let stagedDocs         = [];
+let translationTimeout = null;
+let lastTranslatedText = '';
+
+// ── DOM refs ─────────────────────────────────────────────────────────────
+const sourceLangSel    = document.getElementById('source-lang');
+const targetLangSel    = document.getElementById('target-lang');
+const detectedBadge    = document.getElementById('detected-lang');
+const modelSel         = document.getElementById('model-select');
+const whisperModelSel  = document.getElementById('whisper-model-select');
+const sourceText       = document.getElementById('source-text');
+const outputDiv        = document.getElementById('output-text');
+const charCount        = document.getElementById('char-count');
+const translateBtn     = document.getElementById('translate-btn');
+const clearBtn         = document.getElementById('clear-btn');
+const copyBtn          = document.getElementById('copy-btn');
+const swapBtn          = document.getElementById('swap-btn');
+const audioInput       = document.getElementById('audio-input');
+const docInput         = document.getElementById('doc-input');
+const docList          = document.getElementById('doc-list');
+const resultsDocList    = document.getElementById('results-doc-list');
+const transcribeStatus = document.getElementById('transcribe-status');
+const chunkProgress    = document.getElementById('chunk-progress');
+const notification     = document.getElementById('notification');
+const configPanel      = document.getElementById('config-panel');
+const configEndpoint   = document.getElementById('config-endpoint');
+const configApikey     = document.getElementById('config-apikey');
+const configConnectBtn = document.getElementById('config-connect-btn');
+const configMsg        = document.getElementById('config-msg');
+const settingsBtn      = document.getElementById('settings-btn');
+const dropOverlay      = document.getElementById('drop-overlay');
+const sourcePanel      = document.querySelector('.panel-source');
+
+// ── Boot ─────────────────────────────────────────────────────────────────
+async function init() {
+  const status = await fetch('/api/status').then(r => r.json()).catch(() => ({ server_configured: false }));
+  if (!status.server_configured) {
+    showConfigPanel('Please configure your API credentials.');
+  } else {
+    await Promise.all([loadLanguages(), loadModels()]);
+  }
+}
+
+// ── Config panel ──────────────────────────────────────────────────────────
+function showConfigPanel(msg) {
+  configPanel.classList.remove('hidden');
+  if (msg) {
+    configMsg.textContent = msg;
+    configMsg.className = 'config-msg';
+  }
+}
+
+settingsBtn.addEventListener('click', () => {
+  configPanel.classList.toggle('hidden');
+  configMsg.textContent = '';
+});
+
+configConnectBtn.addEventListener('click', async () => {
+  const ep  = configEndpoint.value.trim();
+  const key = configApikey.value.trim();
+
+  if (!ep || !key) {
+    configMsg.textContent = 'Required fields missing.';
+    configMsg.className = 'config-msg error';
+    return;
+  }
+
+  configConnectBtn.disabled = true;
+  configMsg.textContent = 'Testing…';
+
+  try {
+    const res  = await fetch('/api/config/test', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ endpoint: ep, api_key: key }),
+    });
+    const data = await res.json();
+
+    if (res.ok) {
+      userEndpoint = ep;
+      userApiKey   = key;
+      configMsg.textContent = '✓ Connected';
+      configMsg.className = 'config-msg success';
+      await Promise.all([loadLanguages(), loadModels()]);
+      setTimeout(() => configPanel.classList.add('hidden'), 800);
+    } else {
+      configMsg.textContent = data.error || 'Connection failed';
+      configMsg.className = 'config-msg error';
+    }
+  } catch (e) {
+    configMsg.textContent = 'Network error';
+    configMsg.className = 'config-msg error';
+  } finally {
+    configConnectBtn.disabled = false;
+  }
+});
+
+// ── Credentials helper ────────────────────────────────────────────────────
+function apiCredentials() {
+  return (userEndpoint && userApiKey) ? { endpoint: userEndpoint, api_key: userApiKey } : {};
+}
+
+function appendCredentialsToForm(form) {
+  if (userEndpoint) form.append('endpoint', userEndpoint);
+  if (userApiKey) form.append('api_key', userApiKey);
+}
+
+// ── Language / model loading ──────────────────────────────────────────────
+async function loadLanguages() {
+  try {
+    const res  = await fetch('/api/languages');
+    const data = await res.json();
+    availableLanguages = data.languages;
+
+    sourceLangSel.innerHTML = '';
+    for (const lang of availableLanguages) {
+      const opt = document.createElement('option');
+      opt.value = lang.code; opt.textContent = lang.name;
+      sourceLangSel.appendChild(opt);
+    }
+
+    targetLangSel.innerHTML = '';
+    for (const lang of availableLanguages.filter(l => l.code !== 'auto')) {
+      const opt = document.createElement('option');
+      opt.value = lang.code; opt.textContent = lang.name;
+      targetLangSel.appendChild(opt);
+    }
+
+    sourceLangSel.value = 'auto';
+    targetLangSel.value = 'en';
+  } catch (e) {
+    showNotification('Language sync failed', 'error');
+  }
+}
+
+async function loadModels() {
+  try {
+    const res  = await fetch('/api/models');
+    const data = await res.json();
+
+    // Translation models
+    modelSel.innerHTML = '';
+    if (data.translation_models) {
+      for (const m of data.translation_models) {
+        const opt = document.createElement('option');
+        opt.value = m.id; opt.textContent = m.name;
+        modelSel.appendChild(opt);
+      }
+    }
+
+    // Transcription models
+    whisperModelSel.innerHTML = '';
+    if (data.transcription_models) {
+      for (const m of data.transcription_models) {
+        const opt = document.createElement('option');
+        opt.value = m.id; opt.textContent = m.name;
+        whisperModelSel.appendChild(opt);
+      }
+    }
+  } catch (e) {
+    console.error('loadModels error:', e);
+    showNotification('Model sync failed', 'error');
+  }
+}
+
+// ── Translation ───────────────────────────────────────────────────────────
+async function translate(isAuto = false) {
+  const text = sourceText.value.trim();
+  if (!text) { setOutput(''); detectedBadge.classList.add('hidden'); return; }
+  if (isAuto && text === lastTranslatedText) return;
+
+  setOutputLoading(true);
+  lastTranslatedText = text;
+
+  try {
+    const body = {
+      text,
+      source_lang: sourceLangName(sourceLangSel.value),
+      target_lang: targetLangName(targetLangSel.value),
+      model: modelSel.value || undefined,
+      ...apiCredentials(),
+    };
+
+    const res  = await fetch('/api/translate', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(body),
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      if (!isAuto) showNotification('Translation error', 'error');
+      setOutputLoading(false);
+      return;
+    }
+
+    setOutput(data.translated_text);
+
+    // Show detected language if auto
+    if (sourceLangSel.value === 'auto' && data.detected_source_language) {
+      detectedBadge.textContent = data.detected_source_language;
+      detectedBadge.classList.remove('hidden');
+    } else {
+      detectedBadge.classList.add('hidden');
+    }
+
+    if (data.chunks_total > 1) {
+      chunkProgress.textContent = `${data.chunks_total} chunks`;
+      chunkProgress.classList.remove('hidden');
+    } else {
+      chunkProgress.classList.add('hidden');
+    }
+  } catch (e) {
+    if (!isAuto) showNotification('Network error', 'error');
+  } finally {
+    setOutputLoading(false);
+  }
+}
+
+function langNameByCode(code) {
+  const found = availableLanguages.find(l => l.code === code);
+  return found ? found.name : code;
+}
+function sourceLangName(code) { return code === 'auto' ? 'auto' : langNameByCode(code); }
+function targetLangName(code) { return langNameByCode(code); }
+
+// ── Debounced input ───────────────────────────────────────────────────────
+sourceText.addEventListener('input', () => {
+  updateCharCount();
+  clearTimeout(translationTimeout);
+  translationTimeout = setTimeout(() => translate(true), 600);
+});
+
+sourceLangSel.addEventListener('change', () => translate(true));
+targetLangSel.addEventListener('change', () => translate(true));
+modelSel.addEventListener('change', () => translate(true));
+
+// ── Transcription ─────────────────────────────────────────────────────────
+async function transcribeFile(file) {
+  showTranscribeStatus('Transcribing…');
+  sourceText.disabled = true;
+
+  try {
+    const form = new FormData();
+    form.append('file', file, file.name);
+    form.append('model', whisperModelSel.value);
+    appendCredentialsToForm(form);
+
+    const res  = await fetch('/api/transcribe', { method: 'POST', body: form });
+    const data = await res.json();
+
+    if (!res.ok) {
+      showNotification('Transcription failed', 'error');
+      return;
+    }
+
+    sourceText.value = data.text;
+    updateCharCount();
+    translate(true);
+  } catch (e) {
+    showNotification('Network error during transcription', 'error');
+  } finally {
+    sourceText.disabled = false;
+    hideTranscribeStatus();
+  }
+}
+
+// ── Document translation ──────────────────────────────────────────────────
+function renderDocList() {
+  if (stagedDocs.length === 0) {
+    docList.classList.add('hidden');
+    docList.innerHTML = '';
+    return;
+  }
+
+  docList.classList.remove('hidden');
+  docList.innerHTML = '';
+
+  const ul = document.createElement('ul');
+  ul.className = 'doc-file-list';
+  stagedDocs.forEach((file, idx) => {
+    const li = document.createElement('li');
+    li.textContent = file.name;
+    const remove = document.createElement('button');
+    remove.className = 'doc-remove';
+    remove.textContent = '×';
+    remove.onclick = () => { stagedDocs.splice(idx, 1); renderDocList(); };
+    li.appendChild(remove);
+    ul.appendChild(li);
+  });
+  docList.appendChild(ul);
+
+  const btn = document.createElement('button');
+  btn.className = 'btn-primary doc-translate-btn';
+  btn.style.marginTop = '10px';
+  btn.textContent = `Translate ${stagedDocs.length} Doc${stagedDocs.length > 1 ? 's' : ''}`;
+  btn.onclick = translateDocuments;
+  docList.appendChild(btn);
+}
+
+async function translateDocuments() {
+  if (stagedDocs.length === 0) return;
+  showTranscribeStatus(`Translating ${stagedDocs.length} document(s)…`);
+
+  try {
+    const form = new FormData();
+    for (const file of stagedDocs) form.append('file', file, file.name);
+    form.append('source_lang', sourceLangName(sourceLangSel.value));
+    form.append('target_lang', targetLangName(targetLangSel.value));
+    form.append('model', modelSel.value || '');
+    appendCredentialsToForm(form);
+
+    const res  = await fetch('/api/translate-document', { method: 'POST', body: form });
+    const data = await res.json();
+
+    if (!res.ok) {
+      showNotification('Document translation failed', 'error');
+      return;
+    }
+
+    renderResultsDocList(data.files);
+    showNotification(`Translated ${data.files.length} file(s)`, 'success');
+    stagedDocs = [];
+    renderDocList();
+  } catch (e) {
+    showNotification('Network error', 'error');
+  } finally {
+    hideTranscribeStatus();
+  }
+}
+
+function renderResultsDocList(files) {
+  if (!files || files.length === 0) {
+    resultsDocList.classList.add('hidden');
+    resultsDocList.innerHTML = '';
+    return;
+  }
+
+  resultsDocList.classList.remove('hidden');
+  resultsDocList.innerHTML = '<div class="doc-list-title">Translated Documents</div>';
+
+  const ul = document.createElement('ul');
+  ul.className = 'doc-file-list';
+  files.forEach(f => {
+    const li = document.createElement('li');
+    li.textContent = f.filename;
+    const dl = document.createElement('button');
+    dl.className = 'btn-primary doc-dl-btn';
+    dl.style.fontSize = '0.75rem';
+    dl.style.padding = '4px 8px';
+    dl.textContent = 'Download';
+    dl.onclick = () => downloadBase64File(f.data, f.filename, f.mime);
+    li.appendChild(dl);
+    ul.appendChild(li);
+  });
+  resultsDocList.appendChild(ul);
+}
+
+function downloadBase64File(b64, filename, mime) {
+  const binary = atob(b64);
+  const arr    = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) arr[i] = binary.charCodeAt(i);
+  const blob = new Blob([arr], { type: mime });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── Event listeners ───────────────────────────────────────────────────────
+translateBtn.addEventListener('click', () => translate());
+
+clearBtn.addEventListener('click', () => {
+  sourceText.value = '';
+  lastTranslatedText = '';
+  setOutput('');
+  updateCharCount();
+  detectedBadge.classList.add('hidden');
+  chunkProgress.classList.add('hidden');
+  copyBtn.classList.add('hidden');
+  stagedDocs = [];
+  renderDocList();
+  renderResultsDocList([]);
+});
+
+copyBtn.addEventListener('click', async () => {
+  const text = outputDiv.innerText;
+  if (!text) return;
+  await navigator.clipboard.writeText(text);
+  showNotification('Copied', 'success');
+});
+
+swapBtn.addEventListener('click', () => {
+  const srcCode = sourceLangSel.value;
+  const tgtCode = targetLangSel.value;
+
+  if (srcCode === 'auto') {
+    const tgt = outputDiv.innerText;
+    if (tgt && tgt !== 'Translation will appear here…') {
+      sourceText.value = tgt;
+      setOutput('');
+      updateCharCount();
+    }
+    return;
+  }
+
+  if (Array.from(targetLangSel.options).some(o => o.value === srcCode)) targetLangSel.value = srcCode;
+  if (Array.from(sourceLangSel.options).some(o => o.value === tgtCode)) sourceLangSel.value = tgtCode;
+
+  const curTgt = outputDiv.innerText;
+  if (curTgt && curTgt !== 'Translation will appear here…') {
+    sourceText.value = curTgt;
+    lastTranslatedText = curTgt;
+    translate(true);
+  }
+});
+
+audioInput.addEventListener('change', () => {
+  if (audioInput.files[0]) transcribeFile(audioInput.files[0]);
+  audioInput.value = '';
+});
+
+docInput.addEventListener('change', () => {
+  for (const file of docInput.files) stagedDocs.push(file);
+  renderDocList();
+  docInput.value = '';
+});
+
+// Drag and drop
+window.addEventListener('dragover', e => {
+  e.preventDefault();
+  dropOverlay.classList.remove('hidden');
+});
+dropOverlay.addEventListener('dragleave', () => dropOverlay.classList.add('hidden'));
+dropOverlay.addEventListener('drop', e => {
+  e.preventDefault();
+  dropOverlay.classList.add('hidden');
+  const files = e.dataTransfer?.files;
+  if (!files || files.length === 0) return;
+
+  for (const file of files) {
+    const ext = file.name.split('.').pop().toLowerCase();
+    if (['pdf', 'docx', 'odt'].includes(ext)) {
+      stagedDocs.push(file);
+    } else {
+      transcribeFile(file);
+      break; 
+    }
+  }
+  renderDocList();
+});
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+function updateCharCount() {
+  charCount.textContent = sourceText.value.length.toLocaleString();
+}
+
+function setOutput(text) {
+  outputDiv.classList.remove('loading');
+  if (!text) {
+    outputDiv.innerHTML = '<span class="placeholder">Translation will appear here…</span>';
+    copyBtn.classList.add('hidden');
+  } else {
+    outputDiv.textContent = text;
+    copyBtn.classList.remove('hidden');
+  }
+}
+
+function setOutputLoading(loading) {
+  if (loading) {
+    outputDiv.classList.add('loading');
+  } else {
+    outputDiv.classList.remove('loading');
+  }
+}
+
+function showTranscribeStatus(msg) {
+  transcribeStatus.innerHTML = `<span class="spinner"></span>${msg}`;
+  transcribeStatus.classList.remove('hidden');
+}
+
+function hideTranscribeStatus() {
+  transcribeStatus.classList.add('hidden');
+}
+
+let notifTimer = null;
+function showNotification(msg, type = '') {
+  notification.textContent = msg;
+  notification.className   = 'notification' + (type ? ' ' + type : '');
+  notification.classList.remove('hidden');
+  clearTimeout(notifTimer);
+  notifTimer = setTimeout(() => notification.classList.add('hidden'), type === 'error' ? 5000 : 3000);
+}
+
+init();
