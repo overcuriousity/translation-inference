@@ -11,9 +11,9 @@ use anyhow::Result;
 use crate::api::chunker::{context_size_from_model_id, usable_input_chars};
 use crate::api::{chat::translate_single, client::OpenAiClient};
 
-// Null-byte delimiters are never emitted by LLMs and cannot appear in valid
-// document text, so they are safe to use as an unambiguous batch separator.
-const PARA_SEP: &str = "\x00PARA\x00SEP\x00";
+// We use a highly unlikely string as a batch separator because null bytes
+// are often stripped by LLM APIs or tokenizers, breaking the split logic.
+const PARA_SEP: &str = "[---PARAGRAPH_SEPARATOR---]";
 
 /// Translate a list of paragraph strings, preserving order and count.
 ///
