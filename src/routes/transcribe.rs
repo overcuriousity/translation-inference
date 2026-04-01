@@ -1,4 +1,4 @@
-use axum::{extract::{Multipart, State}, http::StatusCode, Json};
+use axum::{extract::{Multipart, State}, http::{HeaderMap, StatusCode}, Json};
 use std::sync::Arc;
 
 use crate::api::whisper::{self, extract_audio_from_video, is_video_file};
@@ -11,6 +11,7 @@ const MAX_UPLOAD_BYTES: usize = 100 * 1024 * 1024;
 
 pub async fn post_transcribe(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     mut multipart: Multipart,
 ) -> Result<Json<TranscribeResponse>, (StatusCode, Json<ErrorResponse>)> {
     let mut file_bytes: Option<Vec<u8>> = None;
@@ -61,7 +62,7 @@ pub async fn post_transcribe(
     }
 
     let bytes = file_bytes.ok_or_else(|| err(StatusCode::BAD_REQUEST, "No file field found".into()))?;
-    let client = resolve_client(&state, endpoint.as_deref(), api_key.as_deref())?;
+    let client = resolve_client(&state, endpoint.as_deref(), api_key.as_deref(), &headers)?;
 
     // For video files, extract audio with ffmpeg first
     let (final_bytes, final_filename) = if is_video_file(&filename) {

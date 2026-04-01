@@ -1,4 +1,4 @@
-use axum::{extract::{Multipart, State}, http::StatusCode, Json};
+use axum::{extract::{Multipart, State}, http::{HeaderMap, StatusCode}, Json};
 use base64::{Engine as _, engine::general_purpose::STANDARD as B64};
 use std::path::Path;
 use std::sync::Arc;
@@ -12,6 +12,7 @@ const MAX_DOC_BYTES: usize = 50 * 1024 * 1024; // 50 MB per file
 
 pub async fn post_translate_document(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     mut multipart: Multipart,
 ) -> Result<Json<TranslateDocumentResponse>, (StatusCode, Json<ErrorResponse>)> {
     let mut files: Vec<(String, Vec<u8>)> = Vec::new();
@@ -64,7 +65,7 @@ pub async fn post_translate_document(
         return Err(err(StatusCode::BAD_REQUEST, "No files provided".into()));
     }
 
-    let client = resolve_client(&state, endpoint.as_deref(), api_key.as_deref())?;
+    let client = resolve_client(&state, endpoint.as_deref(), api_key.as_deref(), &headers)?;
     let model_str = model.as_deref().unwrap_or(&state.config.translation_model);
 
     let mut result_files: Vec<DocumentFile> = Vec::new();

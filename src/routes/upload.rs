@@ -1,4 +1,4 @@
-use axum::{extract::{Multipart, State}, http::StatusCode, Json};
+use axum::{extract::{Multipart, State}, http::{HeaderMap, StatusCode}, Json};
 use base64::{Engine as _, engine::general_purpose::STANDARD as B64};
 use std::path::Path;
 use std::sync::Arc;
@@ -13,6 +13,7 @@ const MAX_FILE_BYTES: usize = 100 * 1024 * 1024; // 100 MB
 
 pub async fn post_upload(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     mut multipart: Multipart,
 ) -> Result<Json<UploadResponse>, (StatusCode, Json<ErrorResponse>)> {
     let mut uploaded_files: Vec<(String, Vec<u8>)> = Vec::new();
@@ -70,7 +71,7 @@ pub async fn post_upload(
         return Err(err(StatusCode::BAD_REQUEST, "No files provided".into()));
     }
 
-    let client = resolve_client(&state, endpoint.as_deref(), api_key.as_deref())?;
+    let client = resolve_client(&state, endpoint.as_deref(), api_key.as_deref(), &headers)?;
     let model_str = model.as_deref().unwrap_or(&state.config.translation_model);
     let whisper_model_str = whisper_model.as_deref().unwrap_or(&state.config.whisper_model);
 

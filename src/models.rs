@@ -69,6 +69,8 @@ pub struct OpenAiModel {
 #[derive(Debug, Serialize)]
 pub struct StatusResponse {
     pub server_configured: bool,
+    /// True when the request carries a valid `sid` session cookie.
+    pub session_active: bool,
 }
 
 #[derive(Debug, Serialize)]

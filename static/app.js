@@ -37,8 +37,9 @@ const sourcePanel      = document.querySelector('.panel-source');
 
 // ── Boot ─────────────────────────────────────────────────────────────────
 async function init() {
-  const status = await fetch('/api/status').then(r => r.json()).catch(() => ({ server_configured: false }));
-  if (!status.server_configured) {
+  const status = await fetch('/api/status').then(r => r.json())
+    .catch(() => ({ server_configured: false, session_active: false }));
+  if (!status.server_configured && !status.session_active) {
     showConfigPanel('Please configure your API credentials.');
   } else {
     await Promise.all([loadLanguages(), loadModels()]);

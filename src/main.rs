@@ -20,9 +20,19 @@ mod static_files;
 use api::client::OpenAiClient;
 use config::AppConfig;
 
+/// Credentials stored for a browser session.
+pub struct SessionCredentials {
+    pub endpoint: String,
+    pub api_key: String,
+}
+
 pub struct AppState {
     pub config: AppConfig,
     pub client: OpenAiClient,
+    /// In-memory session store keyed by session ID (set via `sid` cookie).
+    /// Sessions survive as long as the server process runs; the browser-side
+    /// cookie is session-scoped (no Max-Age) so it expires when the tab closes.
+    pub sessions: std::sync::RwLock<std::collections::HashMap<String, SessionCredentials>>,
 }
 
 #[tokio::main]
@@ -49,7 +59,11 @@ async fn main() -> Result<()> {
     }
 
     let client = OpenAiClient::new(&config);
-    let state = Arc::new(AppState { config, client });
+    let state = Arc::new(AppState {
+        config,
+        client,
+        sessions: std::sync::RwLock::new(std::collections::HashMap::new()),
+    });
 
     let cors = CorsLayer::new()
         .allow_origin(Any)

@@ -1,4 +1,4 @@
-use axum::{body::Body, extract::State, http::{header, StatusCode}, response::Response, Json};
+use axum::{body::Body, extract::State, http::{header, HeaderMap, StatusCode}, response::Response, Json};
 use futures::StreamExt;
 use std::sync::Arc;
 
@@ -6,11 +6,24 @@ use crate::api::{chat, client::OpenAiClient};
 use crate::models::{ErrorResponse, TranslateRequest, TranslateResponse};
 use crate::AppState;
 
+/// Extract the `sid` session cookie from request headers.
+pub fn get_session_id(headers: &HeaderMap) -> Option<String> {
+    let cookie_str = headers.get("cookie")?.to_str().ok()?;
+    for pair in cookie_str.split(';') {
+        let mut parts = pair.trim().splitn(2, '=');
+        if parts.next()?.trim() == "sid" {
+            return Some(parts.next()?.trim().to_string());
+        }
+    }
+    None
+}
+
 pub async fn post_translate_stream(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Json(req): Json<TranslateRequest>,
 ) -> Result<Response, (StatusCode, Json<ErrorResponse>)> {
-    let client = resolve_client(&state, req.endpoint.as_deref(), req.api_key.as_deref())?;
+    let client = resolve_client(&state, req.endpoint.as_deref(), req.api_key.as_deref(), &headers)?;
 
     let model = req
         .model
@@ -54,6 +67,7 @@ pub async fn post_translate_stream(
 
 pub async fn post_translate(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Json(req): Json<TranslateRequest>,
 ) -> Result<Json<TranslateResponse>, (StatusCode, Json<ErrorResponse>)> {
     if req.text.trim().is_empty() {
@@ -64,7 +78,7 @@ pub async fn post_translate(
         }));
     }
 
-    let client = resolve_client(&state, req.endpoint.as_deref(), req.api_key.as_deref())?;
+    let client = resolve_client(&state, req.endpoint.as_deref(), req.api_key.as_deref(), &headers)?;
 
     let model = req
         .model
@@ -91,20 +105,28 @@ pub fn resolve_client(
     state: &AppState,
     endpoint: Option<&str>,
     api_key: Option<&str>,
+    headers: &HeaderMap,
 ) -> Result<OpenAiClient, (StatusCode, Json<ErrorResponse>)> {
+    // Explicit per-request credentials take top priority.
     if let (Some(ep), Some(key)) = (endpoint, api_key) {
         if !ep.is_empty() && !key.is_empty() {
             return Ok(OpenAiClient::with_credentials(ep, key));
         }
     }
-    if state.config.is_configured() {
-        Ok(state.client.clone())
-    } else {
-        Err((
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse {
-                error: "No API credentials configured. Provide endpoint and api_key in the request.".into(),
-            }),
-        ))
+    // Fall back to the session cookie credentials.
+    if let Some(sid) = get_session_id(headers) {
+        if let Some(creds) = state.sessions.read().unwrap().get(&sid) {
+            return Ok(OpenAiClient::with_credentials(&creds.endpoint, &creds.api_key));
+        }
     }
+    // Fall back to the server-level configured client.
+    if state.config.is_configured() {
+        return Ok(state.client.clone());
+    }
+    Err((
+        StatusCode::BAD_REQUEST,
+        Json(ErrorResponse {
+            error: "No API credentials configured. Provide endpoint and api_key in the request.".into(),
+        }),
+    ))
 }
