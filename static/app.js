@@ -289,6 +289,11 @@ async function handleFiles(files) {
     }
 
     let docResults = [];
+    const hasText = data.results.some(r => r.type === 'text');
+    if (hasText) {
+      sourceText.value = '';
+    }
+    
     for (const item of data.results) {
       if (item.type === 'text') {
         sourceText.value += (sourceText.value ? '\n\n' : '') + item.text;

@@ -115,7 +115,21 @@ pub async fn post_upload(
             .unwrap_or("document");
 
         if is_audio_video(&ext) {
-            let text = whisper::transcribe(&client, whisper_model_str, file.tmp.path(), &filename)
+            let mut final_filename = filename.clone();
+            let mut final_path = file.tmp.path().to_path_buf();
+            let _wav_tmp;
+
+            if whisper::is_video_file(&filename) {
+                let wav_tmp = whisper::extract_audio_from_video(file.tmp.path())
+                    .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, format!("{filename}: {e:#}")))?;
+                final_path = wav_tmp.path().to_path_buf();
+                final_filename = "extracted.wav".to_string();
+                _wav_tmp = Some(wav_tmp);
+            } else {
+                _wav_tmp = None;
+            }
+
+            let text = whisper::transcribe(&client, whisper_model_str, &final_path, &final_filename)
                 .await
                 .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, format!("{filename}: {e:#}")))?;
             results.push(UploadResult::Text { filename, text });
