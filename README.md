@@ -1,4 +1,5 @@
 # translation-inference
+<img width="1087" height="794" alt="image" src="https://github.com/user-attachments/assets/b5665388-d45f-42ad-971d-81ba721310fc" />
 
 A Rust-based translation and transcription inference service.
 
