@@ -525,18 +525,22 @@ async function saveToBitvault(text, tab) {
     try { data = JSON.parse(bodyText); } catch (_) { /* non-JSON response */ }
     if (res.ok) {
       if (data && data.url) {
-        tab.location.href = data.url;
+        if (tab && !tab.closed) {
+          tab.location.href = data.url;
+        } else {
+          window.location.href = data.url;
+        }
         showNotification('Saved to Bitvault', 'success');
       } else {
-        tab.close();
+        if (tab && !tab.closed) tab.close();
         showNotification('Save succeeded but no URL returned', 'error');
       }
     } else {
-      tab.close();
+      if (tab && !tab.closed) tab.close();
       showNotification((data && data.error) || bodyText || 'Save failed', 'error');
     }
   } catch (_) {
-    tab.close();
+    if (tab && !tab.closed) tab.close();
     showNotification('Network error', 'error');
   }
 }
@@ -545,6 +549,7 @@ saveSrcBtn.addEventListener('click', () => {
   const text = sourceText.value.trim();
   if (!text) return;
   const tab = window.open('', '_blank');
+  if (!tab) { showNotification('Allow popups to save to Bitvault', 'error'); return; }
   saveToBitvault(text, tab);
 });
 
@@ -552,6 +557,7 @@ saveOutBtn.addEventListener('click', () => {
   const text = (lastTranslatedText || '').trim();
   if (!text) return;
   const tab = window.open('', '_blank');
+  if (!tab) { showNotification('Allow popups to save to Bitvault', 'error'); return; }
   saveToBitvault(text, tab);
 });
 

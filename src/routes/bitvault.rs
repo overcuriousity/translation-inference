@@ -44,7 +44,7 @@ pub async fn post_save_to_bitvault(
         privacy: "unlisted",
     };
 
-    let mut builder = state.client.http.post(&endpoint).json(&body);
+    let mut builder = state.client.http.post(&endpoint).json(&body).timeout(Duration::from_secs(30));
     if let Some(key) = &state.config.bitvault_api_key {
         builder = builder.header("Authorization", format!("Bearer {key}"));
     }
@@ -56,7 +56,11 @@ pub async fn post_save_to_bitvault(
 
     if !resp.status().is_success() {
         let status = resp.status();
-        let text = resp.text().await.unwrap_or_default();
+        let mut text = resp.text().await.unwrap_or_default();
+        if text.len() > MAX_PROXY_BYTES {
+            text.truncate(MAX_PROXY_BYTES);
+            text.push_str("...[truncated]");
+        }
         return Err((
             StatusCode::BAD_GATEWAY,
             Json(ErrorResponse { error: format!("Bitvault returned {status}: {text}") }),
