@@ -29,6 +29,9 @@ pub struct SessionCredentials {
 pub struct AppState {
     pub config: AppConfig,
     pub client: OpenAiClient,
+    /// Separate reqwest client for Bitvault proxy fetches with redirects disabled
+    /// to prevent SSRF via open redirects on the Bitvault host.
+    pub bitvault_http: reqwest::Client,
     /// In-memory session store keyed by session ID (set via `sid` cookie).
     /// Sessions survive as long as the server process runs; the browser-side
     /// cookie is session-scoped (no Max-Age) so it expires when the tab closes.
@@ -59,9 +62,15 @@ async fn main() -> Result<()> {
     }
 
     let client = OpenAiClient::new(&config);
+    let bitvault_http = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .expect("failed to build Bitvault HTTP client");
     let state = Arc::new(AppState {
         config,
         client,
+        bitvault_http,
         sessions: std::sync::RwLock::new(std::collections::HashMap::new()),
     });
 

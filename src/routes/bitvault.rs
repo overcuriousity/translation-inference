@@ -3,6 +3,7 @@ use axum::{
     http::StatusCode,
     Json,
 };
+use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 use std::{sync::Arc, time::Duration};
 use url::Url;
@@ -109,9 +110,8 @@ pub async fn get_proxy_text(
         ));
     }
 
-    let resp = state.client.http
+    let resp = state.bitvault_http
         .get(&q.url)
-        .timeout(Duration::from_secs(30))
         .send()
         .await
         .map_err(|e| (
@@ -121,7 +121,11 @@ pub async fn get_proxy_text(
 
     if !resp.status().is_success() {
         let upstream_status = resp.status();
-        let body = resp.text().await.unwrap_or_default();
+        let mut body = resp.text().await.unwrap_or_default();
+        if body.len() > MAX_PROXY_BYTES {
+            body.truncate(MAX_PROXY_BYTES);
+            body.push_str("...[truncated]");
+        }
         return Err((
             StatusCode::BAD_GATEWAY,
             Json(ErrorResponse { error: format!("Bitvault responded with {upstream_status}: {body}") }),
@@ -135,18 +139,22 @@ pub async fn get_proxy_text(
         ));
     }
 
-    let bytes = resp.bytes().await.map_err(|e| (
-        StatusCode::BAD_GATEWAY,
-        Json(ErrorResponse { error: format!("Failed to read Bitvault response: {e}") }),
-    ))?;
-
-    if bytes.len() > MAX_PROXY_BYTES {
-        return Err((
+    let mut stream = resp.bytes_stream();
+    let mut buf: Vec<u8> = Vec::new();
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.map_err(|e| (
             StatusCode::BAD_GATEWAY,
-            Json(ErrorResponse { error: "Bitvault response exceeds size limit".into() }),
-        ));
+            Json(ErrorResponse { error: format!("Failed to read Bitvault response: {e}") }),
+        ))?;
+        if buf.len() + chunk.len() > MAX_PROXY_BYTES {
+            return Err((
+                StatusCode::BAD_GATEWAY,
+                Json(ErrorResponse { error: "Bitvault response exceeds size limit".into() }),
+            ));
+        }
+        buf.extend_from_slice(&chunk);
     }
 
-    let text = String::from_utf8_lossy(&bytes).into_owned();
+    let text = String::from_utf8_lossy(&buf).into_owned();
     Ok(text)
 }
