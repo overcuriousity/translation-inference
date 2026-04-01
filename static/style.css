@@ -61,6 +61,15 @@ body {
   border-bottom: 1px solid var(--color-border);
   z-index: 50;
 }
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.app-logo {
+  display: block;
+  flex-shrink: 0;
+}
 .app-title {
   font-size: 1.1rem;
   font-weight: 600;

@@ -26,7 +26,13 @@ Before you begin, ensure you have the following installed:
   - macOS: `brew install ffmpeg`
 - **PDF Support (Optional but recommended):**
   - `poppler-utils` (provides `pdftotext` for PDF text extraction)
-  - `liberation-fonts` (or `liberation-fonts-ttf`) for PDF output rendering
+    - Ubuntu/Debian: `sudo apt install poppler-utils`
+    - Fedora/RHEL: `sudo dnf install poppler-utils`
+    - macOS: `brew install poppler`
+  - `liberation-fonts` for PDF output rendering
+    - Ubuntu/Debian: `sudo apt install fonts-liberation`
+    - Fedora/RHEL: `sudo dnf install liberation-fonts`
+    - macOS: `brew install --cask font-liberation`
 
 ## 🚀 Getting Started
 
