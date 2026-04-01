@@ -34,15 +34,41 @@ const configMsg        = document.getElementById('config-msg');
 const settingsBtn      = document.getElementById('settings-btn');
 const dropOverlay      = document.getElementById('drop-overlay');
 const sourcePanel      = document.querySelector('.panel-source');
+const saveSrcBtn       = document.getElementById('save-src-btn');
+const saveOutBtn       = document.getElementById('save-out-btn');
 
 // ── Boot ─────────────────────────────────────────────────────────────────
 async function init() {
   const status = await fetch('/api/status').then(r => r.json())
-    .catch(() => ({ server_configured: false, session_active: false }));
+    .catch(() => ({ server_configured: false, session_active: false, bitvault_configured: false }));
+
+  if (status.bitvault_configured) {
+    saveSrcBtn.classList.remove('hidden');
+    saveOutBtn.classList.remove('hidden');
+  }
+
   if (!status.server_configured && !status.session_active) {
     showConfigPanel('Please configure your API credentials.');
   } else {
     await Promise.all([loadLanguages(), loadModels()]);
+  }
+
+  // Pre-fill source text from a Bitvault paste URL passed as ?from=
+  const fromUrl = new URLSearchParams(window.location.search).get('from');
+  if (fromUrl && status.bitvault_configured) {
+    try {
+      const res = await fetch(`/api/proxy-text?url=${encodeURIComponent(fromUrl)}`);
+      if (res.ok) {
+        sourceText.value = await res.text();
+        updateCharCount();
+        if (status.server_configured || status.session_active) {
+          clearTimeout(translationTimeout);
+          translate(true);
+        } else {
+          showConfigPanel('Please configure your API credentials to enable auto-translation.');
+        }
+      }
+    } catch (_) { /* silently ignore */ }
   }
 }
 
@@ -485,6 +511,58 @@ function appendDocResult(item) {
   li.appendChild(btn);
   ul.appendChild(li);
 }
+
+// ── Bitvault integration ──────────────────────────────────────────────────
+async function saveToBitvault(text, tab) {
+  try {
+    const res = await fetch('/api/save-to-bitvault', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ text }),
+    });
+    const bodyText = await res.text();
+    let data = null;
+    try { data = JSON.parse(bodyText); } catch (_) { /* non-JSON response */ }
+    if (res.ok) {
+      if (data && data.url) {
+        if (tab && !tab.closed) {
+          tab.location.href = data.url;
+        } else {
+          window.location.href = data.url;
+        }
+        showNotification('Saved to Bitvault', 'success');
+      } else {
+        if (tab && !tab.closed) tab.close();
+        showNotification('Save succeeded but no URL returned', 'error');
+      }
+    } else {
+      if (tab && !tab.closed) tab.close();
+      const msg = (data && data.error) || bodyText || 'Save failed';
+      showNotification(msg.length > 200 ? msg.slice(0, 200) + '…' : msg, 'error');
+    }
+  } catch (_) {
+    if (tab && !tab.closed) tab.close();
+    showNotification('Network error', 'error');
+  }
+}
+
+saveSrcBtn.addEventListener('click', () => {
+  const text = sourceText.value.trim();
+  if (!text) return;
+  const tab = window.open('', '_blank');
+  if (!tab) { showNotification('Allow popups to save to Bitvault', 'error'); return; }
+  tab.opener = null;
+  saveToBitvault(text, tab);
+});
+
+saveOutBtn.addEventListener('click', () => {
+  const text = (lastTranslatedText || '').trim();
+  if (!text) return;
+  const tab = window.open('', '_blank');
+  if (!tab) { showNotification('Allow popups to save to Bitvault', 'error'); return; }
+  tab.opener = null;
+  saveToBitvault(text, tab);
+});
 
 let notifTimer = null;
 function showNotification(msg, type = '') {

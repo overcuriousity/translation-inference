@@ -1,3 +1,4 @@
+pub mod bitvault;
 pub mod config;
 pub mod document;
 pub mod languages;
