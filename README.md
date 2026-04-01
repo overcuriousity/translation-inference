@@ -1,41 +1,86 @@
 # translation-inference
-<img width="1087" height="794" alt="image" src="https://github.com/user-attachments/assets/b5665388-d45f-42ad-971d-81ba721310fc" />
 
-A Rust-based translation and transcription inference service.
+<p align="center">
+  <img width="1087" height="794" alt="translation-inference web interface" src="https://github.com/user-attachments/assets/b5665388-d45f-42ad-971d-81ba721310fc" />
+</p>
 
-## Features
+A fast, memory-efficient, Rust-based translation and transcription inference service with a built-in modern web interface. Designed to act as a unified frontend and API for any OpenAI-compatible LLM and Whisper endpoint (such as Ollama, vLLM, LM Studio, or LiteLLM).
 
-- **Translation:** Translate text between multiple languages.
-- **Files**: Input docx, odt, PDF, get out translated odt, pdf, docx
-- **Transcription:** Transcribe audio using Whisper-compatible APIs.
-- **Web Interface:** Includes a built-in static web interface for easy interaction.
-- **API:** RESTful API for integration with other services.
+## ✨ Features
 
-## Prerequisites
+- **Bring Your Own API**: Seamlessly integrates with any OpenAI-compatible backend for both LLMs (translation) and Whisper models (transcription).
+- **Document Translation**: Upload and translate full documents while preserving formatting. Supports `.docx`, `.odt`, and `.pdf` files.
+- **Audio & Video Transcription**: Extract and transcribe speech from audio and video files (`.mp3`, `.wav`, `.mp4`, `.mkv`, etc.).
+  - **Memory-Efficient**: Uploads are streamed directly to disk. Large files (up to 100MB) are automatically chunked (25MB segments) using `ffmpeg` without exhausting server RAM.
+- **Real-Time Streaming**: Text translation supports streaming outputs for a responsive UI experience.
+- **Modern Web Interface**: A clean, built-in static web UI. Supports session-based credential storage (bring your own API key directly in the browser).
+- **Auto-Model Fetching**: Automatically fetches available models from the connected endpoint.
 
-- [Rust](https://www.rust-lang.org/tools/install) (latest stable)
-- **PDF Support (optional):**
-  - `poppler-utils` (for `pdftotext`)
+## 🛠️ Prerequisites
+
+Before you begin, ensure you have the following installed:
+
+- **[Rust](https://www.rust-lang.org/tools/install)** (latest stable version)
+- **`ffmpeg`**: Required for extracting audio from video files and chunking large audio files.
+  - Ubuntu/Debian: `sudo apt install ffmpeg`
+  - macOS: `brew install ffmpeg`
+- **PDF Support (Optional but recommended):**
+  - `poppler-utils` (provides `pdftotext` for PDF reading)
   - `paps` (for text-to-PDF conversion)
 
-## Setup
+## 🚀 Getting Started
 
-1. Clone the repository:
+1. **Clone the repository:**
    ```bash
-   git clone https://github.com/your-username/translation-inference.git
+   git clone https://github.com/overcuriousity/translation-inference.git
    cd translation-inference
    ```
 
-2. Copy the example environment file and configure your settings:
+2. **Configure Environment:**
+   Copy the example environment file and adjust it to your OpenAI-compatible endpoint.
    ```bash
    cp .env.example .env
    ```
+   *Note: You can also leave the `.env` empty and provide your API endpoint and key dynamically via the Web UI.*
 
-3. Run the application:
+3. **Run the server:**
    ```bash
-   cargo run
+   cargo run --release
    ```
+   The server will start on `http://0.0.0.0:3000` by default.
 
-## License
+## ⚙️ Configuration (`.env`)
+
+```env
+# Your OpenAI-compatible API base URL
+API_BASE_URL=https://llm.mikoshi.de
+API_KEY=your-api-key-here
+
+# Default models (used if none are selected in the UI)
+TRANSLATION_MODEL=gpgpu/qwen3:14b-q5_k_m-32768
+WHISPER_MODEL=gpgpu/whisper
+
+# Optional: Comma-separated list of models to show in the UI.
+# If left empty, the server automatically fetches available models from the API.
+TRANSLATION_MODELS=gpgpu/qwen3:14b-q5_k_m-32768,deepseek-chat
+WHISPER_MODELS=gpgpu/whisper
+
+# Server bind address
+LISTEN_ADDR=0.0.0.0:3000
+```
+
+## 📡 API Endpoints
+
+The service provides a RESTful API for integrations:
+
+- `GET /api/status` - Check server configuration and session status.
+- `GET /api/models` - Fetch available translation and transcription models.
+- `POST /api/translate` - Translate raw text.
+- `POST /api/translate/stream` - Translate raw text with SSE streaming response.
+- `POST /api/transcribe` - Transcribe an audio or video file.
+- `POST /api/translate-document` - Translate `.docx`, `.odt`, or `.pdf` files.
+- `POST /api/upload` - Unified upload endpoint for mixed media (transcribes audio/video, translates documents).
+
+## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
