@@ -25,8 +25,8 @@ Before you begin, ensure you have the following installed:
   - Ubuntu/Debian: `sudo apt install ffmpeg`
   - macOS: `brew install ffmpeg`
 - **PDF Support (Optional but recommended):**
-  - `poppler-utils` (provides `pdftotext` for PDF reading)
-  - `paps` (for text-to-PDF conversion)
+  - `poppler-utils` (provides `pdftotext` for PDF text extraction)
+  - `liberation-fonts` (or `liberation-fonts-ttf`) for PDF output rendering
 
 ## 🚀 Getting Started
 

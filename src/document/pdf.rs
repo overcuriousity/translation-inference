@@ -24,7 +24,7 @@ pub fn extract_pdf_text(bytes: &[u8]) -> Result<String> {
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
 }
 
-/// Translate a PDF by extracting its text, translating it, and generating a new PDF using `paps`.
+/// Translate a PDF by extracting its text, translating it, and generating a new PDF.
 pub async fn translate_pdf(
     bytes: &[u8],
     client: &crate::api::client::OpenAiClient,
@@ -33,51 +33,44 @@ pub async fn translate_pdf(
     target_lang: &str,
 ) -> Result<Vec<u8>> {
     let text = extract_pdf_text(bytes).context("failed to extract text from PDF")?;
-    
+
     let (translated, _, _) = crate::api::chat::translate(client, model, source_lang, target_lang, &text)
         .await
         .context("translation failed")?;
 
-    // Create a temp file for the translated text
-    let mut txt_tmp = tempfile::Builder::new()
-        .suffix(".txt")
-        .tempfile()
-        .context("failed to create temp file for translated text")?;
-    txt_tmp.write_all(translated.as_bytes()).context("failed to write translated text")?;
-    txt_tmp.flush()?;
-
-    // Use `paps` to convert text to PDF
-    let output = Command::new("paps")
-        .args([
-            "--format=pdf",
-            "--font=Monospace 10",
-            "--paper=a4",
-            txt_tmp.path().to_str().unwrap_or(""),
-        ])
-        .output()
-        .context("failed to run paps — is it installed?")?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        anyhow::bail!("paps failed: {stderr}");
-    }
-
-    Ok(output.stdout)
+    text_to_pdf(&translated)
 }
 
-/// Check whether `pdftotext` and `paps` are available in PATH.
+/// Render plain text into a PDF using `genpdf` (pure Rust, no system dependencies).
+fn text_to_pdf(text: &str) -> Result<Vec<u8>> {
+    let font = genpdf::fonts::from_files("/usr/share/fonts/liberation-mono", "LiberationMono", None)
+        .or_else(|_| genpdf::fonts::from_files("/usr/share/fonts/truetype/liberation", "LiberationMono", None))
+        .or_else(|_| genpdf::fonts::from_files("/usr/share/fonts/liberation", "LiberationMono", None))
+        .context("failed to load font — install liberation-fonts or liberation-fonts-ttf")?;
+
+    let mut doc = genpdf::Document::new(font);
+    doc.set_title("Translated document");
+    doc.set_minimal_conformance();
+    doc.set_line_spacing(1.25);
+
+    let mut decorator = genpdf::SimplePageDecorator::new();
+    decorator.set_margins(15);
+    doc.set_page_decorator(decorator);
+
+    for line in text.lines() {
+        doc.push(genpdf::elements::Paragraph::new(line));
+    }
+
+    let mut buf = Vec::new();
+    doc.render(&mut buf).context("failed to render PDF")?;
+    Ok(buf)
+}
+
+/// Check whether `pdftotext` is available in PATH.
 pub fn is_available() -> bool {
-    let pdf_to_text = Command::new("pdftotext")
+    Command::new("pdftotext")
         .arg("-v")
         .output()
         .map(|o| o.status.success() || !o.stderr.is_empty())
-        .unwrap_or(false);
-
-    let paps = Command::new("paps")
-        .arg("--version")
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false);
-
-    pdf_to_text && paps
+        .unwrap_or(false)
 }

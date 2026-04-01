@@ -445,8 +445,18 @@ body {
   font-size: 0.85rem;
   color: var(--color-text-muted);
   display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pending-file {
+  display: flex;
   align-items: center;
   gap: 10px;
+}
+.pending-file-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .spinner {
   width: 16px;

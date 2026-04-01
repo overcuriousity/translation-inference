@@ -268,53 +268,52 @@ modelSel.addEventListener('change', () => { lastTranslatedText = ''; translate(t
 // ── Transcription & Upload ────────────────────────────────────────────────
 async function handleFiles(files) {
   if (!files || files.length === 0) return;
-  showTranscribeStatus('Processing…');
+  const fileArray = Array.from(files);
   sourceText.disabled = true;
 
-  try {
-    const form = new FormData();
-    for (const f of files) form.append('file', f, f.name);
-    form.append('source_lang', sourceLangName(sourceLangSel.value));
-    form.append('target_lang', targetLangName(targetLangSel.value));
-    form.append('model', modelSel.value || '');
-    form.append('whisper_model', whisperModelSel.value || '');
-    appendCredentialsToForm(form);
+  showPendingQueue(fileArray);
 
-    const res  = await fetch('/api/upload', { method: 'POST', body: form });
-    const data = await res.json();
+  let hasText = false;
 
-    if (!res.ok) {
-      showNotification(data.error || 'Processing failed', 'error');
-      return;
-    }
+  for (let i = 0; i < fileArray.length; i++) {
+    const file = fileArray[i];
+    try {
+      const form = new FormData();
+      form.append('file', file, file.name);
+      form.append('source_lang', sourceLangName(sourceLangSel.value));
+      form.append('target_lang', targetLangName(targetLangSel.value));
+      form.append('model', modelSel.value || '');
+      form.append('whisper_model', whisperModelSel.value || '');
+      appendCredentialsToForm(form);
 
-    let docResults = [];
-    const hasText = data.results.some(r => r.type === 'text');
-    if (hasText) {
-      sourceText.value = '';
-    }
-    
-    for (const item of data.results) {
-      if (item.type === 'text') {
-        sourceText.value += (sourceText.value ? '\n\n' : '') + item.text;
-      } else if (item.type === 'document') {
-        docResults.push(item);
+      const res  = await fetch('/api/upload', { method: 'POST', body: form });
+      const data = await res.json();
+
+      removePendingEntry(i);
+
+      if (!res.ok) {
+        showNotification(data.error || 'Processing failed', 'error');
+        continue;
       }
-    }
 
-    if (sourceText.value) {
-      updateCharCount();
-      translate(true);
+      for (const item of data.results) {
+        if (item.type === 'text') {
+          sourceText.value += (sourceText.value ? '\n\n' : '') + item.text;
+          hasText = true;
+        } else if (item.type === 'document') {
+          appendDocResult(item);
+        }
+      }
+    } catch (e) {
+      removePendingEntry(i);
+      showNotification('Network error', 'error');
     }
-    if (docResults.length > 0) {
-      renderResultsDocList(docResults);
-      showNotification(`Processed ${docResults.length} document(s)`, 'success');
-    }
-  } catch (e) {
-    showNotification('Network error during processing', 'error');
-  } finally {
-    sourceText.disabled = false;
-    hideTranscribeStatus();
+  }
+
+  sourceText.disabled = false;
+  if (hasText) {
+    updateCharCount();
+    translate(true);
   }
 }
 
@@ -330,6 +329,8 @@ clearBtn.addEventListener('click', () => {
   chunkProgress.classList.add('hidden');
   copyBtn.classList.add('hidden');
   renderResultsDocList([]);
+  transcribeStatus.innerHTML = '';
+  transcribeStatus.classList.add('hidden');
 });
 
 copyBtn.addEventListener('click', async () => {
@@ -449,13 +450,40 @@ function setOutputLoading(loading) {
   }
 }
 
-function showTranscribeStatus(msg) {
-  transcribeStatus.innerHTML = `<span class="spinner"></span>${msg}`;
+function showPendingQueue(files) {
+  transcribeStatus.innerHTML = '';
+  files.forEach((file, i) => {
+    const row = document.createElement('div');
+    row.className = 'pending-file';
+    row.dataset.pendingIndex = i;
+    row.innerHTML = `<span class="spinner"></span><span class="pending-file-name">${file.name}</span>`;
+    transcribeStatus.appendChild(row);
+  });
   transcribeStatus.classList.remove('hidden');
 }
 
-function hideTranscribeStatus() {
-  transcribeStatus.classList.add('hidden');
+function removePendingEntry(index) {
+  const row = transcribeStatus.querySelector(`[data-pending-index="${index}"]`);
+  if (row) row.remove();
+  if (!transcribeStatus.querySelector('.pending-file')) {
+    transcribeStatus.classList.add('hidden');
+  }
+}
+
+function appendDocResult(item) {
+  if (resultsDocList.classList.contains('hidden') || !resultsDocList.querySelector('.doc-file-list')) {
+    resultsDocList.innerHTML = '<div class="doc-list-title">Translated Documents</div><ul class="doc-file-list"></ul>';
+    resultsDocList.classList.remove('hidden');
+  }
+  const ul = resultsDocList.querySelector('.doc-file-list');
+  const li = document.createElement('li');
+  li.textContent = item.filename;
+  const btn = document.createElement('button');
+  btn.className = 'btn-primary doc-dl-btn';
+  btn.textContent = 'Download';
+  btn.onclick = () => downloadBase64File(item.data, item.filename, item.mime);
+  li.appendChild(btn);
+  ul.appendChild(li);
 }
 
 let notifTimer = null;

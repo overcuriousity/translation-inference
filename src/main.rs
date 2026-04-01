@@ -112,8 +112,8 @@ fn check_ffmpeg() -> Result<()> {
 
 fn check_pdftotext() {
     if document::pdf::is_available() {
-        tracing::info!("pdftotext and paps found — PDF translation enabled");
+        tracing::info!("pdftotext found — PDF translation enabled");
     } else {
-        tracing::warn!("pdftotext or paps not found — PDF translation disabled (install poppler-utils and paps to enable)");
+        tracing::warn!("pdftotext not found — PDF translation disabled (install poppler-utils to enable)");
     }
 }
