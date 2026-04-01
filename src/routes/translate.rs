@@ -1,9 +1,56 @@
-use axum::{extract::State, http::StatusCode, Json};
+use axum::{body::Body, extract::State, http::{header, StatusCode}, response::Response, Json};
+use futures::StreamExt;
 use std::sync::Arc;
 
 use crate::api::{chat, client::OpenAiClient};
 use crate::models::{ErrorResponse, TranslateRequest, TranslateResponse};
 use crate::AppState;
+
+pub async fn post_translate_stream(
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<TranslateRequest>,
+) -> Result<Response, (StatusCode, Json<ErrorResponse>)> {
+    let client = resolve_client(&state, req.endpoint.as_deref(), req.api_key.as_deref())?;
+
+    let model = req
+        .model
+        .as_deref()
+        .unwrap_or(&state.config.translation_model)
+        .to_string();
+
+    let stream = chat::translate_stream(
+        client,
+        model,
+        req.source_lang,
+        req.target_lang,
+        req.text,
+    );
+
+    let byte_stream = stream.map(|result| {
+        match result {
+            Ok(text) => Ok::<_, std::convert::Infallible>(axum::body::Bytes::from(text)),
+            Err(e) => {
+                tracing::error!("Translation stream error: {e:#}");
+                // HTTP 200 is already committed; signal the error to the client via
+                // a null-byte sentinel that normal translation output can never contain.
+                Ok::<_, std::convert::Infallible>(axum::body::Bytes::from(
+                    format!("\x00ERR:{e:#}")
+                ))
+            }
+        }
+    });
+
+    let body = Body::from_stream(byte_stream);
+    
+    let response = Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, "text/plain; charset=utf-8")
+        .header(header::TRANSFER_ENCODING, "chunked")
+        .body(body)
+        .unwrap();
+
+    Ok(response)
+}
 
 pub async fn post_translate(
     State(state): State<Arc<AppState>>,

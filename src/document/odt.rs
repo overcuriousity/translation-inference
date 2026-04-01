@@ -1,9 +1,11 @@
 use anyhow::{Context, Result};
 use regex::Regex;
 use std::io::{Cursor, Read, Write};
+use std::sync::OnceLock;
 use zip::{ZipArchive, ZipWriter, write::SimpleFileOptions};
 
-use crate::api::{chat, client::OpenAiClient};
+use crate::api::client::OpenAiClient;
+use crate::document::translate_paragraphs;
 
 const ODT_MAIN: &str = "content.xml";
 
@@ -29,29 +31,29 @@ pub async fn translate_odt(
         .map(|r| extract_para_text(&xml_str[r.clone()]))
         .collect();
 
-    let non_empty: Vec<&str> = texts.iter()
-        .filter(|t| !t.trim().is_empty())
-        .map(|t| t.as_str())
+    let non_empty_indices: Vec<usize> = texts.iter()
+        .enumerate()
+        .filter(|(_, t)| !t.trim().is_empty())
+        .map(|(i, _)| i)
         .collect();
 
-    if non_empty.is_empty() {
+    if non_empty_indices.is_empty() {
         return repack_zip(bytes, ODT_MAIN, xml_str.as_bytes());
     }
 
-    let full_text = non_empty.join("\n\n---PARA-SEP---\n\n");
-    let (translated, _, _) = chat::translate(client, model, source_lang, target_lang, &full_text).await
-        .context("translation failed")?;
+    let non_empty_texts: Vec<&str> = non_empty_indices.iter()
+        .map(|&i| texts[i].as_str())
+        .collect();
 
-    let translated_parts: Vec<&str> = translated.split("\n\n---PARA-SEP---\n\n").collect();
-    let mut trans_iter = translated_parts.iter();
+    let translated_non_empty =
+        translate_paragraphs(&non_empty_texts, client, model, source_lang, target_lang)
+            .await
+            .context("translation failed")?;
 
-    let translated_texts: Vec<String> = texts.iter().map(|t| {
-        if t.trim().is_empty() {
-            String::new()
-        } else {
-            trans_iter.next().copied().unwrap_or("").to_string()
-        }
-    }).collect();
+    let mut translated_texts: Vec<String> = texts.iter().map(|_| String::new()).collect();
+    for (j, &orig_idx) in non_empty_indices.iter().enumerate() {
+        translated_texts[orig_idx] = translated_non_empty[j].clone();
+    }
 
     let mut new_xml = xml_str.clone();
     for (i, range) in para_ranges.iter().enumerate().rev() {
@@ -68,24 +70,55 @@ pub async fn translate_odt(
 
 /// Find byte ranges for each `<text:p>` or `<text:h>` element.
 fn find_para_ranges(xml: &str) -> Vec<std::ops::Range<usize>> {
-    let re = Regex::new(
+    static RE: OnceLock<Regex> = OnceLock::new();
+    let re = RE.get_or_init(|| Regex::new(
         r"(?s)<text:(?:p|h)(?:>|\s[^>]*>).*?</text:(?:p|h)>|<text:(?:p|h)(?:\s[^>]*)?\s*/>"
-    ).unwrap();
+    ).unwrap());
     re.find_iter(xml).map(|m| m.range()).collect()
 }
 
 /// Strip all XML tags to extract plain text from a paragraph.
 fn extract_para_text(para_xml: &str) -> String {
-    let tag_re = Regex::new(r"<[^>]+>").unwrap();
+    static RE: OnceLock<Regex> = OnceLock::new();
+    let tag_re = RE.get_or_init(|| Regex::new(r"<[^>]+>").unwrap());
     let text = tag_re.replace_all(para_xml, "");
     xml_unescape(text.trim())
 }
 
-/// Replace the inner content of a `<text:p>` or `<text:h>` element.
+/// Replace the inner content of a `<text:p>` or `<text:h>` element with
+/// the translation, preserving inline `<text:span>` structure.
+///
+/// When spans are present the first span receives the full translation and
+/// subsequent spans are emptied — matching what the DOCX path does for `<w:t>`
+/// runs and ensuring that at least the first span's character style is kept.
+/// When there are no spans the paragraph's own text node is replaced directly.
 fn replace_para_content(para_xml: &str, translation: &str) -> String {
+    static SPAN_RE: OnceLock<Regex> = OnceLock::new();
+    let span_re = SPAN_RE.get_or_init(|| {
+        Regex::new(r"(?s)<text:span(?:>|\s[^>]*>).*?</text:span>").unwrap()
+    });
+
     let escaped = xml_escape(translation);
 
-    // Determine the close tag
+    if span_re.is_match(para_xml) {
+        let mut first = true;
+        return span_re.replace_all(para_xml, |caps: &regex::Captures| {
+            let span = &caps[0];
+            // Keep the opening tag (with its style attributes) intact.
+            let open_end = span.find('>').map(|i| i + 1).unwrap_or(span.len());
+            let open_tag = &span[..open_end];
+            if first {
+                first = false;
+                format!("{}{}</text:span>", open_tag, escaped)
+            } else {
+                // Empty subsequent spans; their run-level style is preserved in
+                // case the document is later edited.
+                format!("{}</text:span>", open_tag)
+            }
+        }).to_string();
+    }
+
+    // No spans — replace the text content of the paragraph element directly.
     let close_tag = if para_xml.contains("</text:p>") {
         "</text:p>"
     } else if para_xml.contains("</text:h>") {
@@ -94,7 +127,6 @@ fn replace_para_content(para_xml: &str, translation: &str) -> String {
         return para_xml.to_string();
     };
 
-    // Find end of opening tag
     let open_end = match para_xml.find('>') {
         Some(i) => i + 1,
         None => return para_xml.to_string(),

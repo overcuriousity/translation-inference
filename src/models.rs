@@ -94,6 +94,18 @@ pub struct ErrorResponse {
     pub error: String,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum UploadResult {
+    Text { filename: String, text: String },
+    Document { filename: String, data: String, mime: String },
+}
+
+#[derive(Debug, Serialize)]
+pub struct UploadResponse {
+    pub results: Vec<UploadResult>,
+}
+
 // ── OpenAI-compatible structures ────────────────────────────────────────────
 
 #[derive(Debug, Serialize)]
@@ -103,6 +115,8 @@ pub struct ChatRequest {
     pub temperature: f32,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_tokens: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stream: Option<bool>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -119,6 +133,21 @@ pub struct ChatResponse {
 #[derive(Debug, Deserialize)]
 pub struct ChatChoice {
     pub message: ChatMessage,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct StreamResponse {
+    pub choices: Vec<StreamChoice>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct StreamChoice {
+    pub delta: StreamDelta,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct StreamDelta {
+    pub content: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

@@ -1,14 +1,17 @@
 use anyhow::{Context, Result};
+use futures::StreamExt;
 use regex::Regex;
+use reqwest_eventsource::{Event, RequestBuilderExt};
+use std::sync::OnceLock;
 
-use crate::api::chunker::{context_size_from_model_id, split_into_chunks, usable_input_chars};
+use crate::api::chunker::{context_size_from_model_id, last_sentences, split_into_chunks, usable_input_chars};
 use crate::api::client::OpenAiClient;
-use crate::models::{ChatMessage, ChatRequest, ChatResponse};
+use crate::models::{ChatMessage, ChatRequest, ChatResponse, StreamResponse};
 
-/// Strip `<think>...</think>` blocks that Qwen3 models sometimes emit.
+/// Strip `<think>...</think>` blocks that reasoning models sometimes emit.
 fn strip_think_tags(s: &str) -> String {
-    // Lazy match to handle multiple think blocks
-    let re = Regex::new(r"(?s)<think>.*?</think>").unwrap();
+    static RE: OnceLock<Regex> = OnceLock::new();
+    let re = RE.get_or_init(|| Regex::new(r"(?s)<think>.*?</think>").unwrap());
     re.replace_all(s, "").trim().to_string()
 }
 
@@ -31,29 +34,45 @@ fn build_system_prompt(source_lang: &str, target_lang: &str) -> String {
     )
 }
 
-/// Translate a single piece of text (no chunking).
+/// Build the user message for a chunk.
+/// When `translated_overlap` is supplied it is the tail of the *already-translated*
+/// previous chunk — in the target language — so the model can maintain terminology
+/// and style continuity without re-translating it.
+fn build_user_content(translated_overlap: Option<&str>, text: &str) -> String {
+    match translated_overlap {
+        Some(prev) => format!(
+            "PREVIOUS TRANSLATION (already done — do not repeat it, use it only for \
+             terminology and style continuity):\n{prev}\n\n\
+             TRANSLATE THE FOLLOWING (output only the translation, continuing seamlessly):\n{text}"
+        ),
+        None => text.to_string(),
+    }
+}
+
 async fn translate_chunk(
     client: &OpenAiClient,
     model: &str,
     system_prompt: &str,
-    overlap: Option<&str>,
+    translated_overlap: Option<&str>,
     text: &str,
 ) -> Result<String> {
-    let user_content = match overlap {
-        Some(ctx) => format!(
-            "CONTEXT FROM PREVIOUS SECTION (DO NOT TRANSLATE THIS):\n{ctx}\n\nTEXT TO TRANSLATE (TRANSLATE EVERYTHING BELOW EXACTLY):\n{text}"
-        ),
-        None => text.to_string(),
-    };
+    let user_content = build_user_content(translated_overlap, text);
 
     let request = ChatRequest {
         model: model.to_string(),
         messages: vec![
-            ChatMessage { role: "system".to_string(), content: system_prompt.to_string() },
-            ChatMessage { role: "user".to_string(), content: user_content },
+            ChatMessage {
+                role: "system".to_string(),
+                content: system_prompt.to_string(),
+            },
+            ChatMessage {
+                role: "user".to_string(),
+                content: user_content,
+            },
         ],
         temperature: 0.3,
         max_tokens: None,
+        stream: None,
     };
 
     let response = client
@@ -86,8 +105,6 @@ async fn translate_chunk(
     Ok(strip_think_tags(&raw))
 }
 
-/// Translate `text`, automatically chunking if it exceeds the model's context window.
-/// Returns `(translated_text, chunks_total, chunks_completed)`.
 pub async fn translate(
     client: &OpenAiClient,
     model: &str,
@@ -103,18 +120,150 @@ pub async fn translate(
     let system_prompt = build_system_prompt(source_lang, target_lang);
 
     let mut parts: Vec<String> = Vec::with_capacity(total);
+    // Tail of the previous chunk's *translation* (target language), used to
+    // give the model terminology/style context without re-translating source text.
+    let mut translated_overlap: Option<String> = None;
 
     for chunk in &chunks {
         let translated = translate_chunk(
             client,
             model,
             &system_prompt,
-            chunk.overlap.as_deref(),
+            translated_overlap.as_deref(),
             &chunk.text,
         )
         .await?;
+
+        translated_overlap = Some(last_sentences(&translated, 2));
         parts.push(translated);
     }
 
     Ok((parts.concat(), total, total))
+}
+
+/// Translate `text` as a single API call with no chunking.
+/// If the text exceeds the model's context window it falls back to `translate`.
+/// Used by document translators that pre-batch paragraphs to fit the window.
+pub async fn translate_single(
+    client: &OpenAiClient,
+    model: &str,
+    source_lang: &str,
+    target_lang: &str,
+    text: &str,
+) -> Result<String> {
+    let max_chars = usable_input_chars(context_size_from_model_id(model));
+    if text.chars().count() > max_chars {
+        let (result, _, _) = translate(client, model, source_lang, target_lang, text).await?;
+        return Ok(result);
+    }
+    let system_prompt = build_system_prompt(source_lang, target_lang);
+    translate_chunk(client, model, &system_prompt, None, text).await
+}
+
+pub fn translate_stream(
+    client: OpenAiClient,
+    model: String,
+    source_lang: String,
+    target_lang: String,
+    text: String,
+) -> impl futures::Stream<Item = Result<String>> + Send + 'static {
+    async_stream::stream! {
+        let context_size = context_size_from_model_id(&model);
+        let max_chars = usable_input_chars(context_size);
+        let chunks = split_into_chunks(&text, max_chars);
+        let system_prompt = build_system_prompt(&source_lang, &target_lang);
+
+        let mut translated_overlap: Option<String> = None;
+
+        for chunk in chunks {
+            let user_content = build_user_content(translated_overlap.as_deref(), &chunk.text);
+
+            let request = ChatRequest {
+                model: model.clone(),
+                messages: vec![
+                    ChatMessage { role: "system".to_string(), content: system_prompt.clone() },
+                    ChatMessage { role: "user".to_string(), content: user_content },
+                ],
+                temperature: 0.3,
+                max_tokens: None,
+                stream: Some(true),
+            };
+
+            let req_builder = client
+                .http
+                .post(client.chat_url())
+                .bearer_auth(&client.api_key)
+                .json(&request);
+
+            let mut es = match req_builder.eventsource() {
+                Ok(es) => es,
+                Err(e) => {
+                    yield Err(anyhow::anyhow!("Failed to create EventSource: {e}"));
+                    return;
+                }
+            };
+
+            // Buffer this chunk's output so we can extract the translated tail
+            // for the next chunk's overlap context.
+            let mut chunk_buf = String::new();
+            let mut in_think_block = false;
+
+            while let Some(event) = es.next().await {
+                match event {
+                    Ok(Event::Open) => {}
+                    Ok(Event::Message(message)) => {
+                        if message.data == "[DONE]" {
+                            break;
+                        }
+                        match serde_json::from_str::<StreamResponse>(&message.data) {
+                            Ok(chat_res) => {
+                                if let Some(choice) = chat_res.choices.first() {
+                                    if let Some(content) = &choice.delta.content {
+                                        let mut token = content.clone();
+
+                                        if token.contains("<think>") {
+                                            in_think_block = true;
+                                            let parts: Vec<&str> = token.split("<think>").collect();
+                                            token = parts[0].to_string();
+                                        }
+
+                                        // Check the *original* content for the closing tag, not
+                                        // the already-truncated `token`. Without this, a complete
+                                        // "<think>…</think>" in a single streaming token sets
+                                        // in_think_block = true and never clears it, silencing
+                                        // every subsequent token for the rest of the stream.
+                                        if content.contains("</think>") {
+                                            in_think_block = false;
+                                            let parts: Vec<&str> = content.split("</think>").collect();
+                                            token = parts.last().copied().unwrap_or("").to_string();
+                                        }
+
+                                        if in_think_block {
+                                            continue;
+                                        }
+
+                                        if !token.is_empty() {
+                                            chunk_buf.push_str(&token);
+                                            yield Ok(token);
+                                        }
+                                    }
+                                }
+                            }
+                            Err(_) => {
+                                // Ignore keep-alives / non-JSON frames
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        yield Err(anyhow::anyhow!("Stream error: {e}"));
+                        break;
+                    }
+                }
+            }
+
+            // Update the translated overlap for the next chunk using the
+            // target-language output we just streamed.
+            translated_overlap = Some(last_sentences(&chunk_buf, 2));
+        }
+    }
 }

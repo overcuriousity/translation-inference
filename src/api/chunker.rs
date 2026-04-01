@@ -19,7 +19,6 @@ pub fn usable_input_chars(context_size: usize) -> usize {
 /// e.g. "gpgpu/qwen3:14b-q5_k_m-32768" → 32768.
 /// Falls back to a conservative 4096 if not found.
 pub fn context_size_from_model_id(model_id: &str) -> usize {
-    // Try to find a large number at the end of the model id
     model_id
         .split(|c: char| !c.is_ascii_digit())
         .filter_map(|s| s.parse::<usize>().ok())
@@ -28,40 +27,64 @@ pub fn context_size_from_model_id(model_id: &str) -> usize {
         .unwrap_or(4096)
 }
 
-/// A single chunk together with optional overlap text that precedes it.
+/// A single source-text segment to be translated.
 #[derive(Debug)]
 pub struct Chunk {
-    /// The text to be translated.
     pub text: String,
-    /// The last sentence(s) of the *previous* chunk, used as context.
-    pub overlap: Option<String>,
 }
 
-/// Split `text` into chunks that fit within `max_chars`, adding a small
-/// overlap of previous context for coherence.
+/// Split `text` into chunks that fit within `max_chars`.
+/// 10% of the budget is reserved for the translated-overlap prefix added by
+/// the caller.
 pub fn split_into_chunks(text: &str, max_chars: usize) -> Vec<Chunk> {
     if text.chars().count() <= max_chars {
-        return vec![Chunk { text: text.to_string(), overlap: None }];
+        return vec![Chunk { text: text.to_string() }];
     }
 
-    // Reserve some space for the overlap prefix in the prompt (~10%)
+    // Reserve space for the overlap prefix injected at translation time (~10%)
     let chunk_budget = (max_chars * 9) / 10;
 
-    let segments = split_at_boundaries(text, chunk_budget);
+    split_at_boundaries(text, chunk_budget)
+        .into_iter()
+        .map(|seg| Chunk { text: seg })
+        .collect()
+}
 
-    let mut chunks: Vec<Chunk> = Vec::new();
-    let mut prev_overlap: Option<String> = None;
-
-    for seg in segments {
-        chunks.push(Chunk {
-            text: seg.clone(),
-            overlap: prev_overlap.clone(),
-        });
-        // Use the last 1-2 sentences of this segment as overlap for the next
-        prev_overlap = Some(last_sentences(&seg, 2));
+/// Extract the last `n` sentences from a (translated) text block.
+/// Used by the translation layer to derive the overlap passed to the next chunk.
+pub fn last_sentences(text: &str, n: usize) -> String {
+    let mut ends: Vec<usize> = Vec::new();
+    let bytes = text.as_bytes();
+    for (i, &b) in bytes.iter().enumerate() {
+        // ASCII sentence-ending punctuation followed by a space
+        if (b == b'.' || b == b'!' || b == b'?') && i + 1 < bytes.len() && bytes[i + 1] == b' ' {
+            ends.push(i + 2);
+        }
+        // CJK ideographic full stop (。= 0xE3 0x80 0x82); check 3-byte sequence
+        if i + 2 < bytes.len() && bytes[i] == 0xE3 && bytes[i + 1] == 0x80 && bytes[i + 2] == 0x82
+        {
+            ends.push(i + 3);
+        }
     }
 
-    chunks
+    if ends.is_empty() {
+        // No sentence boundaries — fall back to last ~200 characters
+        let start = text
+            .char_indices()
+            .rev()
+            .nth(199)
+            .map(|(i, _)| i)
+            .unwrap_or(0);
+        return text[start..].to_string();
+    }
+
+    let start_idx = if ends.len() >= n {
+        ends[ends.len() - n]
+    } else {
+        0
+    };
+
+    text[start_idx..].to_string()
 }
 
 /// Split text into segments of at most `max_chars`, preferring splits at
@@ -76,7 +99,6 @@ fn split_at_boundaries(text: &str, max_chars: usize) -> Vec<String> {
             break;
         }
 
-        // Find a good split point within the first max_chars characters
         let split_at = find_split_point(remaining, max_chars);
         let (chunk, rest) = remaining.split_at(split_at);
         result.push(chunk.to_string());
@@ -89,7 +111,6 @@ fn split_at_boundaries(text: &str, max_chars: usize) -> Vec<String> {
 /// Find the best byte index to split `text` at, within `max_chars` characters.
 /// Prefers paragraph boundaries > sentence boundaries > word boundaries > hard cut.
 fn find_split_point(text: &str, max_chars: usize) -> usize {
-    // Convert max_chars to a byte boundary (chars can be multi-byte)
     let byte_limit = text
         .char_indices()
         .nth(max_chars)
@@ -98,16 +119,20 @@ fn find_split_point(text: &str, max_chars: usize) -> usize {
 
     let candidate = &text[..byte_limit];
 
-    // Paragraph boundary (prefer the last one)
+    // Paragraph boundary
     if let Some(pos) = candidate.rfind("\n\n") {
         return pos + 2;
     }
 
-    // Sentence boundary: ". " or ".\n" or "! " or "? "
-    for delim in &[". ", ".\n", "! ", "? ", "。"] {
-        if let Some(pos) = candidate.rfind(delim) {
-            return pos + delim.len();
-        }
+    // Sentence boundary: pick the rightmost match across all delimiters so we
+    // don't discard a later boundary just because an earlier delimiter type
+    // matched first (e.g. "Dr. Smith ... Great!" should split after "!").
+    let best_sentence = [". ", ".\n", "! ", "? ", "。", "！", "？"]
+        .iter()
+        .filter_map(|d| candidate.rfind(d).map(|p| p + d.len()))
+        .max();
+    if let Some(pos) = best_sentence {
+        return pos;
     }
 
     // Word boundary
@@ -115,39 +140,8 @@ fn find_split_point(text: &str, max_chars: usize) -> usize {
         return pos + 1;
     }
 
-    // Hard cut at byte_limit (rare)
+    // Hard cut
     byte_limit
-}
-
-/// Extract the last `n` sentences from a text block (for overlap).
-fn last_sentences(text: &str, n: usize) -> String {
-    // Split on sentence-ending punctuation
-    let mut ends: Vec<usize> = Vec::new();
-    let bytes = text.as_bytes();
-    for (i, &b) in bytes.iter().enumerate() {
-        if (b == b'.' || b == b'!' || b == b'?') && i + 1 < bytes.len() && bytes[i + 1] == b' ' {
-            ends.push(i + 2);
-        }
-    }
-
-    if ends.is_empty() {
-        // No sentence boundaries found; just return the last chunk of chars
-        let start = text
-            .char_indices()
-            .rev()
-            .nth(200)
-            .map(|(i, _)| i)
-            .unwrap_or(0);
-        return text[start..].to_string();
-    }
-
-    let start_idx = if ends.len() >= n {
-        ends[ends.len() - n]
-    } else {
-        0
-    };
-
-    text[start_idx..].to_string()
 }
 
 #[cfg(test)]
@@ -167,18 +161,13 @@ mod tests {
         let chunks = split_into_chunks(text, 1000);
         assert_eq!(chunks.len(), 1);
         assert_eq!(chunks[0].text, text);
-        assert!(chunks[0].overlap.is_none());
     }
 
     #[test]
-    fn test_chunking_with_overlap() {
+    fn test_chunking_splits_into_multiple() {
         let long_text = "First sentence. Second sentence. Third sentence. Fourth sentence. Fifth sentence.";
         let chunks = split_into_chunks(long_text, 40);
         assert!(chunks.len() > 1);
-        // Second chunk should have overlap from the first
-        if chunks.len() > 1 {
-            assert!(chunks[1].overlap.is_some());
-        }
     }
 
     #[test]
@@ -187,5 +176,20 @@ mod tests {
         let chunks = split_into_chunks(text, 10);
         let reconstructed: String = chunks.into_iter().map(|c| c.text).collect();
         assert_eq!(reconstructed, text);
+    }
+
+    #[test]
+    fn test_last_sentences_ascii() {
+        let text = "First sentence. Second sentence. Third sentence.";
+        let result = last_sentences(text, 2);
+        assert_eq!(result, "Second sentence. Third sentence.");
+    }
+
+    #[test]
+    fn test_last_sentences_fallback() {
+        // No sentence-ending punctuation followed by space
+        let text = "no punctuation here";
+        let result = last_sentences(text, 2);
+        assert!(!result.is_empty());
     }
 }

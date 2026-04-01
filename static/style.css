@@ -295,6 +295,12 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+.chunk-progress {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
 /* ── Buttons ────────────────────────────────────────────────────────────── */
 .btn-primary {
   padding: 8px 20px;
@@ -390,6 +396,68 @@ body {
 }
 @keyframes loading-bar {
   to { left: 100%; }
+}
+
+/* ── Document List & Status ──────────────────────────────────────────────── */
+.doc-list {
+  padding: 16px 20px;
+  background: var(--color-surface-2);
+  border-top: 1px solid var(--color-border);
+}
+.doc-list-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  margin-bottom: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.doc-file-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.doc-file-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  font-size: 0.9rem;
+  color: var(--color-text);
+  box-shadow: var(--shadow-sm);
+  transition: var(--transition);
+}
+.doc-file-list li:hover {
+  border-color: var(--color-text-muted);
+}
+.doc-dl-btn {
+  margin-left: 12px;
+}
+
+.status-bar {
+  padding: 10px 16px;
+  background: var(--color-surface-2);
+  border-top: 1px solid var(--color-border);
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--color-border);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 /* ── Utilities ──────────────────────────────────────────────────────────── */

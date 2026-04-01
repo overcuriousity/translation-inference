@@ -1,9 +1,11 @@
 use anyhow::{Context, Result};
 use regex::Regex;
 use std::io::{Cursor, Read, Write};
+use std::sync::OnceLock;
 use zip::{ZipArchive, ZipWriter, write::SimpleFileOptions};
 
-use crate::api::{chat, client::OpenAiClient};
+use crate::api::client::OpenAiClient;
+use crate::document::translate_paragraphs;
 
 const DOCX_MAIN: &str = "word/document.xml";
 
@@ -31,31 +33,30 @@ pub async fn translate_docx(
         .map(|r| extract_para_text(&xml_str[r.clone()]))
         .collect();
 
-    // Collect non-empty paragraph texts for translation
-    let non_empty: Vec<&str> = texts.iter()
-        .filter(|t| !t.trim().is_empty())
-        .map(|t| t.as_str())
+    // Collect indices and refs of non-empty paragraphs
+    let non_empty_indices: Vec<usize> = texts.iter()
+        .enumerate()
+        .filter(|(_, t)| !t.trim().is_empty())
+        .map(|(i, _)| i)
         .collect();
 
-    if non_empty.is_empty() {
+    if non_empty_indices.is_empty() {
         return repack_zip(bytes, DOCX_MAIN, xml_str.as_bytes());
     }
 
-    let full_text = non_empty.join("\n\n---PARA-SEP---\n\n");
-    let (translated, _, _) = chat::translate(client, model, source_lang, target_lang, &full_text).await
-        .context("translation failed")?;
+    let non_empty_texts: Vec<&str> = non_empty_indices.iter()
+        .map(|&i| texts[i].as_str())
+        .collect();
 
-    // Split translated text back into paragraph-sized pieces
-    let translated_parts: Vec<&str> = translated.split("\n\n---PARA-SEP---\n\n").collect();
-    let mut trans_iter = translated_parts.iter();
+    let translated_non_empty =
+        translate_paragraphs(&non_empty_texts, client, model, source_lang, target_lang)
+            .await
+            .context("translation failed")?;
 
-    let translated_texts: Vec<String> = texts.iter().map(|t| {
-        if t.trim().is_empty() {
-            String::new()
-        } else {
-            trans_iter.next().copied().unwrap_or("").to_string()
-        }
-    }).collect();
+    let mut translated_texts: Vec<String> = texts.iter().map(|_| String::new()).collect();
+    for (j, &orig_idx) in non_empty_indices.iter().enumerate() {
+        translated_texts[orig_idx] = translated_non_empty[j].clone();
+    }
 
     // Reconstruct XML, replacing paragraph content in reverse order
     let mut new_xml = xml_str.clone();
@@ -73,15 +74,18 @@ pub async fn translate_docx(
 
 /// Find byte ranges for each `<w:p>...</w:p>` block in the XML.
 fn find_para_ranges(xml: &str) -> Vec<std::ops::Range<usize>> {
-    // Match <w:p> or <w:p ...> ... </w:p>, and self-closing <w:p/>
-    // The (?:>|\s[^>]*>) ensures we don't match <w:pPr> etc.
-    let re = Regex::new(r"(?s)<w:p(?:>|\s[^>]*>).*?</w:p>|<w:p(?:\s[^>]*)?\s*/>").unwrap();
+    static RE: OnceLock<Regex> = OnceLock::new();
+    let re = RE.get_or_init(|| {
+        // The (?:>|\s[^>]*>) ensures we don't match <w:pPr> etc.
+        Regex::new(r"(?s)<w:p(?:>|\s[^>]*>).*?</w:p>|<w:p(?:\s[^>]*)?\s*/>").unwrap()
+    });
     re.find_iter(xml).map(|m| m.range()).collect()
 }
 
 /// Extract all text content from a paragraph's XML.
 fn extract_para_text(para_xml: &str) -> String {
-    let re = Regex::new(r"(?s)<w:t(?:>|\s[^>]*>)(.*?)</w:t>").unwrap();
+    static RE: OnceLock<Regex> = OnceLock::new();
+    let re = RE.get_or_init(|| Regex::new(r"(?s)<w:t(?:>|\s[^>]*>)(.*?)</w:t>").unwrap());
     re.captures_iter(para_xml)
         .map(|c| xml_unescape(&c[1]))
         .collect::<Vec<_>>()
@@ -91,7 +95,8 @@ fn extract_para_text(para_xml: &str) -> String {
 /// Replace the content of all `<w:t>` elements in a paragraph:
 /// the first one gets the translated text, the rest are emptied.
 fn replace_para_text(para_xml: &str, translation: &str) -> String {
-    let re = Regex::new(r"(?s)<w:t(?:>|\s[^>]*>).*?</w:t>").unwrap();
+    static RE: OnceLock<Regex> = OnceLock::new();
+    let re = RE.get_or_init(|| Regex::new(r"(?s)<w:t(?:>|\s[^>]*>).*?</w:t>").unwrap());
     let escaped = xml_escape(translation);
     let mut first = true;
     re.replace_all(para_xml, |_: &regex::Captures| {
