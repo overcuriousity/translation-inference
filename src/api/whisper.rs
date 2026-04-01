@@ -96,21 +96,24 @@ pub fn split_audio_into_segments(input_path: &Path) -> Result<Vec<NamedTempFile>
     Ok(segments)
 }
 
-/// Duration threshold above which we segment the audio (25 minutes).
-const LONG_AUDIO_BYTES: u64 = 5 * 1024 * 1024; // ~5 MB as a heuristic
+/// Duration threshold above which we segment the audio (25 MB).
+const LONG_AUDIO_BYTES: u64 = 25 * 1024 * 1024; // 25 MB
 
 /// Send a single audio file to the Whisper API and return the transcription.
 pub async fn transcribe_file(
     client: &OpenAiClient,
     whisper_model: &str,
-    file_bytes: Vec<u8>,
+    file_path: &Path,
     filename: &str,
 ) -> Result<String> {
     let mime = mime_guess::from_path(filename)
         .first_or(mime_guess::mime::APPLICATION_OCTET_STREAM)
         .to_string();
 
-    let part = reqwest::multipart::Part::bytes(file_bytes)
+    let file = tokio::fs::File::open(file_path).await.context("failed to open file for upload")?;
+    let stream = tokio_util::io::ReaderStream::new(file);
+
+    let part = reqwest::multipart::Part::stream(reqwest::Body::wrap_stream(stream))
         .file_name(filename.to_string())
         .mime_str(&mime)
         .context("failed to set MIME type")?;
@@ -146,33 +149,21 @@ pub async fn transcribe_file(
 pub async fn transcribe(
     client: &OpenAiClient,
     whisper_model: &str,
-    file_bytes: Vec<u8>,
+    file_path: &Path,
     filename: &str,
 ) -> Result<String> {
-    // Write bytes to a temp file so ffmpeg can work on it
-    let input_path_opt: Option<NamedTempFile>;
-
-    let needs_segmentation = file_bytes.len() as u64 > LONG_AUDIO_BYTES;
+    let metadata = std::fs::metadata(file_path).context("failed to get file metadata")?;
+    let needs_segmentation = metadata.len() > LONG_AUDIO_BYTES;
 
     if needs_segmentation {
-        // Write to temp file, segment, transcribe each
-        let mut tmp = tempfile::Builder::new()
-            .suffix(&format!(".{}", Path::new(filename).extension().and_then(|e| e.to_str()).unwrap_or("bin")))
-            .tempfile()
-            .context("failed to create temp input file")?;
-        use std::io::Write;
-        tmp.write_all(&file_bytes).context("failed to write audio data to temp file")?;
-        input_path_opt = Some(tmp);
-
-        let segments = split_audio_into_segments(input_path_opt.as_ref().unwrap().path())?;
+        let segments = split_audio_into_segments(file_path)?;
         let mut parts: Vec<String> = Vec::new();
         for seg in segments {
-            let seg_bytes = std::fs::read(seg.path()).context("failed to read segment")?;
-            let text = transcribe_file(client, whisper_model, seg_bytes, "segment.wav").await?;
+            let text = transcribe_file(client, whisper_model, seg.path(), "segment.wav").await?;
             parts.push(text);
         }
         return Ok(parts.join(" "));
     }
 
-    transcribe_file(client, whisper_model, file_bytes, filename).await
+    transcribe_file(client, whisper_model, file_path, filename).await
 }

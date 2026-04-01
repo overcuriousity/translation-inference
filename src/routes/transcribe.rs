@@ -1,5 +1,7 @@
 use axum::{extract::{Multipart, State}, http::{HeaderMap, StatusCode}, Json};
 use std::sync::Arc;
+use tempfile::NamedTempFile;
+use tokio::io::AsyncWriteExt;
 
 use crate::api::whisper::{self, extract_audio_from_video, is_video_file};
 use crate::models::{ErrorResponse, TranscribeResponse};
@@ -14,13 +16,13 @@ pub async fn post_transcribe(
     headers: HeaderMap,
     mut multipart: Multipart,
 ) -> Result<Json<TranscribeResponse>, (StatusCode, Json<ErrorResponse>)> {
-    let mut file_bytes: Option<Vec<u8>> = None;
+    let mut file_tmp: Option<NamedTempFile> = None;
     let mut filename = String::from("upload.bin");
     let mut model: Option<String> = None;
     let mut endpoint: Option<String> = None;
     let mut api_key: Option<String> = None;
 
-    while let Some(field) = multipart
+    while let Some(mut field) = multipart
         .next_field()
         .await
         .map_err(|e| err(StatusCode::BAD_REQUEST, e.to_string()))?
@@ -30,17 +32,35 @@ pub async fn post_transcribe(
                 if let Some(name) = field.file_name() {
                     filename = name.to_string();
                 }
-                let data = field
-                    .bytes()
-                    .await
-                    .map_err(|e| err(StatusCode::BAD_REQUEST, e.to_string()))?;
-                if data.len() > MAX_UPLOAD_BYTES {
-                    return Err(err(
-                        StatusCode::PAYLOAD_TOO_LARGE,
-                        format!("File exceeds {MAX_UPLOAD_BYTES} byte limit"),
-                    ));
+                
+                let ext = std::path::Path::new(&filename)
+                    .extension()
+                    .and_then(|e| e.to_str())
+                    .unwrap_or("bin");
+                
+                let tmp = tempfile::Builder::new()
+                    .suffix(&format!(".{ext}"))
+                    .tempfile()
+                    .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+                
+                let mut tmp_file = tokio::fs::File::from(
+                    tmp.reopen().map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+                );
+                let mut size = 0;
+                
+                while let Some(chunk) = field.chunk().await.map_err(|e| err(StatusCode::BAD_REQUEST, e.to_string()))? {
+                    size += chunk.len();
+                    if size > MAX_UPLOAD_BYTES {
+                        return Err(err(
+                            StatusCode::PAYLOAD_TOO_LARGE,
+                            format!("File exceeds {MAX_UPLOAD_BYTES} byte limit"),
+                        ));
+                    }
+                    tmp_file.write_all(&chunk).await.map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
                 }
-                file_bytes = Some(data.to_vec());
+                tmp_file.flush().await.map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+                
+                file_tmp = Some(tmp);
             }
             Some("model") => {
                 model = Some(
@@ -61,40 +81,29 @@ pub async fn post_transcribe(
         }
     }
 
-    let bytes = file_bytes.ok_or_else(|| err(StatusCode::BAD_REQUEST, "No file field found".into()))?;
+    let file_tmp = file_tmp.ok_or_else(|| err(StatusCode::BAD_REQUEST, "No file field found".into()))?;
     let client = resolve_client(&state, endpoint.as_deref(), api_key.as_deref(), &headers)?;
 
     // For video files, extract audio with ffmpeg first
-    let (final_bytes, final_filename) = if is_video_file(&filename) {
-        let wav = extract_audio_to_wav(bytes).await
+    let mut final_filename = filename.clone();
+    let final_tmp = if is_video_file(&filename) {
+        let wav_tmp = extract_audio_from_video(file_tmp.path())
             .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-        (wav, "extracted.wav".to_string())
+        final_filename = "extracted.wav".to_string();
+        wav_tmp
     } else {
-        (bytes, filename)
+        file_tmp
     };
 
     let model_id = model.unwrap_or_else(|| state.config.whisper_model.clone());
 
-    match whisper::transcribe(&client, &model_id, final_bytes, &final_filename).await {
+    match whisper::transcribe(&client, &model_id, final_tmp.path(), &final_filename).await {
         Ok(text) => Ok(Json(TranscribeResponse { text })),
         Err(e) => {
             tracing::error!("Transcription error: {e:#}");
             Err(err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))
         }
     }
-}
-
-async fn extract_audio_to_wav(video_bytes: Vec<u8>) -> anyhow::Result<Vec<u8>> {
-    use std::io::Write;
-
-    let mut input_tmp = tempfile::Builder::new()
-        .suffix(".video")
-        .tempfile()?;
-    input_tmp.write_all(&video_bytes)?;
-
-    let wav_tmp = extract_audio_from_video(input_tmp.path())?;
-    let wav_bytes = std::fs::read(wav_tmp.path())?;
-    Ok(wav_bytes)
 }
 
 fn err(status: StatusCode, msg: String) -> (StatusCode, Json<ErrorResponse>) {
