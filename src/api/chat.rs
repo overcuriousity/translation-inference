@@ -4,7 +4,7 @@ use regex::Regex;
 use reqwest_eventsource::{Event, RequestBuilderExt};
 use std::sync::OnceLock;
 
-use crate::api::chunker::{context_size_from_model_id, last_sentences, split_into_chunks, usable_input_chars};
+use crate::api::chunker::{context_size_from_model_id, last_sentences, max_output_tokens, split_into_chunks, usable_input_chars};
 use crate::api::client::OpenAiClient;
 use crate::models::{ChatMessage, ChatRequest, ChatResponse, StreamResponse};
 
@@ -58,6 +58,12 @@ async fn translate_chunk(
 ) -> Result<String> {
     let user_content = build_user_content(translated_overlap, text);
 
+    // Set max_tokens explicitly. Without it, LiteLLM and similar proxies default
+    // max_tokens to the full context window, leaving zero budget for the input
+    // and triggering aggressive input truncation (observed as
+    // "litellm_truncated skipped N chars" in the request payload).
+    let output_tokens = max_output_tokens(context_size_from_model_id(model));
+
     let request = ChatRequest {
         model: model.to_string(),
         messages: vec![
@@ -71,7 +77,7 @@ async fn translate_chunk(
             },
         ],
         temperature: 0.3,
-        max_tokens: None,
+        max_tokens: Some(output_tokens),
         stream: None,
     };
 
@@ -175,6 +181,8 @@ pub fn translate_stream(
 
         let mut translated_overlap: Option<String> = None;
 
+        let output_tokens = max_output_tokens(context_size_from_model_id(&model));
+
         for chunk in chunks {
             let user_content = build_user_content(translated_overlap.as_deref(), &chunk.text);
 
@@ -185,7 +193,7 @@ pub fn translate_stream(
                     ChatMessage { role: "user".to_string(), content: user_content },
                 ],
                 temperature: 0.3,
-                max_tokens: None,
+                max_tokens: Some(output_tokens),
                 stream: Some(true),
             };
 

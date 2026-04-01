@@ -2,17 +2,29 @@ fn tokens_to_chars(tokens: usize) -> usize {
     tokens * 4
 }
 
+const OVERHEAD_TOKENS: usize = 500; // system prompt + chat-format special tokens
+
 /// Compute the usable input token budget for a given model context size.
-/// We reserve 500 tokens for system prompt overhead and leave half the
-/// remaining space for the output (translations can be longer than the source).
+/// We reserve OVERHEAD_TOKENS for the system prompt and chat-format tokens,
+/// then split the remainder equally between input and output.
 pub fn usable_input_chars(context_size: usize) -> usize {
-    let overhead = 500;
-    let usable_tokens = if context_size > overhead {
-        (context_size - overhead) / 2
+    let usable_tokens = if context_size > OVERHEAD_TOKENS {
+        (context_size - OVERHEAD_TOKENS) / 2
     } else {
         1024
     };
     tokens_to_chars(usable_tokens)
+}
+
+/// The explicit max_tokens value to send with each chat request so that
+/// LiteLLM / other proxies do not assume the entire context window is available
+/// for output (which would cause them to truncate the input to near-zero).
+pub fn max_output_tokens(context_size: usize) -> u32 {
+    if context_size > OVERHEAD_TOKENS {
+        ((context_size - OVERHEAD_TOKENS) / 2) as u32
+    } else {
+        1024
+    }
 }
 
 /// Parse the context window size from a model ID that encodes it as a suffix,
