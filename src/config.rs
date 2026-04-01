@@ -9,6 +9,8 @@ pub struct AppConfig {
     pub translation_models: Vec<String>,
     pub whisper_models: Vec<String>,
     pub listen_addr: String,
+    pub bitvault_url: Option<String>,
+    pub bitvault_api_key: Option<String>,
 }
 
 impl AppConfig {
@@ -38,10 +40,22 @@ impl AppConfig {
             whisper_models,
             listen_addr: std::env::var("LISTEN_ADDR")
                 .unwrap_or_else(|_| "0.0.0.0:3000".to_string()),
+            bitvault_url: std::env::var("BITVAULT_URL")
+                .ok()
+                .map(|s| s.trim().trim_end_matches('/').to_string())
+                .filter(|s| !s.is_empty()),
+            bitvault_api_key: std::env::var("BITVAULT_API_KEY")
+                .ok()
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty()),
         })
     }
 
     pub fn is_configured(&self) -> bool {
         !self.api_base_url.is_empty() && !self.api_key.is_empty()
+    }
+
+    pub fn is_bitvault_configured(&self) -> bool {
+        self.bitvault_url.is_some()
     }
 }

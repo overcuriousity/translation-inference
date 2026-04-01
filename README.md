@@ -15,6 +15,7 @@ A fast, memory-efficient, Rust-based translation and transcription inference ser
 - **Real-Time Streaming**: Text translation supports streaming outputs for a responsive UI experience.
 - **Modern Web Interface**: A clean, built-in static web UI. Supports session-based credential storage (bring your own API key directly in the browser).
 - **Auto-Model Fetching**: Automatically fetches available models from the connected endpoint.
+- **Bitvault Integration** *(optional)*: Save source or translated text as Bitvault pastes directly from the UI, and preload source text from a Bitvault raw URL via the `?from=` query parameter.
 
 ## 🛠️ Prerequisites
 
@@ -73,6 +74,13 @@ WHISPER_MODELS=gpgpu/whisper
 
 # Server bind address
 LISTEN_ADDR=0.0.0.0:3000
+
+# Optional: Bitvault integration
+# Enables "Save to Bitvault" buttons in the UI and ?from=<raw-url> source preloading.
+# BITVAULT_URL must point to the root of your Bitvault instance (no trailing slash).
+# BITVAULT_API_KEY is only required if your instance enforces authentication.
+# BITVAULT_URL=https://paste.example.com
+# BITVAULT_API_KEY=your-bitvault-api-key-here
 ```
 
 ## 📡 API Endpoints
@@ -86,6 +94,8 @@ The service provides a RESTful API for integrations:
 - `POST /api/transcribe` - Transcribe an audio or video file.
 - `POST /api/translate-document` - Translate `.docx`, `.odt`, or `.pdf` files.
 - `POST /api/upload` - Unified upload endpoint for mixed media (transcribes audio/video, translates documents).
+- `POST /api/save-to-bitvault` - *(requires `BITVAULT_URL`)* Save text as a Bitvault paste and return its URL.
+- `GET /api/proxy-text?url=<raw-url>` - *(requires `BITVAULT_URL`)* Proxy raw text from a Bitvault URL (used by the `?from=` preload feature to avoid CORS).
 
 ## 📄 License
 
