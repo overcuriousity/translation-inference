@@ -61,8 +61,12 @@ async function init() {
       if (res.ok) {
         sourceText.value = await res.text();
         updateCharCount();
-        clearTimeout(translationTimeout);
-        translate(true);
+        if (status.server_configured || status.session_active) {
+          clearTimeout(translationTimeout);
+          translate(true);
+        } else {
+          showConfigPanel('Please configure your API credentials to enable auto-translation.');
+        }
       }
     } catch (_) { /* silently ignore */ }
   }
@@ -516,12 +520,14 @@ async function saveToBitvault(text) {
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ text }),
     });
-    const data = await res.json();
+    const bodyText = await res.text();
+    let data = null;
+    try { data = JSON.parse(bodyText); } catch (_) { /* non-JSON response */ }
     if (res.ok) {
-      window.open(data.url, '_blank');
+      if (data && data.url) window.open(data.url, '_blank', 'noopener,noreferrer');
       showNotification('Saved to Bitvault', 'success');
     } else {
-      showNotification(data.error || 'Save failed', 'error');
+      showNotification((data && data.error) || bodyText || 'Save failed', 'error');
     }
   } catch (_) {
     showNotification('Network error', 'error');
@@ -534,7 +540,7 @@ saveSrcBtn.addEventListener('click', () => {
 });
 
 saveOutBtn.addEventListener('click', () => {
-  const text = outputDiv.innerText;
+  const text = (lastTranslatedText || '').trim();
   if (text) saveToBitvault(text);
 });
 

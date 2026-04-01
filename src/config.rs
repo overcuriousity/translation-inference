@@ -42,10 +42,11 @@ impl AppConfig {
                 .unwrap_or_else(|_| "0.0.0.0:3000".to_string()),
             bitvault_url: std::env::var("BITVAULT_URL")
                 .ok()
-                .filter(|s| !s.is_empty())
-                .map(|s| s.trim_end_matches('/').to_string()),
+                .map(|s| s.trim().trim_end_matches('/').to_string())
+                .filter(|s| !s.is_empty()),
             bitvault_api_key: std::env::var("BITVAULT_API_KEY")
                 .ok()
+                .map(|s| s.trim().to_string())
                 .filter(|s| !s.is_empty()),
         })
     }

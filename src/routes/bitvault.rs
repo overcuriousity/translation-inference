@@ -5,6 +5,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use url::Url;
 
 use crate::{
     models::{ErrorResponse, SaveToBitvaultRequest, SaveToBitvaultResponse},
@@ -61,7 +62,7 @@ pub async fn post_save_to_bitvault(
     }
 
     let paste: BitvaultCreateResp = resp.json().await.map_err(|e| (
-        StatusCode::INTERNAL_SERVER_ERROR,
+        StatusCode::BAD_GATEWAY,
         Json(ErrorResponse { error: format!("Failed to parse Bitvault response: {e}") }),
     ))?;
 
@@ -84,7 +85,18 @@ pub async fn get_proxy_text(
         Json(ErrorResponse { error: "Bitvault not configured".into() }),
     ))?;
 
-    if !q.url.starts_with(bitvault_url) {
+    let allowed = Url::parse(bitvault_url).map_err(|_| (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        Json(ErrorResponse { error: "Bitvault URL is misconfigured".into() }),
+    ))?;
+    let requested = Url::parse(&q.url).map_err(|_| (
+        StatusCode::BAD_REQUEST,
+        Json(ErrorResponse { error: "Invalid URL".into() }),
+    ))?;
+    if requested.scheme() != allowed.scheme()
+        || requested.host() != allowed.host()
+        || requested.port_or_known_default() != allowed.port_or_known_default()
+    {
         return Err((
             StatusCode::FORBIDDEN,
             Json(ErrorResponse { error: "URL not allowed — must point to the configured Bitvault instance".into() }),
