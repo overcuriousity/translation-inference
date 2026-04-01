@@ -1,31 +1,31 @@
 /* ── Variables ─────────────────────────────────────────────────────────── */
 :root {
-  --color-bg:        #fdfdfd;
-  --color-surface:   #ffffff;
-  --color-surface-2: #f8fafc;
-  --color-border:    #e2e8f0;
-  --color-primary:   #2563eb;
-  --color-primary-h: #1d4ed8;
-  --color-text:      #0f172a;
-  --color-text-muted:#64748b;
+  --color-bg:        #fff;
+  --color-surface:   #efefef;
+  --color-surface-2: #f7f7f7;
+  --color-border:    #dbdbdb;
+  --color-primary:   #F2A900;
+  --color-primary-h: #d4940a;
+  --color-text:      #363636;
+  --color-text-muted:#70777f;
   --color-error:     #ef4444;
   --color-success:   #22c55e;
-  --radius:          10px;
+  --radius:          6px;
   --shadow-sm:       0 1px 2px 0 rgb(0 0 0 / 0.05);
   --shadow:          0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-  --transition:      all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition:      all 0.1s linear;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --color-bg:        #0f172a;
-    --color-surface:   #1e293b;
-    --color-surface-2: #1e293b;
-    --color-border:    #334155;
-    --color-primary:   #3b82f6;
-    --color-primary-h: #60a5fa;
-    --color-text:      #f8fafc;
-    --color-text-muted:#94a3b8;
+    --color-bg:        #141b23;
+    --color-surface:   #222f3a;
+    --color-surface-2: #1a242f;
+    --color-border:    #526980;
+    --color-primary:   #F2A900;
+    --color-primary-h: #ffd04a;
+    --color-text:      #dbdbdb;
+    --color-text-muted:#a9b1ba;
     color-scheme:      dark;
   }
 }
@@ -240,7 +240,7 @@ body {
 .drop-overlay {
   position: absolute;
   inset: 0;
-  background: rgba(37, 99, 235, 0.1);
+  background: rgba(242, 169, 0, 0.1);
   backdrop-filter: blur(2px);
   display: flex;
   align-items: center;
