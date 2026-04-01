@@ -6,6 +6,7 @@ A Rust-based translation and transcription inference service.
 ## Features
 
 - **Translation:** Translate text between multiple languages.
+- **Files**: Input docx, odt, PDF, get out translated odt, pdf, docx
 - **Transcription:** Transcribe audio using Whisper-compatible APIs.
 - **Web Interface:** Includes a built-in static web interface for easy interaction.
 - **API:** RESTful API for integration with other services.
