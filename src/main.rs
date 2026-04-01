@@ -82,6 +82,8 @@ async fn main() -> Result<()> {
         .route("/api/transcribe", post(routes::transcribe::post_transcribe))
         .route("/api/translate-document", post(routes::document::post_translate_document))
         .route("/api/upload", post(routes::upload::post_upload))
+        .route("/api/save-to-bitvault", post(routes::bitvault::post_save_to_bitvault))
+        .route("/api/proxy-text", get(routes::bitvault::get_proxy_text))
         .route("/api/languages", get(routes::languages::get_languages))
         .route("/api/models", get(routes::models::get_models))
         .layer(DefaultBodyLimit::max(100 * 1024 * 1024))

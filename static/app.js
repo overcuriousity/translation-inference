@@ -34,15 +34,37 @@ const configMsg        = document.getElementById('config-msg');
 const settingsBtn      = document.getElementById('settings-btn');
 const dropOverlay      = document.getElementById('drop-overlay');
 const sourcePanel      = document.querySelector('.panel-source');
+const saveSrcBtn       = document.getElementById('save-src-btn');
+const saveOutBtn       = document.getElementById('save-out-btn');
 
 // ── Boot ─────────────────────────────────────────────────────────────────
 async function init() {
   const status = await fetch('/api/status').then(r => r.json())
-    .catch(() => ({ server_configured: false, session_active: false }));
+    .catch(() => ({ server_configured: false, session_active: false, bitvault_configured: false }));
+
+  if (status.bitvault_configured) {
+    saveSrcBtn.classList.remove('hidden');
+    saveOutBtn.classList.remove('hidden');
+  }
+
   if (!status.server_configured && !status.session_active) {
     showConfigPanel('Please configure your API credentials.');
   } else {
     await Promise.all([loadLanguages(), loadModels()]);
+  }
+
+  // Pre-fill source text from a Bitvault paste URL passed as ?from=
+  const fromUrl = new URLSearchParams(window.location.search).get('from');
+  if (fromUrl && status.bitvault_configured) {
+    try {
+      const res = await fetch(`/api/proxy-text?url=${encodeURIComponent(fromUrl)}`);
+      if (res.ok) {
+        sourceText.value = await res.text();
+        updateCharCount();
+        clearTimeout(translationTimeout);
+        translate(true);
+      }
+    } catch (_) { /* silently ignore */ }
   }
 }
 
@@ -485,6 +507,36 @@ function appendDocResult(item) {
   li.appendChild(btn);
   ul.appendChild(li);
 }
+
+// ── Bitvault integration ──────────────────────────────────────────────────
+async function saveToBitvault(text) {
+  try {
+    const res = await fetch('/api/save-to-bitvault', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ text }),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      window.open(data.url, '_blank');
+      showNotification('Saved to Bitvault', 'success');
+    } else {
+      showNotification(data.error || 'Save failed', 'error');
+    }
+  } catch (_) {
+    showNotification('Network error', 'error');
+  }
+}
+
+saveSrcBtn.addEventListener('click', () => {
+  const text = sourceText.value.trim();
+  if (text) saveToBitvault(text);
+});
+
+saveOutBtn.addEventListener('click', () => {
+  const text = outputDiv.innerText;
+  if (text) saveToBitvault(text);
+});
 
 let notifTimer = null;
 function showNotification(msg, type = '') {

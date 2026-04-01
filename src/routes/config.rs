@@ -16,6 +16,7 @@ pub async fn get_status(
     Json(StatusResponse {
         server_configured: state.config.is_configured(),
         session_active,
+        bitvault_configured: state.config.is_bitvault_configured(),
     })
 }
 

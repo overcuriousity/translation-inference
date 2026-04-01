@@ -71,6 +71,17 @@ pub struct StatusResponse {
     pub server_configured: bool,
     /// True when the request carries a valid `sid` session cookie.
     pub session_active: bool,
+    pub bitvault_configured: bool,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SaveToBitvaultRequest {
+    pub text: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SaveToBitvaultResponse {
+    pub url: String,
 }
 
 #[derive(Debug, Serialize)]
