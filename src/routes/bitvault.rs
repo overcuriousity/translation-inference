@@ -20,7 +20,8 @@ use crate::{
 #[derive(Serialize)]
 struct BitvaultCreateBody<'a> {
     content: &'a str,
-    expiration: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    expiration: Option<&'static str>,
     privacy: &'static str,
 }
 
@@ -41,7 +42,7 @@ pub async fn post_save_to_bitvault(
     let endpoint = format!("{bitvault_url}/api/v1/paste");
     let body = BitvaultCreateBody {
         content: &req.text,
-        expiration: "never",
+        expiration: None,
         privacy: "unlisted",
     };
 
