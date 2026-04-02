@@ -408,6 +408,8 @@ fileInput.addEventListener('change', () => {
     }
     if (ext === 'pdf' || ext === 'docx' || ext === 'odt') {
       outputFormatSel.classList.remove('hidden');
+    } else {
+      outputFormatSel.classList.add('hidden');
     }
     handleFiles(fileInput.files);
   }
@@ -434,6 +436,8 @@ dropOverlay.addEventListener('drop', e => {
     }
     if (ext === 'pdf' || ext === 'docx' || ext === 'odt') {
       outputFormatSel.classList.remove('hidden');
+    } else {
+      outputFormatSel.classList.add('hidden');
     }
     handleFiles(files);
   }

@@ -91,10 +91,16 @@ pub async fn post_translate_document(
             return Err(err(StatusCode::BAD_REQUEST, format!("Unsupported file type: .{ext}")));
         }
 
-        let output_fmt = output_format
-            .as_deref()
-            .and_then(OutputFormat::from_str)
-            .unwrap_or_else(|| OutputFormat::default_for(&ext));
+        let output_fmt = match output_format.as_deref() {
+            Some(fmt_str) => match OutputFormat::from_str(fmt_str) {
+                Some(fmt) => fmt,
+                None => return Err(err(
+                    StatusCode::BAD_REQUEST,
+                    format!("Invalid output_format: {fmt_str}. Supported values are: pdf, odt."),
+                )),
+            },
+            None => OutputFormat::default_for(&ext),
+        };
 
         let (out, out_ext, mime) = document::translate_document(
             bytes,

@@ -142,10 +142,16 @@ pub async fn post_upload(
             let bytes = std::fs::read(file.tmp.path())
                 .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, format!("{filename}: {e:#}")))?;
 
-            let output_fmt = output_format
-                .as_deref()
-                .and_then(OutputFormat::from_str)
-                .unwrap_or_else(|| OutputFormat::default_for(&ext));
+            let output_fmt = match output_format.as_deref() {
+                Some(fmt_str) => match OutputFormat::from_str(fmt_str) {
+                    Some(fmt) => fmt,
+                    None => return Err(err(
+                        StatusCode::BAD_REQUEST,
+                        format!("Invalid output_format: {fmt_str}. Allowed values: pdf, odt"),
+                    )),
+                },
+                None => OutputFormat::default_for(&ext),
+            };
 
             let (out, out_ext, mime) = document::translate_document(
                 &bytes,
