@@ -353,6 +353,7 @@ function setTranscribeBusy(busy) {
 async function handleFiles(files) {
   if (!files || files.length === 0) return;
   const fileArray = Array.from(files);
+  sourceText.value = '';
   sourceText.disabled = true;
   setTranscribeBusy(true);
   showPendingQueue(fileArray);
