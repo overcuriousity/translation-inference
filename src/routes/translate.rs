@@ -137,6 +137,11 @@ pub fn check_authenticated(
 
     let access_key = &state.config.gated_access_key;
     if access_key.is_empty() {
+        // Personal/local mode: no gated key configured.
+        // Allow access when the server itself is configured (mirrors resolve_client behaviour).
+        if state.config.is_configured() || state.config.is_tts_configured() {
+            return Ok(());
+        }
         return Err((
             StatusCode::UNAUTHORIZED,
             Json(ErrorResponse {

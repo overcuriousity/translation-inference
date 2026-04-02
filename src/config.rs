@@ -18,8 +18,10 @@ pub struct AppConfig {
     pub tts_api_key: String,
     pub tts_model: String,
     pub tts_voice: String,
-    /// Maximum bytes per TTS request chunk. `None` disables chunking (recommended
-    /// for local models). Set via `TTS_CHUNK_SIZE` env var; `0` means no chunking.
+    /// Maximum **bytes** per TTS request chunk. `None` (the default) disables
+    /// chunking entirely — recommended for local models (e.g. Qwen3-TTS) that
+    /// have no per-request size limit. Set `TTS_CHUNK_SIZE=4000` to restore
+    /// OpenAI-API-compatible behaviour; `TTS_CHUNK_SIZE=0` also means no chunking.
     pub tts_chunk_size: Option<usize>,
 }
 

@@ -7,6 +7,8 @@ use axum::{
 };
 use std::sync::Arc;
 
+use url::Url;
+
 use crate::api::client::OpenAiClient;
 use crate::models::{ErrorResponse, TtsRequest};
 use crate::routes::translate::check_authenticated;
@@ -92,6 +94,51 @@ pub async fn post_tts(
     Ok(response)
 }
 
+/// Reject BYOK endpoints that could be used for SSRF.
+/// Scheme must be http or https; in gated (multi-user) mode private/loopback
+/// targets are also blocked because the server would make the request on the
+/// caller's behalf.
+fn validate_byok_endpoint(
+    endpoint: &str,
+    gated_mode: bool,
+) -> Result<(), (StatusCode, Json<ErrorResponse>)> {
+    let url = Url::parse(endpoint).map_err(|_| (
+        StatusCode::BAD_REQUEST,
+        Json(ErrorResponse { error: "Invalid TTS endpoint URL.".into() }),
+    ))?;
+
+    match url.scheme() {
+        "http" | "https" => {}
+        _ => return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse { error: "TTS endpoint must use http or https.".into() }),
+        )),
+    }
+
+    if gated_mode {
+        let blocked = match url.host() {
+            Some(url::Host::Ipv4(addr)) => {
+                addr.is_loopback() || addr.is_private() || addr.is_link_local() || addr.is_unspecified()
+            }
+            Some(url::Host::Ipv6(addr)) => addr.is_loopback(),
+            Some(url::Host::Domain(host)) => {
+                host == "localhost" || host.ends_with(".local") || host.ends_with(".internal")
+            }
+            None => true,
+        };
+        if blocked {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                Json(ErrorResponse {
+                    error: "TTS endpoint may not target private or loopback addresses.".into(),
+                }),
+            ));
+        }
+    }
+
+    Ok(())
+}
+
 fn resolve_tts_client(
     state: &AppState,
     tts_endpoint: Option<&str>,
@@ -100,6 +147,8 @@ fn resolve_tts_client(
     // Per-request BYOK TTS credentials take priority.
     if let (Some(ep), Some(key)) = (tts_endpoint, tts_api_key) {
         if !ep.is_empty() && !key.is_empty() {
+            let gated_mode = !state.config.gated_access_key.is_empty();
+            validate_byok_endpoint(ep, gated_mode)?;
             return Ok(OpenAiClient::with_credentials(ep, key));
         }
     }

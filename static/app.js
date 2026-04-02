@@ -746,6 +746,8 @@ function stopTts() {
 }
 
 ttsBtn.addEventListener('click', async () => {
+  // Ignore clicks while a TTS request is already in flight.
+  if (ttsBtn.classList.contains('loading')) return;
   // Second click stops playback.
   if (ttsAudio && !ttsAudio.paused) {
     stopTts();
