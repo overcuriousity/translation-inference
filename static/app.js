@@ -443,6 +443,19 @@ swapBtn.addEventListener('click', () => {
     setOutput('');
     updateCharCount();
   }
+});
+
+function prepareOutputFormatForFiles(files) {
+  if (!files || files.length === 0) return;
+  const allowedExts = ['pdf', 'docx', 'odt'];
+  const exts = Array.from(files).map(f => {
+    const parts = f.name.split('.');
+    return parts.length < 2 ? '' : parts.pop().toLowerCase();
+  });
+  if (!exts.every(e => allowedExts.includes(e))) {
+    outputFormatSel.classList.add('hidden');
+    return;
+  }
   const uniqueExts = [...new Set(exts)];
   if (uniqueExts.length === 1) {
     outputFormatSel.value = uniqueExts[0] === 'pdf' ? 'pdf' : 'odt';

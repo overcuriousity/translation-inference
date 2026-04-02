@@ -26,6 +26,17 @@ pub async fn get_status(
     })
 }
 
+fn make_session_cookie(sid: &str) -> String {
+    let secure = std::env::var("COOKIE_SECURE")
+        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+        .unwrap_or(false);
+    if secure {
+        format!("sid={sid}; Path=/; SameSite=Strict; HttpOnly; Secure")
+    } else {
+        format!("sid={sid}; Path=/; SameSite=Strict; HttpOnly")
+    }
+}
+
 pub async fn post_config_test(
     State(state): State<Arc<AppState>>,
     Json(req): Json<ConfigTestRequest>,
@@ -62,7 +73,9 @@ pub async fn post_config_test(
         {
             let mut sessions = state.sessions.write().unwrap();
             if sessions.len() >= 1000 {
-                sessions.clear();
+                if let Some(old_key) = sessions.keys().next().cloned() {
+                    sessions.remove(&old_key);
+                }
             }
             sessions.insert(
                 sid.clone(),
@@ -71,17 +84,9 @@ pub async fn post_config_test(
         }
         let mut resp_headers = HeaderMap::new();
         // Session cookie: no Max-Age so it expires when the browser session ends.
-        let secure_cookies = std::env::var("COOKIE_SECURE")
-            .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
-            .unwrap_or(false);
-        let cookie_value = if secure_cookies {
-            format!("sid={sid}; Path=/; SameSite=Strict; HttpOnly; Secure")
-        } else {
-            format!("sid={sid}; Path=/; SameSite=Strict; HttpOnly")
-        };
         resp_headers.insert(
             header::SET_COOKIE,
-            cookie_value.parse().unwrap(),
+            make_session_cookie(&sid).parse().unwrap(),
         );
         Ok((resp_headers, Json(ConfigTestResponse {
             ok: true,
@@ -154,7 +159,9 @@ pub async fn post_gated_access(
         let mut sessions = state.sessions.write().unwrap();
         // Prevent unbounded memory growth
         if sessions.len() >= 1000 {
-            sessions.clear();
+            if let Some(old_key) = sessions.keys().next().cloned() {
+                sessions.remove(&old_key);
+            }
         }
         sessions.insert(
             sid.clone(),
@@ -166,19 +173,10 @@ pub async fn post_gated_access(
         );
     }
 
-    let secure_cookies = std::env::var("COOKIE_SECURE")
-        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
-        .unwrap_or(false);
-    let cookie_value = if secure_cookies {
-        format!("sid={sid}; Path=/; SameSite=Strict; HttpOnly; Secure")
-    } else {
-        format!("sid={sid}; Path=/; SameSite=Strict; HttpOnly")
-    };
-
     let mut resp_headers = HeaderMap::new();
     resp_headers.insert(
         header::SET_COOKIE,
-        cookie_value.parse().unwrap(),
+        make_session_cookie(&sid).parse().unwrap(),
     );
     Ok((resp_headers, Json(ConfigTestResponse {
         ok: true,
