@@ -5,4 +5,5 @@ pub mod languages;
 pub mod models;
 pub mod transcribe;
 pub mod translate;
+pub mod tts;
 pub mod upload;

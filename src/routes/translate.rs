@@ -101,6 +101,45 @@ pub async fn post_translate(
     }
 }
 
+/// Verify the request is authenticated (session cookie or Bearer token).
+/// Returns `Ok(())` if authenticated, or the appropriate error response.
+pub fn check_authenticated(
+    state: &AppState,
+    headers: &HeaderMap,
+) -> Result<(), (StatusCode, Json<ErrorResponse>)> {
+    if let Some(sid) = get_session_id(headers) {
+        if state.sessions.read().unwrap().contains_key(&sid) {
+            return Ok(());
+        }
+    }
+
+    let access_key = &state.config.gated_access_key;
+    if access_key.is_empty() {
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            Json(ErrorResponse {
+                error: "Direct API access is disabled. Use the web interface.".into(),
+            }),
+        ));
+    }
+
+    let provided = headers
+        .get(header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .unwrap_or("");
+
+    use subtle::ConstantTimeEq;
+    if provided.as_bytes().ct_eq(access_key.as_bytes()).unwrap_u8() == 0 {
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            Json(ErrorResponse { error: "Invalid or missing access key.".into() }),
+        ));
+    }
+
+    Ok(())
+}
+
 pub fn resolve_client(
     state: &AppState,
     endpoint: Option<&str>,

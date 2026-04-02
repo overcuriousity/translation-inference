@@ -23,6 +23,7 @@ pub async fn get_status(
         session_active,
         session_tier: session_tier_str,
         bitvault_configured: state.config.is_bitvault_configured(),
+        tts_configured: state.config.is_tts_configured(),
     })
 }
 
