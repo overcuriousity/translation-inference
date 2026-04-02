@@ -69,9 +69,17 @@ pub struct OpenAiModel {
 #[derive(Debug, Serialize)]
 pub struct StatusResponse {
     pub server_configured: bool,
+    pub gated_configured: bool,
     /// True when the request carries a valid `sid` session cookie.
     pub session_active: bool,
+    /// Which tier the active session belongs to: "byok" or "gated".
+    pub session_tier: Option<String>,
     pub bitvault_configured: bool,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct GatedAccessRequest {
+    pub access_key: String,
 }
 
 #[derive(Debug, Deserialize)]

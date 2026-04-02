@@ -290,11 +290,20 @@ body {
   color: var(--color-text-muted);
   cursor: pointer;
   border-radius: var(--radius);
+  border: none;
+  background: transparent;
   transition: var(--transition);
 }
 .icon-btn:hover {
   background: var(--color-surface-2);
   color: var(--color-text);
+}
+
+.lang-label {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  font-style: italic;
 }
 
 .char-count {
@@ -365,6 +374,13 @@ body {
   outline: none;
 }
 .config-input:focus { border-color: var(--color-primary); }
+.config-row + .config-row { margin-top: 8px; }
+.config-separator {
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  padding: 6px 0;
+}
 
 /* ── Notifications ───────────────────────────────────────────────────────── */
 .notification {
