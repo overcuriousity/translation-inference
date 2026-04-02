@@ -5,8 +5,8 @@ let availableLanguages = [];
 let availableModels    = [];
 let userEndpoint       = '';
 let userApiKey         = '';
-let translationTimeout = null;
 let lastTranslatedText = '';
+let mediaRecorder      = null;
 
 // ── DOM refs ─────────────────────────────────────────────────────────────
 const sourceLangSel    = document.getElementById('source-lang');
@@ -23,6 +23,7 @@ const clearBtn         = document.getElementById('clear-btn');
 const copyBtn          = document.getElementById('copy-btn');
 const swapBtn          = document.getElementById('swap-btn');
 const fileInput        = document.getElementById('file-input');
+const uploadLabel      = document.getElementById('upload-label');
 const resultsDocList    = document.getElementById('results-doc-list');
 const transcribeStatus = document.getElementById('transcribe-status');
 const chunkProgress    = document.getElementById('chunk-progress');
@@ -34,6 +35,7 @@ const configConnectBtn = document.getElementById('config-connect-btn');
 const configMsg        = document.getElementById('config-msg');
 const settingsBtn      = document.getElementById('settings-btn');
 const dropOverlay      = document.getElementById('drop-overlay');
+const voiceBtn         = document.getElementById('voice-btn');
 const sourcePanel      = document.querySelector('.panel-source');
 const saveSrcBtn       = document.getElementById('save-src-btn');
 const saveOutBtn       = document.getElementById('save-out-btn');
@@ -63,7 +65,6 @@ async function init() {
         sourceText.value = await res.text();
         updateCharCount();
         if (status.server_configured || status.session_active) {
-          clearTimeout(translationTimeout);
           translate(true);
         } else {
           showConfigPanel('Please configure your API credentials to enable auto-translation.');
@@ -273,17 +274,14 @@ function langNameByCode(code) {
 function sourceLangName(code) { return code === 'auto' ? 'auto' : langNameByCode(code); }
 function targetLangName(code) { return langNameByCode(code); }
 
-// ── Debounced input ───────────────────────────────────────────────────────
+// ── Input ─────────────────────────────────────────────────────────────────
 sourceText.addEventListener('input', () => {
   updateCharCount();
-  clearTimeout(translationTimeout);
-  translationTimeout = setTimeout(() => translate(true), 600);
 });
 
 sourceText.addEventListener('keydown', e => {
   if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
     e.preventDefault();
-    clearTimeout(translationTimeout);
     translate();
   }
 });
@@ -293,52 +291,64 @@ targetLangSel.addEventListener('change', () => { lastTranslatedText = ''; transl
 modelSel.addEventListener('change', () => { lastTranslatedText = ''; translate(true); });
 
 // ── Transcription & Upload ────────────────────────────────────────────────
+function setTranscribeBusy(busy) {
+  uploadLabel.classList.toggle('transcribing', busy);
+  voiceBtn.classList.toggle('transcribing', busy);
+}
+
 async function handleFiles(files) {
   if (!files || files.length === 0) return;
   const fileArray = Array.from(files);
   sourceText.disabled = true;
-
+  setTranscribeBusy(true);
   showPendingQueue(fileArray);
 
   let hasText = false;
 
-  for (let i = 0; i < fileArray.length; i++) {
-    const file = fileArray[i];
-    try {
-      const form = new FormData();
-      form.append('file', file, file.name);
-      form.append('source_lang', sourceLangName(sourceLangSel.value));
-      form.append('target_lang', targetLangName(targetLangSel.value));
-      form.append('model', modelSel.value || '');
-      form.append('whisper_model', whisperModelSel.value || '');
-      form.append('output_format', outputFormatSel.value);
-      appendCredentialsToForm(form);
-
-      const res  = await fetch('/api/upload', { method: 'POST', body: form });
-      const data = await res.json();
-
-      removePendingEntry(i);
-
-      if (!res.ok) {
-        showNotification(data.error || 'Processing failed', 'error');
-        continue;
-      }
-
-      for (const item of data.results) {
-        if (item.type === 'text') {
-          sourceText.value += (sourceText.value ? '\n\n' : '') + item.text;
-          hasText = true;
-        } else if (item.type === 'document') {
-          appendDocResult(item);
+  try {
+    for (let i = 0; i < fileArray.length; i++) {
+      const file = fileArray[i];
+      try {
+        const form = new FormData();
+        form.append('file', file, file.name);
+        form.append('source_lang', sourceLangName(sourceLangSel.value));
+        form.append('target_lang', targetLangName(targetLangSel.value));
+        form.append('model', modelSel.value || '');
+        form.append('whisper_model', whisperModelSel.value || '');
+        const fileExt = file.name.split('.').pop().toLowerCase();
+        if (['pdf', 'docx', 'odt'].includes(fileExt)) {
+          form.append('output_format', outputFormatSel.value);
         }
+        appendCredentialsToForm(form);
+
+        const res  = await fetch('/api/upload', { method: 'POST', body: form });
+        const data = await res.json();
+
+        removePendingEntry(i);
+
+        if (!res.ok) {
+          showNotification(data.error || 'Processing failed', 'error');
+          continue;
+        }
+
+        for (const item of data.results) {
+          if (item.type === 'text') {
+            sourceText.value += (sourceText.value ? '\n\n' : '') + item.text;
+            hasText = true;
+          } else if (item.type === 'document') {
+            appendDocResult(item);
+          }
+        }
+      } catch (e) {
+        removePendingEntry(i);
+        showNotification('Network error', 'error');
       }
-    } catch (e) {
-      removePendingEntry(i);
-      showNotification('Network error', 'error');
     }
+  } finally {
+    setTranscribeBusy(false);
+    sourceText.disabled = false;
   }
 
-  sourceText.disabled = false;
   if (hasText) {
     updateCharCount();
     translate(true);
@@ -399,13 +409,21 @@ swapBtn.addEventListener('click', () => {
 
 function prepareOutputFormatForFiles(files) {
   if (!files || files.length === 0) return;
-  const ext = files[0].name.split('.').pop().toLowerCase();
-  outputFormatSel.value = ext === 'pdf' ? 'pdf' : 'odt';
-  if (ext === 'pdf' || ext === 'docx' || ext === 'odt') {
-    outputFormatSel.classList.remove('hidden');
-  } else {
+  const allowedExts = ['pdf', 'docx', 'odt'];
+  const exts = Array.from(files).map(f => {
+    const parts = f.name.split('.');
+    return parts.length < 2 ? '' : parts.pop().toLowerCase();
+  });
+  if (!exts.every(e => allowedExts.includes(e))) {
     outputFormatSel.classList.add('hidden');
+    return;
   }
+  const uniqueExts = [...new Set(exts)];
+  if (uniqueExts.length === 1) {
+    outputFormatSel.value = uniqueExts[0] === 'pdf' ? 'pdf' : 'odt';
+  }
+  // mixed supported types: keep current selector value, still show it
+  outputFormatSel.classList.remove('hidden');
 }
 
 fileInput.addEventListener('change', () => {
@@ -429,6 +447,61 @@ dropOverlay.addEventListener('drop', e => {
   if (files && files.length > 0) {
     prepareOutputFormatForFiles(files);
     handleFiles(files);
+  }
+});
+
+// ── Voice input ───────────────────────────────────────────────────────────
+voiceBtn.addEventListener('click', async () => {
+  if (voiceBtn.classList.contains('transcribing')) return;
+
+  if (mediaRecorder && mediaRecorder.state === 'recording') {
+    mediaRecorder.stop();
+    return;
+  }
+
+  if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+    showNotification('Audio recording not supported in this browser', 'error');
+    return;
+  }
+
+  let stream = null;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const chunks = [];
+    const recorder = new MediaRecorder(stream);
+    mediaRecorder = recorder;
+
+    recorder.addEventListener('dataavailable', e => {
+      if (e.data.size > 0) chunks.push(e.data);
+    });
+
+    recorder.addEventListener('stop', async () => {
+      stream.getTracks().forEach(t => t.stop());
+      voiceBtn.classList.remove('recording');
+      voiceBtn.setAttribute('aria-pressed', 'false');
+      voiceBtn.title = 'Record voice input';
+
+      const mimeType = recorder.mimeType || 'audio/webm';
+      const ext = mimeType.includes('ogg') ? 'ogg' : mimeType.includes('mp4') ? 'mp4' : 'webm';
+      const blob = new Blob(chunks, { type: mimeType });
+      if (blob.size === 0) {
+        showNotification('Recording was empty — please try again', 'error');
+        return;
+      }
+      const file = new File([blob], `recording.${ext}`, { type: mimeType });
+      await handleFiles([file]);
+    });
+
+    recorder.start();
+    voiceBtn.classList.add('recording');
+    voiceBtn.setAttribute('aria-pressed', 'true');
+    voiceBtn.title = 'Stop recording';
+  } catch (e) {
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    const msg = e.name === 'NotAllowedError' ? 'Microphone access denied'
+              : e.name === 'NotFoundError'   ? 'No microphone found'
+              : 'Could not start recording';
+    showNotification(msg, 'error');
   }
 });
 

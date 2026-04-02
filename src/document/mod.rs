@@ -65,7 +65,7 @@ pub async fn translate_document(
     target_lang: &str,
 ) -> Result<(Vec<u8>, &'static str, &'static str)> {
     let out = match (input_ext.to_lowercase().as_str(), output_fmt) {
-        // Same-format fast paths (preserve original structure)
+        // ODT→ODT preserves original structure; PDF→PDF re-renders (lossy)
         ("odt", OutputFormat::Odt) => {
             translate_odt(bytes, client, model, source_lang, target_lang).await?
         }

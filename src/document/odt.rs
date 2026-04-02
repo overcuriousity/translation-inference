@@ -168,6 +168,8 @@ pub fn build_odt_from_paragraphs(paragraphs: &[String]) -> Result<Vec<u8>> {
     let manifest = r#"<?xml version="1.0" encoding="UTF-8"?>
 <manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">
   <manifest:file-entry manifest:full-path="/" manifest:media-type="application/vnd.oasis.opendocument.text"/>
+  <manifest:file-entry manifest:full-path="mimetype" manifest:media-type="text/plain"/>
+  <manifest:file-entry manifest:full-path="META-INF/manifest.xml" manifest:media-type="text/xml"/>
   <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>
 </manifest:manifest>"#;
     zip.start_file("META-INF/manifest.xml", deflate_opts)?;

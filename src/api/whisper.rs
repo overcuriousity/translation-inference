@@ -13,7 +13,10 @@ pub fn is_video_file(filename: &str) -> bool {
         .and_then(|e| e.to_str())
         .unwrap_or("")
         .to_lowercase();
-    matches!(ext.as_str(), "mp4" | "mkv" | "avi" | "mov" | "webm")
+    matches!(
+        ext.as_str(),
+        "mp4" | "mkv" | "avi" | "mov" | "webm" | "flv" | "wmv" | "m4v" | "3gp" | "ts" | "mpeg" | "mpg" | "rm" | "rmvb" | "vob" | "mts" | "m2ts" | "divx"
+    )
 }
 
 /// Extract audio from a video file using ffmpeg.
