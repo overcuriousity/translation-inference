@@ -199,10 +199,11 @@ pub fn build_odt_from_paragraphs(paragraphs: &[String]) -> Result<Vec<u8>> {
 
 /// Create a minimal ODT from plain text, splitting on double newlines (or single newlines).
 pub fn build_odt_from_text(text: &str) -> Result<Vec<u8>> {
-    let paragraphs: Vec<String> = if text.contains("\n\n") {
-        text.split("\n\n").map(|s| s.to_string()).collect()
+    let normalized = text.replace("\r\n", "\n").replace('\r', "\n");
+    let paragraphs: Vec<String> = if normalized.contains("\n\n") {
+        normalized.split("\n\n").map(|s| s.to_string()).collect()
     } else {
-        text.split('\n').map(|s| s.to_string()).collect()
+        normalized.split('\n').map(|s| s.to_string()).collect()
     };
     build_odt_from_paragraphs(&paragraphs)
 }

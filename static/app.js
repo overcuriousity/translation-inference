@@ -316,7 +316,7 @@ async function handleFiles(files) {
         form.append('model', modelSel.value || '');
         form.append('whisper_model', whisperModelSel.value || '');
         const fileExt = file.name.split('.').pop().toLowerCase();
-        if (['pdf', 'docx', 'odt'].includes(fileExt)) {
+        if (['pdf', 'docx', 'odt'].includes(fileExt) && !outputFormatSel.classList.contains('hidden')) {
           form.append('output_format', outputFormatSel.value);
         }
         appendCredentialsToForm(form);

@@ -23,18 +23,23 @@ pub enum OutputFormat {
 impl OutputFormat {
     /// Parse from a string ("pdf" or "odt"). Returns None if unrecognised.
     pub fn from_str(s: &str) -> Option<Self> {
-        match s.to_lowercase().as_str() {
-            "pdf" => Some(Self::Pdf),
-            "odt" => Some(Self::Odt),
-            _ => None,
+        let s = s.trim();
+        if s.eq_ignore_ascii_case("pdf") {
+            Some(Self::Pdf)
+        } else if s.eq_ignore_ascii_case("odt") {
+            Some(Self::Odt)
+        } else {
+            None
         }
     }
 
     /// Default output format for a given input extension.
     pub fn default_for(ext: &str) -> Self {
-        match ext.to_lowercase().as_str() {
-            "pdf" => Self::Pdf,
-            _ => Self::Odt, // odt and docx → ODT
+        let ext = ext.trim();
+        if ext.eq_ignore_ascii_case("pdf") {
+            Self::Pdf
+        } else {
+            Self::Odt // odt and docx → ODT
         }
     }
 
