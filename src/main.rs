@@ -20,15 +20,25 @@ mod static_files;
 use api::client::OpenAiClient;
 use config::AppConfig;
 
+/// Which backend tier a session was authenticated against.
+#[derive(Clone, Copy)]
+pub enum SessionTier {
+    Byok,
+    Gated,
+}
+
 /// Credentials stored for a browser session.
 pub struct SessionCredentials {
     pub endpoint: String,
     pub api_key: String,
+    pub tier: SessionTier,
 }
 
 pub struct AppState {
     pub config: AppConfig,
     pub client: OpenAiClient,
+    /// Pre-built client for the gated tier (None if not configured).
+    pub gated_client: Option<OpenAiClient>,
     /// Separate reqwest client for Bitvault proxy fetches with redirects disabled
     /// to prevent SSRF via open redirects on the Bitvault host.
     pub bitvault_http: reqwest::Client,
@@ -62,6 +72,12 @@ async fn main() -> Result<()> {
     }
 
     let client = OpenAiClient::new(&config);
+    let gated_client = if config.is_gated_configured() {
+        tracing::info!("Gated tier configured with endpoint: {}", config.gated_api_base_url);
+        Some(OpenAiClient::with_credentials(&config.gated_api_base_url, &config.gated_api_key))
+    } else {
+        None
+    };
     let bitvault_http = reqwest::Client::builder()
         .redirect(reqwest::redirect::Policy::none())
         .timeout(std::time::Duration::from_secs(30))
@@ -70,6 +86,7 @@ async fn main() -> Result<()> {
     let state = Arc::new(AppState {
         config,
         client,
+        gated_client,
         bitvault_http,
         sessions: std::sync::RwLock::new(std::collections::HashMap::new()),
     });
@@ -86,6 +103,7 @@ async fn main() -> Result<()> {
         // API
         .route("/api/status", get(routes::config::get_status))
         .route("/api/config/test", post(routes::config::post_config_test))
+        .route("/api/config/gated", post(routes::config::post_gated_access))
         .route("/api/translate", post(routes::translate::post_translate))
         .route("/api/translate/stream", post(routes::translate::post_translate_stream))
         .route("/api/transcribe", post(routes::transcribe::post_transcribe))

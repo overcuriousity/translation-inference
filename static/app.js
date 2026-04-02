@@ -9,7 +9,6 @@ let lastTranslatedText = '';
 let mediaRecorder      = null;
 
 // ── DOM refs ─────────────────────────────────────────────────────────────
-const sourceLangSel    = document.getElementById('source-lang');
 const targetLangSel    = document.getElementById('target-lang');
 const detectedBadge    = document.getElementById('detected-lang');
 const modelSel         = document.getElementById('model-select');
@@ -32,6 +31,11 @@ const configEndpoint   = document.getElementById('config-endpoint');
 const configApikey     = document.getElementById('config-apikey');
 const configConnectBtn = document.getElementById('config-connect-btn');
 const configMsg        = document.getElementById('config-msg');
+const gatedRow         = document.getElementById('gated-row');
+const configAccesskey  = document.getElementById('config-accesskey');
+const configGatedBtn   = document.getElementById('config-gated-btn');
+const gatedMsg         = document.getElementById('gated-msg');
+const configSeparator  = document.getElementById('config-separator');
 const settingsBtn      = document.getElementById('settings-btn');
 const dropOverlay      = document.getElementById('drop-overlay');
 const voiceBtn         = document.getElementById('voice-btn');
@@ -42,15 +46,24 @@ const saveOutBtn       = document.getElementById('save-out-btn');
 // ── Boot ─────────────────────────────────────────────────────────────────
 async function init() {
   const status = await fetch('/api/status').then(r => r.json())
-    .catch(() => ({ server_configured: false, session_active: false, bitvault_configured: false }));
+    .catch(() => ({ server_configured: false, gated_configured: false, session_active: false, bitvault_configured: false }));
 
   if (status.bitvault_configured) {
     saveSrcBtn.classList.remove('hidden');
     saveOutBtn.classList.remove('hidden');
   }
 
-  if (!status.server_configured && !status.session_active) {
-    showConfigPanel('Please configure your API credentials.');
+  if (status.gated_configured) {
+    gatedRow.classList.remove('hidden');
+    configSeparator.classList.remove('hidden');
+  }
+
+  const hasAccess = status.server_configured || status.session_active;
+  if (!hasAccess) {
+    const msg = status.gated_configured
+      ? 'Enter your access key or configure your own endpoint.'
+      : 'Please configure your API credentials.';
+    showConfigPanel(msg);
   } else {
     await Promise.all([loadLanguages(), loadModels()]);
   }
@@ -63,7 +76,8 @@ async function init() {
       if (res.ok) {
         sourceText.value = await res.text();
         updateCharCount();
-        if (status.server_configured || status.session_active) {
+        if (hasAccess) {
+          clearTimeout(translationTimeout);
           translate(true);
         } else {
           showConfigPanel('Please configure your API credentials to enable auto-translation.');
@@ -85,6 +99,45 @@ function showConfigPanel(msg) {
 settingsBtn.addEventListener('click', () => {
   configPanel.classList.toggle('hidden');
   configMsg.textContent = '';
+});
+
+configGatedBtn.addEventListener('click', async () => {
+  const key = configAccesskey.value.trim();
+  if (!key) {
+    gatedMsg.textContent = 'Access key required.';
+    gatedMsg.className = 'config-msg error';
+    return;
+  }
+
+  configGatedBtn.disabled = true;
+  gatedMsg.textContent = 'Verifying\u2026';
+  gatedMsg.className = 'config-msg';
+
+  try {
+    const res  = await fetch('/api/config/gated', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ access_key: key }),
+    });
+    const data = await res.json();
+
+    if (res.ok) {
+      userEndpoint = '';
+      userApiKey   = '';
+      gatedMsg.textContent = '\u2713 Access granted';
+      gatedMsg.className = 'config-msg success';
+      await Promise.all([loadLanguages(), loadModels()]);
+      setTimeout(() => configPanel.classList.add('hidden'), 800);
+    } else {
+      gatedMsg.textContent = data.error || 'Invalid access key';
+      gatedMsg.className = 'config-msg error';
+    }
+  } catch (_) {
+    gatedMsg.textContent = 'Network error';
+    gatedMsg.className = 'config-msg error';
+  } finally {
+    configGatedBtn.disabled = false;
+  }
 });
 
 configConnectBtn.addEventListener('click', async () => {
@@ -144,13 +197,6 @@ async function loadLanguages() {
     const data = await res.json();
     availableLanguages = data.languages;
 
-    sourceLangSel.innerHTML = '';
-    for (const lang of availableLanguages) {
-      const opt = document.createElement('option');
-      opt.value = lang.code; opt.textContent = lang.name;
-      sourceLangSel.appendChild(opt);
-    }
-
     targetLangSel.innerHTML = '';
     for (const lang of availableLanguages.filter(l => l.code !== 'auto')) {
       const opt = document.createElement('option');
@@ -158,8 +204,20 @@ async function loadLanguages() {
       targetLangSel.appendChild(opt);
     }
 
-    sourceLangSel.value = 'auto';
-    targetLangSel.value = 'en';
+    // Auto-set target language from browser preferences, fallback to English
+    const browserLangs = navigator.languages && navigator.languages.length
+      ? navigator.languages : [navigator.language || 'en'];
+    let targetSet = false;
+    for (const bl of browserLangs) {
+      const code = bl.split('-')[0].toLowerCase();
+      const match = availableLanguages.find(l => l.code === code && l.code !== 'auto');
+      if (match) {
+        targetLangSel.value = match.code;
+        targetSet = true;
+        break;
+      }
+    }
+    if (!targetSet) targetLangSel.value = 'en';
   } catch (e) {
     showNotification('Language sync failed', 'error');
   }
@@ -207,7 +265,7 @@ async function translate(isAuto = false) {
   try {
     const body = {
       text,
-      source_lang: sourceLangName(sourceLangSel.value),
+      source_lang: 'auto',
       target_lang: targetLangName(targetLangSel.value),
       model: modelSel.value || undefined,
       ...apiCredentials(),
@@ -266,12 +324,10 @@ async function translate(isAuto = false) {
   }
 }
 
-function langNameByCode(code) {
+function targetLangName(code) {
   const found = availableLanguages.find(l => l.code === code);
   return found ? found.name : code;
 }
-function sourceLangName(code) { return code === 'auto' ? 'auto' : langNameByCode(code); }
-function targetLangName(code) { return langNameByCode(code); }
 
 // ── Input ─────────────────────────────────────────────────────────────────
 sourceText.addEventListener('input', () => {
@@ -285,7 +341,6 @@ sourceText.addEventListener('keydown', e => {
   }
 });
 
-sourceLangSel.addEventListener('change', () => { lastTranslatedText = ''; translate(true); });
 targetLangSel.addEventListener('change', () => { lastTranslatedText = ''; translate(true); });
 modelSel.addEventListener('change', () => { lastTranslatedText = ''; translate(true); });
 
@@ -310,7 +365,7 @@ async function handleFiles(files) {
       try {
         const form = new FormData();
         form.append('file', file, file.name);
-        form.append('source_lang', sourceLangName(sourceLangSel.value));
+        form.append('source_lang', 'auto');
         form.append('target_lang', targetLangName(targetLangSel.value));
         form.append('model', modelSel.value || '');
         form.append('whisper_model', whisperModelSel.value || '');
@@ -374,30 +429,11 @@ copyBtn.addEventListener('click', async () => {
 });
 
 swapBtn.addEventListener('click', () => {
-  const srcCode = sourceLangSel.value;
-  const tgtCode = targetLangSel.value;
-
-  if (srcCode === 'auto') {
-    const tgt = outputDiv.innerText;
-    if (tgt && tgt !== 'Translation will appear here\u2026') {
-      sourceText.value = tgt;
-      setOutput('');
-      updateCharCount();
-      if (Array.from(sourceLangSel.options).some(o => o.value === tgtCode)) {
-        sourceLangSel.value = tgtCode;
-      }
-    }
-    return;
-  }
-
-  if (Array.from(targetLangSel.options).some(o => o.value === srcCode)) targetLangSel.value = srcCode;
-  if (Array.from(sourceLangSel.options).some(o => o.value === tgtCode)) sourceLangSel.value = tgtCode;
-
-  const curTgt = outputDiv.innerText;
-  if (curTgt && curTgt !== 'Translation will appear here…') {
-    sourceText.value = curTgt;
-    lastTranslatedText = curTgt;
-    translate(true);
+  const tgt = outputDiv.innerText;
+  if (tgt && tgt !== 'Translation will appear here\u2026') {
+    sourceText.value = tgt;
+    setOutput('');
+    updateCharCount();
   }
 });
 
