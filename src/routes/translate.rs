@@ -107,13 +107,7 @@ pub fn resolve_client(
     api_key: Option<&str>,
     headers: &HeaderMap,
 ) -> Result<OpenAiClient, (StatusCode, Json<ErrorResponse>)> {
-    // Explicit per-request credentials take top priority.
-    if let (Some(ep), Some(key)) = (endpoint, api_key) {
-        if !ep.is_empty() && !key.is_empty() {
-            return Ok(OpenAiClient::with_credentials(ep, key));
-        }
-    }
-    // Fall back to the session cookie credentials.
+    // Session cookie → web interface path, proceed with existing tier logic.
     if let Some(sid) = get_session_id(headers) {
         if let Some(creds) = state.sessions.read().unwrap().get(&sid) {
             if let crate::SessionTier::Gated = creds.tier {
@@ -124,7 +118,44 @@ pub fn resolve_client(
             return Ok(OpenAiClient::with_credentials(&creds.endpoint, &creds.api_key));
         }
     }
-    // Fall back to the server-level configured client.
+
+    // No session cookie → direct API access.
+    // Requires Authorization: Bearer <GATED_ACCESS_KEY>.
+    // If GATED_ACCESS_KEY is not configured, direct API access is disabled entirely.
+    let access_key = &state.config.gated_access_key;
+    if access_key.is_empty() {
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            Json(ErrorResponse {
+                error: "Direct API access is disabled. Use the web interface.".into(),
+            }),
+        ));
+    }
+
+    let provided = headers
+        .get(header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .unwrap_or("");
+
+    use subtle::ConstantTimeEq;
+    if provided.as_bytes().ct_eq(access_key.as_bytes()).unwrap_u8() == 0 {
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            Json(ErrorResponse { error: "Invalid or missing API key.".into() }),
+        ));
+    }
+
+    // Authenticated: use per-request BYOK credentials if provided,
+    // then gated client, then server-level fallback.
+    if let (Some(ep), Some(key)) = (endpoint, api_key) {
+        if !ep.is_empty() && !key.is_empty() {
+            return Ok(OpenAiClient::with_credentials(ep, key));
+        }
+    }
+    if let Some(ref gc) = state.gated_client {
+        return Ok(gc.clone());
+    }
     if state.config.is_configured() {
         return Ok(state.client.clone());
     }
