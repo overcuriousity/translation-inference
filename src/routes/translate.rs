@@ -159,14 +159,17 @@ pub fn resolve_client(
     }
 
     // No session cookie → direct API access.
-    // Requires Authorization: Bearer <GATED_ACCESS_KEY>.
-    // If GATED_ACCESS_KEY is not configured, direct API access is disabled entirely.
+    // If GATED_ACCESS_KEY is not configured but the server itself is configured,
+    // allow unauthenticated access (personal/local deployment mode).
     let access_key = &state.config.gated_access_key;
     if access_key.is_empty() {
+        if state.config.is_configured() {
+            return Ok(state.client.clone());
+        }
         return Err((
             StatusCode::UNAUTHORIZED,
             Json(ErrorResponse {
-                error: "Direct API access is disabled. Use the web interface.".into(),
+                error: "No API credentials configured. Please set up your endpoint via the web interface.".into(),
             }),
         ));
     }
