@@ -76,27 +76,21 @@ pub async fn translate_document(
         // DOCX → ODT
         ("docx", OutputFormat::Odt) => {
             let paragraphs = docx::extract_docx_paragraphs(bytes)?;
-            let refs: Vec<&str> = paragraphs.iter().map(|s| s.as_str()).collect();
-            let translated =
-                translate_paragraphs(&refs, client, model, source_lang, target_lang).await?;
+            let translated = translate_paragraphs_sparse(&paragraphs, client, model, source_lang, target_lang).await?;
             odt::build_odt_from_paragraphs(&translated)?
         }
 
         // DOCX → PDF
         ("docx", OutputFormat::Pdf) => {
             let paragraphs = docx::extract_docx_paragraphs(bytes)?;
-            let refs: Vec<&str> = paragraphs.iter().map(|s| s.as_str()).collect();
-            let translated =
-                translate_paragraphs(&refs, client, model, source_lang, target_lang).await?;
+            let translated = translate_paragraphs_sparse(&paragraphs, client, model, source_lang, target_lang).await?;
             pdf::build_pdf_from_text(&translated.join("\n"))?
         }
 
         // ODT → PDF
         ("odt", OutputFormat::Pdf) => {
             let paragraphs = odt::extract_odt_paragraphs(bytes)?;
-            let refs: Vec<&str> = paragraphs.iter().map(|s| s.as_str()).collect();
-            let translated =
-                translate_paragraphs(&refs, client, model, source_lang, target_lang).await?;
+            let translated = translate_paragraphs_sparse(&paragraphs, client, model, source_lang, target_lang).await?;
             pdf::build_pdf_from_text(&translated.join("\n"))?
         }
 
@@ -113,6 +107,40 @@ pub async fn translate_document(
     };
 
     Ok((out, output_fmt.ext(), output_fmt.mime()))
+}
+
+/// Translate paragraphs while skipping empty ones and preserving their positions.
+///
+/// Empty paragraphs are left as empty strings in the output, matching the
+/// behaviour of `translate_odt` and ensuring blank-line spacing is preserved
+/// across all cross-format conversion paths.
+async fn translate_paragraphs_sparse(
+    paragraphs: &[String],
+    client: &OpenAiClient,
+    model: &str,
+    source_lang: &str,
+    target_lang: &str,
+) -> Result<Vec<String>> {
+    let non_empty_indices: Vec<usize> = paragraphs
+        .iter()
+        .enumerate()
+        .filter(|(_, t)| !t.trim().is_empty())
+        .map(|(i, _)| i)
+        .collect();
+
+    if non_empty_indices.is_empty() {
+        return Ok(paragraphs.iter().map(|_| String::new()).collect());
+    }
+
+    let non_empty_refs: Vec<&str> = non_empty_indices.iter().map(|&i| paragraphs[i].as_str()).collect();
+    let translated_non_empty =
+        translate_paragraphs(&non_empty_refs, client, model, source_lang, target_lang).await?;
+
+    let mut translated: Vec<String> = paragraphs.iter().map(|_| String::new()).collect();
+    for (j, &idx) in non_empty_indices.iter().enumerate() {
+        translated[idx] = translated_non_empty[j].clone();
+    }
+    Ok(translated)
 }
 
 /// Translate a list of paragraph strings, preserving order and count.

@@ -397,20 +397,20 @@ swapBtn.addEventListener('click', () => {
   }
 });
 
+function prepareOutputFormatForFiles(files) {
+  if (!files || files.length === 0) return;
+  const ext = files[0].name.split('.').pop().toLowerCase();
+  outputFormatSel.value = ext === 'pdf' ? 'pdf' : 'odt';
+  if (ext === 'pdf' || ext === 'docx' || ext === 'odt') {
+    outputFormatSel.classList.remove('hidden');
+  } else {
+    outputFormatSel.classList.add('hidden');
+  }
+}
+
 fileInput.addEventListener('change', () => {
   if (fileInput.files.length > 0) {
-    const firstFile = fileInput.files[0];
-    const ext = firstFile.name.split('.').pop().toLowerCase();
-    if (ext === 'pdf') {
-      outputFormatSel.value = 'pdf';
-    } else {
-      outputFormatSel.value = 'odt';
-    }
-    if (ext === 'pdf' || ext === 'docx' || ext === 'odt') {
-      outputFormatSel.classList.remove('hidden');
-    } else {
-      outputFormatSel.classList.add('hidden');
-    }
+    prepareOutputFormatForFiles(fileInput.files);
     handleFiles(fileInput.files);
   }
   fileInput.value = '';
@@ -427,18 +427,7 @@ dropOverlay.addEventListener('drop', e => {
   dropOverlay.classList.add('hidden');
   const files = e.dataTransfer?.files;
   if (files && files.length > 0) {
-    const firstFile = files[0];
-    const ext = firstFile.name.split('.').pop().toLowerCase();
-    if (ext === 'pdf') {
-      outputFormatSel.value = 'pdf';
-    } else {
-      outputFormatSel.value = 'odt';
-    }
-    if (ext === 'pdf' || ext === 'docx' || ext === 'odt') {
-      outputFormatSel.classList.remove('hidden');
-    } else {
-      outputFormatSel.classList.add('hidden');
-    }
+    prepareOutputFormatForFiles(files);
     handleFiles(files);
   }
 });

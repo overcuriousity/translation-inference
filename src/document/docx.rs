@@ -6,7 +6,7 @@ use zip::ZipArchive;
 
 const DOCX_MAIN: &str = "word/document.xml";
 
-/// Extract all non-empty paragraph texts from a DOCX file.
+/// Extract all paragraph texts from a DOCX file, including empty ones to preserve layout.
 pub fn extract_docx_paragraphs(bytes: &[u8]) -> Result<Vec<String>> {
     let mut archive = ZipArchive::new(Cursor::new(bytes))
         .context("failed to open DOCX (ZIP) archive")?;
@@ -19,7 +19,6 @@ pub fn extract_docx_paragraphs(bytes: &[u8]) -> Result<Vec<String>> {
     let texts: Vec<String> = para_ranges
         .iter()
         .map(|r| extract_para_text(&xml_str[r.clone()]))
-        .filter(|t| !t.trim().is_empty())
         .collect();
 
     Ok(texts)

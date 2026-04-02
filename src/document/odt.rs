@@ -135,7 +135,7 @@ fn replace_para_content(para_xml: &str, translation: &str) -> String {
     format!("{}{}{}", &para_xml[..open_end], escaped, close_tag)
 }
 
-/// Extract plain text paragraphs from an ODT file.
+/// Extract plain text paragraphs from an ODT file, including empty ones to preserve layout.
 pub fn extract_odt_paragraphs(bytes: &[u8]) -> Result<Vec<String>> {
     let mut archive = ZipArchive::new(Cursor::new(bytes))
         .context("failed to open ODT (ZIP) archive")?;
@@ -146,7 +146,6 @@ pub fn extract_odt_paragraphs(bytes: &[u8]) -> Result<Vec<String>> {
     let texts: Vec<String> = para_ranges
         .iter()
         .map(|r| extract_para_text(&xml_str[r.clone()]))
-        .filter(|t| !t.trim().is_empty())
         .collect();
     Ok(texts)
 }
