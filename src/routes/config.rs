@@ -59,17 +59,29 @@ pub async fn post_config_test(
 
     if status.is_success() {
         let sid = uuid::Uuid::new_v4().to_string();
-        state.sessions.write().unwrap().insert(
-            sid.clone(),
-            SessionCredentials { endpoint: req.endpoint.clone(), api_key: req.api_key.clone(), tier: SessionTier::Byok },
-        );
+        {
+            let mut sessions = state.sessions.write().unwrap();
+            if sessions.len() >= 1000 {
+                sessions.clear();
+            }
+            sessions.insert(
+                sid.clone(),
+                SessionCredentials { endpoint: req.endpoint.clone(), api_key: req.api_key.clone(), tier: SessionTier::Byok },
+            );
+        }
         let mut resp_headers = HeaderMap::new();
         // Session cookie: no Max-Age so it expires when the browser session ends.
+        let secure_cookies = std::env::var("COOKIE_SECURE")
+            .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+            .unwrap_or(false);
+        let cookie_value = if secure_cookies {
+            format!("sid={sid}; Path=/; SameSite=Strict; HttpOnly; Secure")
+        } else {
+            format!("sid={sid}; Path=/; SameSite=Strict; HttpOnly")
+        };
         resp_headers.insert(
             header::SET_COOKIE,
-            format!("sid={sid}; Path=/; SameSite=Strict; HttpOnly")
-                .parse()
-                .unwrap(),
+            cookie_value.parse().unwrap(),
         );
         Ok((resp_headers, Json(ConfigTestResponse {
             ok: true,
@@ -102,28 +114,71 @@ pub async fn post_gated_access(
         ));
     }
 
-    if req.access_key != state.config.gated_access_key {
+    use subtle::ConstantTimeEq;
+    if req.access_key.as_bytes().ct_eq(state.config.gated_access_key.as_bytes()).unwrap_u8() == 0 {
         return Err((
             StatusCode::UNAUTHORIZED,
             Json(ErrorResponse { error: "Invalid access key".into() }),
         ));
     }
 
+    // Verify upstream before issuing session
+    if let Some(ref client) = state.gated_client {
+        let response = client
+            .http
+            .get(client.models_url())
+            .bearer_auth(&client.api_key)
+            .send()
+            .await
+            .map_err(|e| {
+                (
+                    StatusCode::BAD_GATEWAY,
+                    Json(ErrorResponse {
+                        error: format!("Cannot reach gated upstream: {e}"),
+                    }),
+                )
+            })?;
+
+        if !response.status().is_success() {
+            return Err((
+                StatusCode::BAD_GATEWAY,
+                Json(ErrorResponse {
+                    error: format!("Gated upstream returned status: {}", response.status()),
+                }),
+            ));
+        }
+    }
+
     let sid = uuid::Uuid::new_v4().to_string();
-    state.sessions.write().unwrap().insert(
-        sid.clone(),
-        SessionCredentials {
-            endpoint: state.config.gated_api_base_url.clone(),
-            api_key: state.config.gated_api_key.clone(),
-            tier: SessionTier::Gated,
-        },
-    );
+    {
+        let mut sessions = state.sessions.write().unwrap();
+        // Prevent unbounded memory growth
+        if sessions.len() >= 1000 {
+            sessions.clear();
+        }
+        sessions.insert(
+            sid.clone(),
+            SessionCredentials {
+                endpoint: state.config.gated_api_base_url.clone(),
+                api_key: state.config.gated_api_key.clone(),
+                tier: SessionTier::Gated,
+            },
+        );
+    }
+
+    let secure_cookies = std::env::var("COOKIE_SECURE")
+        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+        .unwrap_or(false);
+    let cookie_value = if secure_cookies {
+        format!("sid={sid}; Path=/; SameSite=Strict; HttpOnly; Secure")
+    } else {
+        format!("sid={sid}; Path=/; SameSite=Strict; HttpOnly")
+    };
+
     let mut resp_headers = HeaderMap::new();
     resp_headers.insert(
         header::SET_COOKIE,
-        format!("sid={sid}; Path=/; SameSite=Strict; HttpOnly")
-            .parse()
-            .unwrap(),
+        cookie_value.parse().unwrap(),
     );
     Ok((resp_headers, Json(ConfigTestResponse {
         ok: true,

@@ -124,6 +124,7 @@ configGatedBtn.addEventListener('click', async () => {
     if (res.ok) {
       userEndpoint = '';
       userApiKey   = '';
+      configAccesskey.value = '';
       gatedMsg.textContent = '\u2713 Access granted';
       gatedMsg.className = 'config-msg success';
       await Promise.all([loadLanguages(), loadModels()]);

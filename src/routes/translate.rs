@@ -116,6 +116,11 @@ pub fn resolve_client(
     // Fall back to the session cookie credentials.
     if let Some(sid) = get_session_id(headers) {
         if let Some(creds) = state.sessions.read().unwrap().get(&sid) {
+            if let crate::SessionTier::Gated = creds.tier {
+                if let Some(ref gc) = state.gated_client {
+                    return Ok(gc.clone());
+                }
+            }
             return Ok(OpenAiClient::with_credentials(&creds.endpoint, &creds.api_key));
         }
     }
