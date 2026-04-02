@@ -478,6 +478,32 @@ body {
   to { transform: rotate(360deg); }
 }
 
+/* ── Voice recording ────────────────────────────────────────────────────── */
+.icon-btn.recording {
+  color: var(--color-error);
+  animation: pulse-record 1s ease-in-out infinite;
+}
+@keyframes pulse-record {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+
+.icon-btn.transcribing {
+  pointer-events: none;
+  color: var(--color-primary);
+}
+.icon-btn.transcribing svg { display: none; }
+.icon-btn.transcribing::before {
+  content: '';
+  display: block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--color-border);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
 /* ── Utilities ──────────────────────────────────────────────────────────── */
 .hidden { display: none !important; }
 
