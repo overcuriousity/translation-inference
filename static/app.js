@@ -10,6 +10,7 @@ let mediaRecorder      = null;
 
 // ── DOM refs ─────────────────────────────────────────────────────────────
 const targetLangSel    = document.getElementById('target-lang');
+const outputFormatSel  = document.getElementById('output-format-select');
 const detectedBadge    = document.getElementById('detected-lang');
 const modelSel         = document.getElementById('model-select');
 const whisperModelSel  = document.getElementById('whisper-model-select');
@@ -352,6 +353,7 @@ function setTranscribeBusy(busy) {
 
 async function handleFiles(files) {
   if (!files || files.length === 0) return;
+  prepareOutputFormatForFiles(files);
   const fileArray = Array.from(files);
   sourceText.value = '';
   sourceText.disabled = true;
@@ -370,6 +372,10 @@ async function handleFiles(files) {
         form.append('target_lang', targetLangName(targetLangSel.value));
         form.append('model', modelSel.value || '');
         form.append('whisper_model', whisperModelSel.value || '');
+        const fileExt = file.name.split('.').pop().toLowerCase();
+        if (['pdf', 'docx', 'odt'].includes(fileExt) && !outputFormatSel.classList.contains('hidden')) {
+          form.append('output_format', outputFormatSel.value);
+        }
         appendCredentialsToForm(form);
 
         const res  = await fetch('/api/upload', { method: 'POST', body: form });
@@ -417,6 +423,7 @@ clearBtn.addEventListener('click', () => {
   detectedBadge.classList.add('hidden');
   chunkProgress.classList.add('hidden');
   copyBtn.classList.add('hidden');
+  outputFormatSel.classList.add('hidden');
   renderResultsDocList([]);
   transcribeStatus.innerHTML = '';
   transcribeStatus.classList.add('hidden');
@@ -438,8 +445,29 @@ swapBtn.addEventListener('click', () => {
   }
 });
 
+function prepareOutputFormatForFiles(files) {
+  if (!files || files.length === 0) return;
+  const allowedExts = ['pdf', 'docx', 'odt'];
+  const exts = Array.from(files).map(f => {
+    const parts = f.name.split('.');
+    return parts.length < 2 ? '' : parts.pop().toLowerCase();
+  });
+  if (!exts.every(e => allowedExts.includes(e))) {
+    outputFormatSel.classList.add('hidden');
+    return;
+  }
+  const uniqueExts = [...new Set(exts)];
+  if (uniqueExts.length === 1) {
+    outputFormatSel.value = uniqueExts[0] === 'pdf' ? 'pdf' : 'odt';
+  }
+  // mixed supported types: keep current selector value, still show it
+  outputFormatSel.classList.remove('hidden');
+}
+
 fileInput.addEventListener('change', () => {
-  if (fileInput.files.length > 0) handleFiles(fileInput.files);
+  if (fileInput.files.length > 0) {
+    handleFiles(fileInput.files);
+  }
   fileInput.value = '';
 });
 
@@ -453,7 +481,9 @@ dropOverlay.addEventListener('drop', e => {
   e.preventDefault();
   dropOverlay.classList.add('hidden');
   const files = e.dataTransfer?.files;
-  if (files && files.length > 0) handleFiles(files);
+  if (files && files.length > 0) {
+    handleFiles(files);
+  }
 });
 
 // ── Voice input ───────────────────────────────────────────────────────────

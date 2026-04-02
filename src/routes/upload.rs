@@ -6,7 +6,7 @@ use tempfile::NamedTempFile;
 use tokio::io::AsyncWriteExt;
 
 use crate::api::whisper;
-use crate::document;
+use crate::document::{self, OutputFormat};
 use crate::models::{ErrorResponse, UploadResponse, UploadResult};
 use crate::routes::translate::resolve_client;
 use crate::AppState;
@@ -30,6 +30,7 @@ pub async fn post_upload(
     let mut whisper_model: Option<String> = None;
     let mut endpoint: Option<String> = None;
     let mut api_key: Option<String> = None;
+    let mut output_format: Option<String> = None;
 
     while let Some(mut field) = multipart
         .next_field()
@@ -87,6 +88,10 @@ pub async fn post_upload(
                 let v = field.text().await.map_err(|e| err(StatusCode::BAD_REQUEST, e.to_string()))?;
                 if !v.is_empty() { api_key = Some(v); }
             }
+            Some("output_format") => {
+                let v = field.text().await.map_err(|e| err(StatusCode::BAD_REQUEST, e.to_string()))?;
+                if !v.is_empty() { output_format = Some(v); }
+            }
             _ => {}
         }
     }
@@ -125,45 +130,40 @@ pub async fn post_upload(
                 .await
                 .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, format!("{filename}: {e:#}")))?;
             results.push(UploadResult::Text { filename, text });
-        } else {
+        } else if matches!(ext.as_str(), "pdf" | "odt" | "docx") {
             let bytes = std::fs::read(file.tmp.path())
                 .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, format!("{filename}: {e:#}")))?;
-            
-            match ext.as_str() {
-                "docx" => {
-                    let out = document::translate_docx(&bytes, &client, model_str, &source_lang, &target_lang)
-                        .await
-                        .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, format!("{filename}: {e:#}")))?;
-                    results.push(UploadResult::Document {
-                        filename: format!("{stem}_translated.docx"),
-                        data: B64.encode(&out),
-                        mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document".into(),
-                    });
-                }
-                "odt" => {
-                    let out = document::translate_odt(&bytes, &client, model_str, &source_lang, &target_lang)
-                        .await
-                        .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, format!("{filename}: {e:#}")))?;
-                    results.push(UploadResult::Document {
-                        filename: format!("{stem}_translated.odt"),
-                        data: B64.encode(&out),
-                        mime: "application/vnd.oasis.opendocument.text".into(),
-                    });
-                }
-                "pdf" => {
-                    let out = document::translate_pdf(&bytes, &client, model_str, &source_lang, &target_lang)
-                        .await
-                        .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, format!("{filename}: {e:#}")))?;
-                    results.push(UploadResult::Document {
-                        filename: format!("{stem}_translated.pdf"),
-                        data: B64.encode(&out),
-                        mime: "application/pdf".into(),
-                    });
-                }
-                _ => {
-                    return Err(err(StatusCode::BAD_REQUEST, format!("Unsupported file type: .{ext}")));
-                }
-            }
+
+            let output_fmt = match output_format.as_deref() {
+                Some(fmt_str) => match OutputFormat::from_str(fmt_str) {
+                    Some(fmt) => fmt,
+                    None => return Err(err(
+                        StatusCode::BAD_REQUEST,
+                        format!("Invalid output_format: {fmt_str}. Allowed values: pdf, odt"),
+                    )),
+                },
+                None => OutputFormat::default_for(&ext),
+            };
+
+            let (out, out_ext, mime) = document::translate_document(
+                &bytes,
+                &ext,
+                output_fmt,
+                &client,
+                model_str,
+                &source_lang,
+                &target_lang,
+            )
+            .await
+            .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, format!("{filename}: {e:#}")))?;
+
+            results.push(UploadResult::Document {
+                filename: format!("{stem}_translated.{out_ext}"),
+                data: B64.encode(&out),
+                mime: mime.into(),
+            });
+        } else {
+            return Err(err(StatusCode::BAD_REQUEST, format!("Unsupported file type: .{ext}")));
         }
     }
 
