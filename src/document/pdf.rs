@@ -38,11 +38,11 @@ pub async fn translate_pdf(
         .await
         .context("translation failed")?;
 
-    text_to_pdf(&translated)
+    build_pdf_from_text(&translated)
 }
 
 /// Render plain text into a PDF using `genpdf` (pure Rust, no system dependencies).
-fn text_to_pdf(text: &str) -> Result<Vec<u8>> {
+pub fn build_pdf_from_text(text: &str) -> Result<Vec<u8>> {
     let font = genpdf::fonts::from_files("/usr/share/fonts/liberation-mono", "LiberationMono", None)
         .or_else(|_| genpdf::fonts::from_files("/usr/share/fonts/truetype/liberation", "LiberationMono", None))
         .or_else(|_| genpdf::fonts::from_files("/usr/share/fonts/liberation", "LiberationMono", None))

@@ -11,6 +11,7 @@ let lastTranslatedText = '';
 // ── DOM refs ─────────────────────────────────────────────────────────────
 const sourceLangSel    = document.getElementById('source-lang');
 const targetLangSel    = document.getElementById('target-lang');
+const outputFormatSel  = document.getElementById('output-format-select');
 const detectedBadge    = document.getElementById('detected-lang');
 const modelSel         = document.getElementById('model-select');
 const whisperModelSel  = document.getElementById('whisper-model-select');
@@ -310,6 +311,7 @@ async function handleFiles(files) {
       form.append('target_lang', targetLangName(targetLangSel.value));
       form.append('model', modelSel.value || '');
       form.append('whisper_model', whisperModelSel.value || '');
+      form.append('output_format', outputFormatSel.value);
       appendCredentialsToForm(form);
 
       const res  = await fetch('/api/upload', { method: 'POST', body: form });
@@ -354,6 +356,7 @@ clearBtn.addEventListener('click', () => {
   detectedBadge.classList.add('hidden');
   chunkProgress.classList.add('hidden');
   copyBtn.classList.add('hidden');
+  outputFormatSel.classList.add('hidden');
   renderResultsDocList([]);
   transcribeStatus.innerHTML = '';
   transcribeStatus.classList.add('hidden');
@@ -395,7 +398,19 @@ swapBtn.addEventListener('click', () => {
 });
 
 fileInput.addEventListener('change', () => {
-  if (fileInput.files.length > 0) handleFiles(fileInput.files);
+  if (fileInput.files.length > 0) {
+    const firstFile = fileInput.files[0];
+    const ext = firstFile.name.split('.').pop().toLowerCase();
+    if (ext === 'pdf') {
+      outputFormatSel.value = 'pdf';
+    } else {
+      outputFormatSel.value = 'odt';
+    }
+    if (ext === 'pdf' || ext === 'docx' || ext === 'odt') {
+      outputFormatSel.classList.remove('hidden');
+    }
+    handleFiles(fileInput.files);
+  }
   fileInput.value = '';
 });
 

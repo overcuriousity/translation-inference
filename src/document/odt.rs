@@ -135,6 +135,77 @@ fn replace_para_content(para_xml: &str, translation: &str) -> String {
     format!("{}{}{}", &para_xml[..open_end], escaped, close_tag)
 }
 
+/// Extract plain text paragraphs from an ODT file.
+pub fn extract_odt_paragraphs(bytes: &[u8]) -> Result<Vec<String>> {
+    let mut archive = ZipArchive::new(Cursor::new(bytes))
+        .context("failed to open ODT (ZIP) archive")?;
+    let xml = read_entry(&mut archive, ODT_MAIN)
+        .context("content.xml not found in ODT")?;
+    let xml_str = String::from_utf8(xml).context("content.xml is not valid UTF-8")?;
+    let para_ranges = find_para_ranges(&xml_str);
+    let texts: Vec<String> = para_ranges
+        .iter()
+        .map(|r| extract_para_text(&xml_str[r.clone()]))
+        .filter(|t| !t.trim().is_empty())
+        .collect();
+    Ok(texts)
+}
+
+/// Create a minimal ODT ZIP from a list of paragraph strings.
+pub fn build_odt_from_paragraphs(paragraphs: &[String]) -> Result<Vec<u8>> {
+    let cursor = Cursor::new(Vec::new());
+    let mut zip = ZipWriter::new(cursor);
+
+    // mimetype must be stored (uncompressed) and first
+    let stored_opts = SimpleFileOptions::default()
+        .compression_method(zip::CompressionMethod::Stored);
+    zip.start_file("mimetype", stored_opts)?;
+    zip.write_all(b"application/vnd.oasis.opendocument.text")?;
+
+    let deflate_opts = SimpleFileOptions::default()
+        .compression_method(zip::CompressionMethod::Deflated);
+
+    // META-INF/manifest.xml
+    let manifest = r#"<?xml version="1.0" encoding="UTF-8"?>
+<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">
+  <manifest:file-entry manifest:full-path="/" manifest:media-type="application/vnd.oasis.opendocument.text"/>
+  <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>
+</manifest:manifest>"#;
+    zip.start_file("META-INF/manifest.xml", deflate_opts)?;
+    zip.write_all(manifest.as_bytes())?;
+
+    // content.xml
+    let mut content = String::from(
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\
+         <office:document-content \
+           xmlns:office=\"urn:oasis:names:tc:opendocument:xmlns:office:1.0\" \
+           xmlns:text=\"urn:oasis:names:tc:opendocument:xmlns:text:1.0\" \
+           office:version=\"1.3\">\
+         <office:automatic-styles/>\
+         <office:body><office:text>",
+    );
+    for para in paragraphs {
+        content.push_str("<text:p text:style-name=\"Standard\">");
+        content.push_str(&xml_escape(para));
+        content.push_str("</text:p>");
+    }
+    content.push_str("</office:text></office:body></office:document-content>");
+    zip.start_file("content.xml", deflate_opts)?;
+    zip.write_all(content.as_bytes())?;
+
+    Ok(zip.finish()?.into_inner())
+}
+
+/// Create a minimal ODT from plain text, splitting on double newlines (or single newlines).
+pub fn build_odt_from_text(text: &str) -> Result<Vec<u8>> {
+    let paragraphs: Vec<String> = if text.contains("\n\n") {
+        text.split("\n\n").map(|s| s.to_string()).collect()
+    } else {
+        text.split('\n').map(|s| s.to_string()).collect()
+    };
+    build_odt_from_paragraphs(&paragraphs)
+}
+
 fn xml_escape(s: &str) -> String {
     s.replace('&', "&amp;")
         .replace('<', "&lt;")

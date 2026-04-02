@@ -2,7 +2,6 @@ pub mod docx;
 pub mod odt;
 pub mod pdf;
 
-pub use docx::translate_docx;
 pub use odt::translate_odt;
 pub use pdf::translate_pdf;
 
@@ -14,6 +13,107 @@ use crate::api::{chat::translate_single, client::OpenAiClient};
 // We use a highly unlikely string as a batch separator because null bytes
 // are often stripped by LLM APIs or tokenizers, breaking the split logic.
 const PARA_SEP: &str = "[---PARAGRAPH_SEPARATOR---]";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OutputFormat {
+    Pdf,
+    Odt,
+}
+
+impl OutputFormat {
+    /// Parse from a string ("pdf" or "odt"). Returns None if unrecognised.
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s.to_lowercase().as_str() {
+            "pdf" => Some(Self::Pdf),
+            "odt" => Some(Self::Odt),
+            _ => None,
+        }
+    }
+
+    /// Default output format for a given input extension.
+    pub fn default_for(ext: &str) -> Self {
+        match ext.to_lowercase().as_str() {
+            "pdf" => Self::Pdf,
+            _ => Self::Odt, // odt and docx → ODT
+        }
+    }
+
+    pub fn ext(&self) -> &'static str {
+        match self {
+            Self::Pdf => "pdf",
+            Self::Odt => "odt",
+        }
+    }
+
+    pub fn mime(&self) -> &'static str {
+        match self {
+            Self::Pdf => "application/pdf",
+            Self::Odt => "application/vnd.oasis.opendocument.text",
+        }
+    }
+}
+
+/// Translate a document (PDF, DOCX, or ODT) and return output bytes in the requested format.
+/// Returns `(bytes, output_ext, mime_type)`.
+pub async fn translate_document(
+    bytes: &[u8],
+    input_ext: &str,
+    output_fmt: OutputFormat,
+    client: &OpenAiClient,
+    model: &str,
+    source_lang: &str,
+    target_lang: &str,
+) -> Result<(Vec<u8>, &'static str, &'static str)> {
+    let out = match (input_ext.to_lowercase().as_str(), output_fmt) {
+        // Same-format fast paths (preserve original structure)
+        ("odt", OutputFormat::Odt) => {
+            translate_odt(bytes, client, model, source_lang, target_lang).await?
+        }
+        ("pdf", OutputFormat::Pdf) => {
+            translate_pdf(bytes, client, model, source_lang, target_lang).await?
+        }
+
+        // DOCX → ODT
+        ("docx", OutputFormat::Odt) => {
+            let paragraphs = docx::extract_docx_paragraphs(bytes)?;
+            let refs: Vec<&str> = paragraphs.iter().map(|s| s.as_str()).collect();
+            let translated =
+                translate_paragraphs(&refs, client, model, source_lang, target_lang).await?;
+            odt::build_odt_from_paragraphs(&translated)?
+        }
+
+        // DOCX → PDF
+        ("docx", OutputFormat::Pdf) => {
+            let paragraphs = docx::extract_docx_paragraphs(bytes)?;
+            let refs: Vec<&str> = paragraphs.iter().map(|s| s.as_str()).collect();
+            let translated =
+                translate_paragraphs(&refs, client, model, source_lang, target_lang).await?;
+            pdf::build_pdf_from_text(&translated.join("\n"))?
+        }
+
+        // ODT → PDF
+        ("odt", OutputFormat::Pdf) => {
+            let paragraphs = odt::extract_odt_paragraphs(bytes)?;
+            let refs: Vec<&str> = paragraphs.iter().map(|s| s.as_str()).collect();
+            let translated =
+                translate_paragraphs(&refs, client, model, source_lang, target_lang).await?;
+            pdf::build_pdf_from_text(&translated.join("\n"))?
+        }
+
+        // PDF → ODT
+        ("pdf", OutputFormat::Odt) => {
+            let text = pdf::extract_pdf_text(bytes)?;
+            let (translated, _, _) =
+                crate::api::chat::translate(client, model, source_lang, target_lang, &text)
+                    .await?;
+            odt::build_odt_from_text(&translated)?
+        }
+
+        _ => anyhow::bail!("unsupported input format: .{input_ext}"),
+    };
+
+    Ok((out, output_fmt.ext(), output_fmt.mime()))
+}
 
 /// Translate a list of paragraph strings, preserving order and count.
 ///
@@ -45,7 +145,11 @@ pub async fn translate_paragraphs(
 
     for (i, para) in paragraphs.iter().enumerate() {
         let para_chars = para.chars().count();
-        let cost = if current.is_empty() { para_chars } else { sep_chars + para_chars };
+        let cost = if current.is_empty() {
+            para_chars
+        } else {
+            sep_chars + para_chars
+        };
 
         if !current.is_empty() && current_len + cost > max_chars {
             batches.push(std::mem::take(&mut current));
@@ -69,7 +173,8 @@ pub async fn translate_paragraphs(
             .collect::<Vec<_>>()
             .join(&sep_full);
 
-        let translated = translate_single(client, model, source_lang, target_lang, &joined).await?;
+        let translated =
+            translate_single(client, model, source_lang, target_lang, &joined).await?;
 
         // Split on the separator.  If the model slightly alters surrounding
         // whitespace we still find the marker itself.
