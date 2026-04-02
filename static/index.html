@@ -34,6 +34,16 @@
   <div id="config-panel" class="config-panel hidden">
     <div class="config-inner">
       <div class="config-title">API Configuration</div>
+      <!-- Gated access row (shown only when gated tier is available server-side) -->
+      <div id="gated-row" class="config-row hidden">
+        <input id="config-accesskey" type="password" class="config-input" placeholder="Access Key" />
+        <button id="config-gated-btn" class="btn-primary">Unlock</button>
+        <span id="gated-msg" class="config-msg"></span>
+      </div>
+      <div id="config-separator" class="config-separator hidden">
+        <span>or bring your own endpoint</span>
+      </div>
+      <!-- BYOK row -->
       <div class="config-row">
         <input id="config-endpoint" type="url" class="config-input" placeholder="Endpoint URL" />
         <input id="config-apikey" type="password" class="config-input" placeholder="API Key" />
@@ -47,7 +57,7 @@
     <!-- Source panel -->
     <div class="panel panel-source">
       <div class="panel-header">
-        <select id="source-lang" class="lang-select"></select>
+        <span class="lang-label">Auto-detect</span>
         <span id="detected-lang" class="detected-badge hidden"></span>
       </div>
       <div class="textarea-container">

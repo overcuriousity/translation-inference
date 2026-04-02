@@ -4,6 +4,9 @@ use anyhow::Result;
 pub struct AppConfig {
     pub api_base_url: String,
     pub api_key: String,
+    pub gated_api_base_url: String,
+    pub gated_api_key: String,
+    pub gated_access_key: String,
     pub translation_model: String,
     pub whisper_model: String,
     pub translation_models: Vec<String>,
@@ -32,6 +35,9 @@ impl AppConfig {
         Ok(Self {
             api_base_url: std::env::var("API_BASE_URL").unwrap_or_default(),
             api_key: std::env::var("API_KEY").unwrap_or_default(),
+            gated_api_base_url: std::env::var("GATED_API_BASE_URL").unwrap_or_default(),
+            gated_api_key: std::env::var("GATED_API_KEY").unwrap_or_default(),
+            gated_access_key: std::env::var("GATED_ACCESS_KEY").unwrap_or_default(),
             translation_model: std::env::var("TRANSLATION_MODEL")
                 .unwrap_or_else(|_| "gpgpu/qwen3:14b-q5_k_m-32768".to_string()),
             whisper_model: std::env::var("WHISPER_MODEL")
@@ -53,6 +59,12 @@ impl AppConfig {
 
     pub fn is_configured(&self) -> bool {
         !self.api_base_url.is_empty() && !self.api_key.is_empty()
+    }
+
+    pub fn is_gated_configured(&self) -> bool {
+        !self.gated_api_base_url.is_empty()
+            && !self.gated_api_key.is_empty()
+            && !self.gated_access_key.is_empty()
     }
 
     pub fn is_bitvault_configured(&self) -> bool {
