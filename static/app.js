@@ -8,6 +8,8 @@ let userApiKey         = '';
 let userTtsEndpoint    = '';
 let userTtsApiKey      = '';
 let lastTranslatedText = '';
+let lastOutputText     = '';     // actual translated output (differs from source)
+let ttsObjectUrl       = null;   // current blob: URL for the active TTS audio
 let mediaRecorder      = null;
 let ttsAudio           = null;   // active Audio instance
 let serverTtsConfigured = false;
@@ -323,7 +325,10 @@ async function translate(isAuto = false) {
       const partial = textSoFar.slice(0, errIdx);
       const errMsg  = textSoFar.slice(errIdx + ERR_SENTINEL.length).trim();
       setOutput(partial);
+      lastOutputText = partial;
       if (!isAuto) showNotification(errMsg || 'Translation error', 'error');
+    } else {
+      lastOutputText = textSoFar;
     }
 
     chunkProgress.classList.add('hidden');
@@ -355,8 +360,8 @@ sourceText.addEventListener('keydown', e => {
   }
 });
 
-targetLangSel.addEventListener('change', () => { lastTranslatedText = ''; translate(true); });
-modelSel.addEventListener('change', () => { lastTranslatedText = ''; translate(true); });
+targetLangSel.addEventListener('change', () => { lastTranslatedText = ''; lastOutputText = ''; translate(true); });
+modelSel.addEventListener('change', () => { lastTranslatedText = ''; lastOutputText = ''; translate(true); });
 
 // ── Transcription & Upload ────────────────────────────────────────────────
 function setTranscribeBusy(busy) {
@@ -431,6 +436,7 @@ translateBtn.addEventListener('click', () => translate());
 clearBtn.addEventListener('click', () => {
   sourceText.value = '';
   lastTranslatedText = '';
+  lastOutputText = '';
   setOutput('');
   updateCharCount();
   detectedBadge.classList.add('hidden');
@@ -714,7 +720,7 @@ saveOutBtn.addEventListener('click', () => {
 function updateTtsButtonVisibility() {
   const hasTts = serverTtsConfigured || !!userTtsEndpoint;
   // Only show the button when there is translated text available.
-  const hasText = lastTranslatedText.trim().length > 0;
+  const hasText = lastOutputText.trim().length > 0;
   if (hasTts && hasText) {
     ttsBtn.classList.remove('hidden');
   } else {
@@ -729,6 +735,10 @@ function stopTts() {
     ttsAudio.src = '';
     ttsAudio = null;
   }
+  if (ttsObjectUrl) {
+    URL.revokeObjectURL(ttsObjectUrl);
+    ttsObjectUrl = null;
+  }
   ttsBtn.classList.remove('playing', 'loading');
   ttsBtn.setAttribute('aria-pressed', 'false');
   ttsBtn.title = 'Read aloud';
@@ -741,7 +751,7 @@ ttsBtn.addEventListener('click', async () => {
     return;
   }
 
-  const text = lastTranslatedText.trim();
+  const text = lastOutputText.trim();
   if (!text) return;
 
   ttsBtn.classList.add('loading');
@@ -772,15 +782,13 @@ ttsBtn.addEventListener('click', async () => {
     }
 
     const blob = await res.blob();
-    const url  = URL.createObjectURL(blob);
+    ttsObjectUrl = URL.createObjectURL(blob);
 
-    ttsAudio = new Audio(url);
+    ttsAudio = new Audio(ttsObjectUrl);
     ttsAudio.addEventListener('ended', () => {
-      URL.revokeObjectURL(url);
       stopTts();
     });
     ttsAudio.addEventListener('error', () => {
-      URL.revokeObjectURL(url);
       showNotification('Audio playback error', 'error');
       stopTts();
     });

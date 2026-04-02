@@ -67,7 +67,7 @@ pub async fn post_tts(
             return Err((
                 StatusCode::BAD_GATEWAY,
                 Json(ErrorResponse {
-                    error: format!("TTS endpoint returned {status}: {body}"),
+                    error: format!("TTS upstream error: {status}"),
                 }),
             ));
         }
@@ -133,23 +133,40 @@ fn split_into_chunks(text: &str) -> Vec<String> {
         }
         // If a single sentence exceeds the limit, hard-split it.
         if sentence.len() > TTS_CHUNK_SIZE {
-            let mut pos = 0;
-            let bytes = sentence.as_bytes();
-            while pos < bytes.len() {
-                let end = (pos + TTS_CHUNK_SIZE).min(bytes.len());
-                // Walk back to a space to avoid breaking a UTF-8 sequence or word.
-                let end = if end < bytes.len() {
-                    (0..=end).rev().find(|&i| i == 0 || bytes[i - 1] == b' ').unwrap_or(end)
-                } else {
-                    end
-                };
-                let end = end.max(pos + 1); // always advance
-                if !current.is_empty() {
-                    chunks.push(current.trim().to_string());
-                    current = String::new();
+            if !current.is_empty() {
+                chunks.push(current.trim().to_string());
+                current = String::new();
+            }
+            // Use char_indices so all slice boundaries are valid UTF-8.
+            let mut chunk_start = 0usize;
+            let mut current_len = 0usize;
+            let mut last_space: Option<usize> = None;
+            for (i, ch) in sentence.char_indices() {
+                let ch_len = ch.len_utf8();
+                if current_len + ch_len > TTS_CHUNK_SIZE {
+                    // Prefer breaking at the last space; otherwise split before current char.
+                    let split_at = match last_space {
+                        Some(sp) if sp > chunk_start => sp,
+                        _ => i,
+                    };
+                    let part = sentence[chunk_start..split_at].trim();
+                    if !part.is_empty() {
+                        chunks.push(part.to_string());
+                    }
+                    chunk_start = split_at;
+                    current_len = sentence[chunk_start..i].len();
+                    last_space = None;
                 }
-                chunks.push(sentence[pos..end].trim().to_string());
-                pos = end;
+                current_len += ch_len;
+                if ch == ' ' {
+                    last_space = Some(i + ch_len);
+                }
+            }
+            if chunk_start < sentence.len() {
+                let part = sentence[chunk_start..].trim();
+                if !part.is_empty() {
+                    chunks.push(part.to_string());
+                }
             }
         } else {
             current.push_str(&sentence);
