@@ -15,6 +15,7 @@ A fast, memory-efficient, Rust-based translation and transcription inference ser
 - **Real-Time Streaming**: Text translation supports streaming outputs for a responsive UI experience.
 - **Modern Web Interface**: A clean, built-in static web UI. Supports session-based credential storage (bring your own API key directly in the browser).
 - **Auto-Model Fetching**: Automatically fetches available models from the connected endpoint.
+- **Gated Tier** *(optional)*: A second server-side backend protected by a shared access key. Users enter the access key in the UI to unlock the pre-configured backend — the actual LLM credentials never leave the server. Useful for shared deployments where you want to expose a curated model without distributing the API key.
 - **Bitvault Integration** *(optional)*: Save source or translated text as Bitvault pastes directly from the UI, and preload source text from a Bitvault raw URL via the `?from=` query parameter.
 
 ## 🛠️ Prerequisites
@@ -75,6 +76,18 @@ WHISPER_MODELS=gpgpu/whisper
 # Server bind address
 LISTEN_ADDR=0.0.0.0:3000
 
+# Optional: Gated tier — a second backend protected by an access key.
+# Users must enter GATED_ACCESS_KEY in the UI to unlock this tier.
+# The actual LLM credentials (GATED_API_BASE_URL, GATED_API_KEY) stay server-side.
+# All three must be set for the gated tier to be enabled.
+# GATED_API_BASE_URL=https://premium-llm.example.com
+# GATED_API_KEY=your-gated-backend-key
+# GATED_ACCESS_KEY=shared-password-for-users
+
+# Optional: Set to "1" or "true" to add the Secure flag to session cookies.
+# Enable this when serving over HTTPS.
+# COOKIE_SECURE=true
+
 # Optional: Bitvault integration
 # Enables "Save to Bitvault" buttons in the UI and ?from=<raw-url> source preloading.
 # BITVAULT_URL must point to the root of your Bitvault instance (no trailing slash).
@@ -89,6 +102,8 @@ The service provides a RESTful API for integrations:
 
 - `GET /api/status` - Check server configuration and session status.
 - `GET /api/models` - Fetch available translation and transcription models.
+- `POST /api/config/test` - Validate a BYOK endpoint+key pair and set a session cookie on success.
+- `POST /api/config/gated` - *(requires `GATED_ACCESS_KEY` configured)* Authenticate with the shared access key to obtain a session cookie for the server-side gated backend. Request body: `{ "access_key": "..." }`.
 - `POST /api/translate` - Translate raw text.
 - `POST /api/translate/stream` - Translate raw text with SSE streaming response.
 - `POST /api/transcribe` - Transcribe an audio or video file.
@@ -96,6 +111,8 @@ The service provides a RESTful API for integrations:
 - `POST /api/upload` - Unified upload endpoint for mixed media (transcribes audio/video, translates documents).
 - `POST /api/save-to-bitvault` - *(requires `BITVAULT_URL`)* Save text as a Bitvault paste and return its URL.
 - `GET /api/proxy-text?url=<raw-url>` - *(requires `BITVAULT_URL`)* Proxy raw text from a Bitvault URL (used by the `?from=` preload feature to avoid CORS).
+
+> **Note:** Translation/transcription endpoints accept either a session cookie (set via `/api/config/test` or `/api/config/gated`) or direct calls with `Authorization: Bearer <GATED_ACCESS_KEY>`. When `GATED_ACCESS_KEY` is configured, all direct API requests (no session cookie) must include this header — including BYOK calls that supply their own `endpoint`+`api_key`. If `GATED_ACCESS_KEY` is not configured, direct API access is disabled entirely and only the web interface can be used.
 
 ## 📄 License
 

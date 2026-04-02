@@ -11,29 +11,45 @@ pub async fn get_models(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
 ) -> Json<ModelsResponse> {
-    let mut translation_ids = state.config.translation_models.clone();
-    let mut transcription_ids = state.config.whisper_models.clone();
+    let mut translation_ids = Vec::new();
+    let mut transcription_ids = Vec::new();
 
-    // If no models defined in config, try to fetch from any available client.
-    // Session takes priority so users get models from their active tier (gated or BYOK).
-    if translation_ids.is_empty() && transcription_ids.is_empty() {
-        let client_opt: Option<OpenAiClient> = if let Some(sid) = get_session_id(&headers) {
-            state.sessions.read().unwrap()
-                .get(&sid)
-                .map(|c| OpenAiClient::with_credentials(&c.endpoint, &c.api_key))
-        } else if state.config.is_configured() {
-            Some(state.client.clone())
-        } else {
-            None
-        };
+    let session_client: Option<OpenAiClient> = get_session_id(&headers).and_then(|sid| {
+        state.sessions.read().unwrap()
+            .get(&sid)
+            .map(|c| {
+                if let crate::SessionTier::Gated = c.tier {
+                    if let Some(ref gc) = state.gated_client {
+                        return gc.clone();
+                    }
+                }
+                OpenAiClient::with_credentials(&c.endpoint, &c.api_key)
+            })
+    });
 
-        if let Some(client) = client_opt {
-            if let Ok(fetched) = client.fetch_models().await {
-                for id in fetched {
-                    if id.to_lowercase().contains("whisper") {
-                        transcription_ids.push(id);
-                    } else {
-                        translation_ids.push(id);
+    if let Some(client) = session_client {
+        if let Ok(fetched) = client.fetch_models().await {
+            for id in fetched {
+                if id.to_lowercase().contains("whisper") {
+                    transcription_ids.push(id);
+                } else {
+                    translation_ids.push(id);
+                }
+            }
+        }
+    } else {
+        translation_ids = state.config.translation_models.clone();
+        transcription_ids = state.config.whisper_models.clone();
+
+        if translation_ids.is_empty() && transcription_ids.is_empty() {
+            if state.config.is_configured() {
+                if let Ok(fetched) = state.client.fetch_models().await {
+                    for id in fetched {
+                        if id.to_lowercase().contains("whisper") {
+                            transcription_ids.push(id);
+                        } else {
+                            translation_ids.push(id);
+                        }
                     }
                 }
             }

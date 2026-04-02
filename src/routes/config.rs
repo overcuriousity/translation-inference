@@ -26,6 +26,17 @@ pub async fn get_status(
     })
 }
 
+fn make_session_cookie(sid: &str) -> String {
+    let secure = std::env::var("COOKIE_SECURE")
+        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+        .unwrap_or(false);
+    if secure {
+        format!("sid={sid}; Path=/; SameSite=Strict; HttpOnly; Secure")
+    } else {
+        format!("sid={sid}; Path=/; SameSite=Strict; HttpOnly")
+    }
+}
+
 pub async fn post_config_test(
     State(state): State<Arc<AppState>>,
     Json(req): Json<ConfigTestRequest>,
@@ -59,17 +70,23 @@ pub async fn post_config_test(
 
     if status.is_success() {
         let sid = uuid::Uuid::new_v4().to_string();
-        state.sessions.write().unwrap().insert(
-            sid.clone(),
-            SessionCredentials { endpoint: req.endpoint.clone(), api_key: req.api_key.clone(), tier: SessionTier::Byok },
-        );
+        {
+            let mut sessions = state.sessions.write().unwrap();
+            if sessions.len() >= 1000 {
+                if let Some(old_key) = sessions.keys().next().cloned() {
+                    sessions.remove(&old_key);
+                }
+            }
+            sessions.insert(
+                sid.clone(),
+                SessionCredentials { endpoint: req.endpoint.clone(), api_key: req.api_key.clone(), tier: SessionTier::Byok },
+            );
+        }
         let mut resp_headers = HeaderMap::new();
         // Session cookie: no Max-Age so it expires when the browser session ends.
         resp_headers.insert(
             header::SET_COOKIE,
-            format!("sid={sid}; Path=/; SameSite=Strict; HttpOnly")
-                .parse()
-                .unwrap(),
+            make_session_cookie(&sid).parse().unwrap(),
         );
         Ok((resp_headers, Json(ConfigTestResponse {
             ok: true,
@@ -102,28 +119,65 @@ pub async fn post_gated_access(
         ));
     }
 
-    if req.access_key != state.config.gated_access_key {
+    use subtle::ConstantTimeEq;
+    if req.access_key.as_bytes().ct_eq(state.config.gated_access_key.as_bytes()).unwrap_u8() == 0 {
         return Err((
             StatusCode::UNAUTHORIZED,
             Json(ErrorResponse { error: "Invalid access key".into() }),
         ));
     }
 
+    // Verify upstream before issuing session (short timeout — this is a connectivity check).
+    if let Some(ref client) = state.gated_client {
+        let response = client
+            .http
+            .get(client.models_url())
+            .bearer_auth(&client.api_key)
+            .timeout(std::time::Duration::from_secs(10))
+            .send()
+            .await
+            .map_err(|e| {
+                (
+                    StatusCode::BAD_GATEWAY,
+                    Json(ErrorResponse {
+                        error: format!("Cannot reach gated upstream: {e}"),
+                    }),
+                )
+            })?;
+
+        if !response.status().is_success() {
+            return Err((
+                StatusCode::BAD_GATEWAY,
+                Json(ErrorResponse {
+                    error: format!("Gated upstream returned status: {}", response.status()),
+                }),
+            ));
+        }
+    }
+
     let sid = uuid::Uuid::new_v4().to_string();
-    state.sessions.write().unwrap().insert(
-        sid.clone(),
-        SessionCredentials {
-            endpoint: state.config.gated_api_base_url.clone(),
-            api_key: state.config.gated_api_key.clone(),
-            tier: SessionTier::Gated,
-        },
-    );
+    {
+        let mut sessions = state.sessions.write().unwrap();
+        // Prevent unbounded memory growth
+        if sessions.len() >= 1000 {
+            if let Some(old_key) = sessions.keys().next().cloned() {
+                sessions.remove(&old_key);
+            }
+        }
+        sessions.insert(
+            sid.clone(),
+            SessionCredentials {
+                endpoint: state.config.gated_api_base_url.clone(),
+                api_key: state.config.gated_api_key.clone(),
+                tier: SessionTier::Gated,
+            },
+        );
+    }
+
     let mut resp_headers = HeaderMap::new();
     resp_headers.insert(
         header::SET_COOKIE,
-        format!("sid={sid}; Path=/; SameSite=Strict; HttpOnly")
-            .parse()
-            .unwrap(),
+        make_session_cookie(&sid).parse().unwrap(),
     );
     Ok((resp_headers, Json(ConfigTestResponse {
         ok: true,

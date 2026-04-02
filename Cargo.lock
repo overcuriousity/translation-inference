@@ -2576,6 +2576,7 @@ dependencies = [
  "rust-embed",
  "serde",
  "serde_json",
+ "subtle",
  "tempfile",
  "tokio",
  "tokio-stream",
