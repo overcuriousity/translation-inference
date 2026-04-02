@@ -276,6 +276,7 @@ async function translate(isAuto = false) {
 
   setOutputLoading(true);
   lastTranslatedText = text;
+  lastOutputText = '';
 
   try {
     const body = {
@@ -782,6 +783,7 @@ ttsBtn.addEventListener('click', async () => {
     }
 
     const blob = await res.blob();
+    stopTts(); // revoke any previous blob URL and clear audio before creating a new one
     ttsObjectUrl = URL.createObjectURL(blob);
 
     ttsAudio = new Audio(ttsObjectUrl);

@@ -12,10 +12,6 @@ use crate::models::{ErrorResponse, TtsRequest};
 use crate::routes::translate::check_authenticated;
 use crate::AppState;
 
-/// Maximum characters per TTS chunk. OpenAI-compatible endpoints typically
-/// enforce a ~4096 char limit per request.
-const TTS_CHUNK_SIZE: usize = 4000;
-
 pub async fn post_tts(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -32,14 +28,16 @@ pub async fn post_tts(
         ));
     }
 
-    let chunks = split_into_chunks(&req.text);
+    let chunks = split_into_chunks(&req.text, state.config.tts_chunk_size);
     let mut audio_bytes: Vec<u8> = Vec::new();
+    let tts_model = state.config.tts_model.clone();
+    let tts_voice = state.config.tts_voice.clone();
 
     for chunk in chunks {
         let payload = serde_json::json!({
-            "model": state.config.tts_model,
+            "model": tts_model,
             "input": chunk,
-            "voice": state.config.tts_voice,
+            "voice": tts_voice,
             "response_format": "mp3",
         });
 
@@ -82,10 +80,11 @@ pub async fn post_tts(
         audio_bytes.extend_from_slice(&bytes);
     }
 
+    let content_length = audio_bytes.len().to_string();
     let response = Response::builder()
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, "audio/mpeg")
-        .header(header::CONTENT_LENGTH, audio_bytes.len())
+        .header(header::CONTENT_LENGTH, content_length)
         .header(header::CACHE_CONTROL, "no-store")
         .body(Body::from(audio_bytes))
         .unwrap();
@@ -109,17 +108,22 @@ fn resolve_tts_client(
         return Ok(tc.clone());
     }
     Err((
-        StatusCode::NOT_FOUND,
+        StatusCode::SERVICE_UNAVAILABLE,
         Json(ErrorResponse {
             error: "No TTS backend configured. Provide tts_endpoint and tts_api_key in the request or configure TTS_API_BASE_URL on the server.".into(),
         }),
     ))
 }
 
-/// Split text into chunks of at most `TTS_CHUNK_SIZE` characters, breaking at
-/// sentence boundaries where possible to avoid cutting words mid-sentence.
-fn split_into_chunks(text: &str) -> Vec<String> {
-    if text.len() <= TTS_CHUNK_SIZE {
+/// Split text into chunks of at most `max_bytes` bytes, breaking at sentence
+/// boundaries where possible. If `max_bytes` is `None`, the text is returned
+/// as a single chunk (suitable for local models with no size limit).
+fn split_into_chunks(text: &str, max_bytes: Option<usize>) -> Vec<String> {
+    let Some(limit) = max_bytes else {
+        return vec![text.to_string()];
+    };
+
+    if text.len() <= limit {
         return vec![text.to_string()];
     }
 
@@ -127,12 +131,12 @@ fn split_into_chunks(text: &str) -> Vec<String> {
     let mut current = String::new();
 
     for sentence in split_sentences(text) {
-        if current.len() + sentence.len() > TTS_CHUNK_SIZE && !current.is_empty() {
+        if current.len() + sentence.len() > limit && !current.is_empty() {
             chunks.push(current.trim().to_string());
             current = String::new();
         }
         // If a single sentence exceeds the limit, hard-split it.
-        if sentence.len() > TTS_CHUNK_SIZE {
+        if sentence.len() > limit {
             if !current.is_empty() {
                 chunks.push(current.trim().to_string());
                 current = String::new();
@@ -143,7 +147,7 @@ fn split_into_chunks(text: &str) -> Vec<String> {
             let mut last_space: Option<usize> = None;
             for (i, ch) in sentence.char_indices() {
                 let ch_len = ch.len_utf8();
-                if current_len + ch_len > TTS_CHUNK_SIZE {
+                if current_len + ch_len > limit {
                     // Prefer breaking at the last space; otherwise split before current char.
                     let split_at = match last_space {
                         Some(sp) if sp > chunk_start => sp,
@@ -217,21 +221,29 @@ fn split_sentences(text: &str) -> Vec<String> {
 mod tests {
     use super::*;
 
+    const TEST_LIMIT: usize = 4000;
+
     #[test]
     fn short_text_is_single_chunk() {
-        let chunks = split_into_chunks("Hello world.");
+        let chunks = split_into_chunks("Hello world.", Some(TEST_LIMIT));
+        assert_eq!(chunks.len(), 1);
+    }
+
+    #[test]
+    fn no_limit_is_single_chunk() {
+        let text = "x".repeat(TEST_LIMIT * 10);
+        let chunks = split_into_chunks(&text, None);
         assert_eq!(chunks.len(), 1);
     }
 
     #[test]
     fn long_text_splits_at_sentence_boundary() {
         let sentence = "This is a sentence. ";
-        // Repeat until we exceed TTS_CHUNK_SIZE
-        let text = sentence.repeat((TTS_CHUNK_SIZE / sentence.len()) + 5);
-        let chunks = split_into_chunks(&text);
+        let text = sentence.repeat((TEST_LIMIT / sentence.len()) + 5);
+        let chunks = split_into_chunks(&text, Some(TEST_LIMIT));
         assert!(chunks.len() > 1);
         for chunk in &chunks {
-            assert!(chunk.len() <= TTS_CHUNK_SIZE);
+            assert!(chunk.len() <= TEST_LIMIT);
         }
     }
 }

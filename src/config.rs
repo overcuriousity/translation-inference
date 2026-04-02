@@ -18,6 +18,9 @@ pub struct AppConfig {
     pub tts_api_key: String,
     pub tts_model: String,
     pub tts_voice: String,
+    /// Maximum bytes per TTS request chunk. `None` disables chunking (recommended
+    /// for local models). Set via `TTS_CHUNK_SIZE` env var; `0` means no chunking.
+    pub tts_chunk_size: Option<usize>,
 }
 
 impl AppConfig {
@@ -64,6 +67,10 @@ impl AppConfig {
                 .unwrap_or_else(|_| "tts-1".to_string()),
             tts_voice: std::env::var("TTS_VOICE")
                 .unwrap_or_else(|_| "alloy".to_string()),
+            tts_chunk_size: match std::env::var("TTS_CHUNK_SIZE").ok().as_deref() {
+                Some("0") | None => None,
+                Some(s) => s.parse::<usize>().ok().filter(|&n| n > 0),
+            },
         })
     }
 
