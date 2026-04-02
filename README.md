@@ -112,7 +112,7 @@ The service provides a RESTful API for integrations:
 - `POST /api/save-to-bitvault` - *(requires `BITVAULT_URL`)* Save text as a Bitvault paste and return its URL.
 - `GET /api/proxy-text?url=<raw-url>` - *(requires `BITVAULT_URL`)* Proxy raw text from a Bitvault URL (used by the `?from=` preload feature to avoid CORS).
 
-> **Note:** Translation/transcription endpoints accept either a session cookie (set via `/api/config/test` or `/api/config/gated`) or explicit `endpoint`+`api_key` fields in the request body. Per-request credentials bypass all session and access-key checks — `GATED_ACCESS_KEY` only gates the session-issuance endpoint, not direct API calls.
+> **Note:** Translation/transcription endpoints accept either a session cookie (set via `/api/config/test` or `/api/config/gated`) or direct calls with `Authorization: Bearer <GATED_ACCESS_KEY>`. When `GATED_ACCESS_KEY` is configured, all direct API requests (no session cookie) must include this header — including BYOK calls that supply their own `endpoint`+`api_key`. If `GATED_ACCESS_KEY` is not configured, direct API access is disabled entirely and only the web interface can be used.
 
 ## 📄 License
 

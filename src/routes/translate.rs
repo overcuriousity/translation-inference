@@ -142,7 +142,7 @@ pub fn resolve_client(
     if provided.as_bytes().ct_eq(access_key.as_bytes()).unwrap_u8() == 0 {
         return Err((
             StatusCode::UNAUTHORIZED,
-            Json(ErrorResponse { error: "Invalid or missing API key.".into() }),
+            Json(ErrorResponse { error: "Invalid or missing access key.".into() }),
         ));
     }
 

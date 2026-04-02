@@ -127,12 +127,13 @@ pub async fn post_gated_access(
         ));
     }
 
-    // Verify upstream before issuing session
+    // Verify upstream before issuing session (short timeout — this is a connectivity check).
     if let Some(ref client) = state.gated_client {
         let response = client
             .http
             .get(client.models_url())
             .bearer_auth(&client.api_key)
+            .timeout(std::time::Duration::from_secs(10))
             .send()
             .await
             .map_err(|e| {
