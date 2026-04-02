@@ -5,10 +5,8 @@ let availableLanguages = [];
 let availableModels    = [];
 let userEndpoint       = '';
 let userApiKey         = '';
-let translationTimeout = null;
 let lastTranslatedText = '';
 let mediaRecorder      = null;
-let audioChunks        = [];
 
 // ── DOM refs ─────────────────────────────────────────────────────────────
 const sourceLangSel    = document.getElementById('source-lang');
@@ -24,6 +22,7 @@ const clearBtn         = document.getElementById('clear-btn');
 const copyBtn          = document.getElementById('copy-btn');
 const swapBtn          = document.getElementById('swap-btn');
 const fileInput        = document.getElementById('file-input');
+const uploadLabel      = document.getElementById('upload-label');
 const resultsDocList    = document.getElementById('results-doc-list');
 const transcribeStatus = document.getElementById('transcribe-status');
 const chunkProgress    = document.getElementById('chunk-progress');
@@ -65,7 +64,6 @@ async function init() {
         sourceText.value = await res.text();
         updateCharCount();
         if (status.server_configured || status.session_active) {
-          clearTimeout(translationTimeout);
           translate(true);
         } else {
           showConfigPanel('Please configure your API credentials to enable auto-translation.');
@@ -283,7 +281,6 @@ sourceText.addEventListener('input', () => {
 sourceText.addEventListener('keydown', e => {
   if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
     e.preventDefault();
-    clearTimeout(translationTimeout);
     translate();
   }
 });
@@ -293,51 +290,60 @@ targetLangSel.addEventListener('change', () => { lastTranslatedText = ''; transl
 modelSel.addEventListener('change', () => { lastTranslatedText = ''; translate(true); });
 
 // ── Transcription & Upload ────────────────────────────────────────────────
+function setTranscribeBusy(busy) {
+  uploadLabel.classList.toggle('transcribing', busy);
+  voiceBtn.classList.toggle('transcribing', busy);
+}
+
 async function handleFiles(files) {
   if (!files || files.length === 0) return;
   const fileArray = Array.from(files);
   sourceText.disabled = true;
-
+  setTranscribeBusy(true);
   showPendingQueue(fileArray);
 
   let hasText = false;
 
-  for (let i = 0; i < fileArray.length; i++) {
-    const file = fileArray[i];
-    try {
-      const form = new FormData();
-      form.append('file', file, file.name);
-      form.append('source_lang', sourceLangName(sourceLangSel.value));
-      form.append('target_lang', targetLangName(targetLangSel.value));
-      form.append('model', modelSel.value || '');
-      form.append('whisper_model', whisperModelSel.value || '');
-      appendCredentialsToForm(form);
+  try {
+    for (let i = 0; i < fileArray.length; i++) {
+      const file = fileArray[i];
+      try {
+        const form = new FormData();
+        form.append('file', file, file.name);
+        form.append('source_lang', sourceLangName(sourceLangSel.value));
+        form.append('target_lang', targetLangName(targetLangSel.value));
+        form.append('model', modelSel.value || '');
+        form.append('whisper_model', whisperModelSel.value || '');
+        appendCredentialsToForm(form);
 
-      const res  = await fetch('/api/upload', { method: 'POST', body: form });
-      const data = await res.json();
+        const res  = await fetch('/api/upload', { method: 'POST', body: form });
+        const data = await res.json();
 
-      removePendingEntry(i);
+        removePendingEntry(i);
 
-      if (!res.ok) {
-        showNotification(data.error || 'Processing failed', 'error');
-        continue;
-      }
-
-      for (const item of data.results) {
-        if (item.type === 'text') {
-          sourceText.value += (sourceText.value ? '\n\n' : '') + item.text;
-          hasText = true;
-        } else if (item.type === 'document') {
-          appendDocResult(item);
+        if (!res.ok) {
+          showNotification(data.error || 'Processing failed', 'error');
+          continue;
         }
+
+        for (const item of data.results) {
+          if (item.type === 'text') {
+            sourceText.value += (sourceText.value ? '\n\n' : '') + item.text;
+            hasText = true;
+          } else if (item.type === 'document') {
+            appendDocResult(item);
+          }
+        }
+      } catch (e) {
+        removePendingEntry(i);
+        showNotification('Network error', 'error');
       }
-    } catch (e) {
-      removePendingEntry(i);
-      showNotification('Network error', 'error');
     }
+  } finally {
+    setTranscribeBusy(false);
+    sourceText.disabled = false;
   }
 
-  sourceText.disabled = false;
   if (hasText) {
     updateCharCount();
     translate(true);
@@ -415,37 +421,52 @@ dropOverlay.addEventListener('drop', e => {
 
 // ── Voice input ───────────────────────────────────────────────────────────
 voiceBtn.addEventListener('click', async () => {
+  if (voiceBtn.classList.contains('transcribing')) return;
+
   if (mediaRecorder && mediaRecorder.state === 'recording') {
     mediaRecorder.stop();
     return;
   }
 
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    audioChunks = [];
-    mediaRecorder = new MediaRecorder(stream);
+  if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+    showNotification('Audio recording not supported in this browser', 'error');
+    return;
+  }
 
-    mediaRecorder.addEventListener('dataavailable', e => {
-      if (e.data.size > 0) audioChunks.push(e.data);
+  let stream = null;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const chunks = [];
+    const recorder = new MediaRecorder(stream);
+    mediaRecorder = recorder;
+
+    recorder.addEventListener('dataavailable', e => {
+      if (e.data.size > 0) chunks.push(e.data);
     });
 
-    mediaRecorder.addEventListener('stop', async () => {
+    recorder.addEventListener('stop', async () => {
       stream.getTracks().forEach(t => t.stop());
       voiceBtn.classList.remove('recording');
+      voiceBtn.setAttribute('aria-pressed', 'false');
       voiceBtn.title = 'Record voice input';
 
-      const mimeType = mediaRecorder.mimeType || 'audio/webm';
+      const mimeType = recorder.mimeType || 'audio/webm';
       const ext = mimeType.includes('ogg') ? 'ogg' : mimeType.includes('mp4') ? 'mp4' : 'webm';
-      const blob = new Blob(audioChunks, { type: mimeType });
+      const blob = new Blob(chunks, { type: mimeType });
       const file = new File([blob], `recording.${ext}`, { type: mimeType });
       await handleFiles([file]);
     });
 
-    mediaRecorder.start();
+    recorder.start();
     voiceBtn.classList.add('recording');
+    voiceBtn.setAttribute('aria-pressed', 'true');
     voiceBtn.title = 'Stop recording';
   } catch (e) {
-    showNotification('Microphone access denied', 'error');
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    const msg = e.name === 'NotAllowedError' ? 'Microphone access denied'
+              : e.name === 'NotFoundError'   ? 'No microphone found'
+              : 'Could not start recording';
+    showNotification(msg, 'error');
   }
 });
 
