@@ -7,6 +7,8 @@ let userEndpoint       = '';
 let userApiKey         = '';
 let translationTimeout = null;
 let lastTranslatedText = '';
+let mediaRecorder      = null;
+let audioChunks        = [];
 
 // ── DOM refs ─────────────────────────────────────────────────────────────
 const sourceLangSel    = document.getElementById('source-lang');
@@ -33,6 +35,7 @@ const configConnectBtn = document.getElementById('config-connect-btn');
 const configMsg        = document.getElementById('config-msg');
 const settingsBtn      = document.getElementById('settings-btn');
 const dropOverlay      = document.getElementById('drop-overlay');
+const voiceBtn         = document.getElementById('voice-btn');
 const sourcePanel      = document.querySelector('.panel-source');
 const saveSrcBtn       = document.getElementById('save-src-btn');
 const saveOutBtn       = document.getElementById('save-out-btn');
@@ -272,11 +275,9 @@ function langNameByCode(code) {
 function sourceLangName(code) { return code === 'auto' ? 'auto' : langNameByCode(code); }
 function targetLangName(code) { return langNameByCode(code); }
 
-// ── Debounced input ───────────────────────────────────────────────────────
+// ── Input ─────────────────────────────────────────────────────────────────
 sourceText.addEventListener('input', () => {
   updateCharCount();
-  clearTimeout(translationTimeout);
-  translationTimeout = setTimeout(() => translate(true), 600);
 });
 
 sourceText.addEventListener('keydown', e => {
@@ -410,6 +411,42 @@ dropOverlay.addEventListener('drop', e => {
   dropOverlay.classList.add('hidden');
   const files = e.dataTransfer?.files;
   if (files && files.length > 0) handleFiles(files);
+});
+
+// ── Voice input ───────────────────────────────────────────────────────────
+voiceBtn.addEventListener('click', async () => {
+  if (mediaRecorder && mediaRecorder.state === 'recording') {
+    mediaRecorder.stop();
+    return;
+  }
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    audioChunks = [];
+    mediaRecorder = new MediaRecorder(stream);
+
+    mediaRecorder.addEventListener('dataavailable', e => {
+      if (e.data.size > 0) audioChunks.push(e.data);
+    });
+
+    mediaRecorder.addEventListener('stop', async () => {
+      stream.getTracks().forEach(t => t.stop());
+      voiceBtn.classList.remove('recording');
+      voiceBtn.title = 'Record voice input';
+
+      const mimeType = mediaRecorder.mimeType || 'audio/webm';
+      const ext = mimeType.includes('ogg') ? 'ogg' : mimeType.includes('mp4') ? 'mp4' : 'webm';
+      const blob = new Blob(audioChunks, { type: mimeType });
+      const file = new File([blob], `recording.${ext}`, { type: mimeType });
+      await handleFiles([file]);
+    });
+
+    mediaRecorder.start();
+    voiceBtn.classList.add('recording');
+    voiceBtn.title = 'Stop recording';
+  } catch (e) {
+    showNotification('Microphone access denied', 'error');
+  }
 });
 
 // ── Helpers ───────────────────────────────────────────────────────────────
