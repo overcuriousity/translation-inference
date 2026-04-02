@@ -353,6 +353,7 @@ function setTranscribeBusy(busy) {
 
 async function handleFiles(files) {
   if (!files || files.length === 0) return;
+  prepareOutputFormatForFiles(files);
   const fileArray = Array.from(files);
   sourceText.disabled = true;
   setTranscribeBusy(true);
@@ -464,7 +465,6 @@ function prepareOutputFormatForFiles(files) {
 
 fileInput.addEventListener('change', () => {
   if (fileInput.files.length > 0) {
-    prepareOutputFormatForFiles(fileInput.files);
     handleFiles(fileInput.files);
   }
   fileInput.value = '';
@@ -481,7 +481,6 @@ dropOverlay.addEventListener('drop', e => {
   dropOverlay.classList.add('hidden');
   const files = e.dataTransfer?.files;
   if (files && files.length > 0) {
-    prepareOutputFormatForFiles(files);
     handleFiles(files);
   }
 });

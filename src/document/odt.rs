@@ -201,7 +201,49 @@ pub fn build_odt_from_paragraphs(paragraphs: &[String]) -> Result<Vec<u8>> {
 pub fn build_odt_from_text(text: &str) -> Result<Vec<u8>> {
     let normalized = text.replace("\r\n", "\n").replace('\r', "\n");
     let paragraphs: Vec<String> = if normalized.contains("\n\n") {
-        normalized.split("\n\n").map(|s| s.to_string()).collect()
+        // When there are double newlines, treat them as paragraph separators, but
+        // preserve additional newlines in longer runs as empty paragraphs instead of
+        // collapsing them into leading newlines of the next paragraph.
+        let mut paragraphs = Vec::new();
+        let mut current = String::new();
+        let chars: Vec<char> = normalized.chars().collect();
+        let mut i = 0;
+        while i < chars.len() {
+            if chars[i] != '\n' {
+                current.push(chars[i]);
+                i += 1;
+            } else {
+                // We have at least one '\n'; count how many consecutive newlines.
+                let mut j = i;
+                while j < chars.len() && chars[j] == '\n' {
+                    j += 1;
+                }
+                let run = j - i;
+                if run == 1 {
+                    // Single newline inside a paragraph: keep as a literal newline.
+                    current.push('\n');
+                } else {
+                    // One or more paragraph separators: each pair of newlines ends
+                    // the current paragraph and starts a new one (possibly empty).
+                    let pairs = run / 2;
+                    for _ in 0..pairs {
+                        paragraphs.push(current);
+                        current = String::new();
+                    }
+                    if run % 2 == 1 {
+                        // Leftover newline from an odd-length run: treat it as an
+                        // additional separator that creates an empty paragraph,
+                        // instead of leaving it as a leading newline in the next
+                        // paragraph.
+                        paragraphs.push(current.clone());
+                        current.clear();
+                    }
+                }
+                i = j;
+            }
+        }
+        paragraphs.push(current);
+        paragraphs
     } else {
         normalized.split('\n').map(|s| s.to_string()).collect()
     };
