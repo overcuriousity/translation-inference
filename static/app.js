@@ -279,7 +279,10 @@ async function translate(isAuto = false) {
     });
 
     if (!res.ok) {
-      if (!isAuto) showNotification('Translation error', 'error');
+      if (!isAuto) {
+        const errBody = await res.json().catch(() => null);
+        showNotification((errBody && errBody.error) || 'Translation error', 'error');
+      }
       setOutputLoading(false);
       return;
     }
