@@ -424,7 +424,19 @@ dropOverlay.addEventListener('drop', e => {
   e.preventDefault();
   dropOverlay.classList.add('hidden');
   const files = e.dataTransfer?.files;
-  if (files && files.length > 0) handleFiles(files);
+  if (files && files.length > 0) {
+    const firstFile = files[0];
+    const ext = firstFile.name.split('.').pop().toLowerCase();
+    if (ext === 'pdf') {
+      outputFormatSel.value = 'pdf';
+    } else {
+      outputFormatSel.value = 'odt';
+    }
+    if (ext === 'pdf' || ext === 'docx' || ext === 'odt') {
+      outputFormatSel.classList.remove('hidden');
+    }
+    handleFiles(files);
+  }
 });
 
 // ── Helpers ───────────────────────────────────────────────────────────────
