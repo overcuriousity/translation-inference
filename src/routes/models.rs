@@ -15,13 +15,14 @@ pub async fn get_models(
     let mut transcription_ids = state.config.whisper_models.clone();
 
     // If no models defined in config, try to fetch from any available client.
+    // Session takes priority so users get models from their active tier (gated or BYOK).
     if translation_ids.is_empty() && transcription_ids.is_empty() {
-        let client_opt: Option<OpenAiClient> = if state.config.is_configured() {
-            Some(state.client.clone())
-        } else if let Some(sid) = get_session_id(&headers) {
+        let client_opt: Option<OpenAiClient> = if let Some(sid) = get_session_id(&headers) {
             state.sessions.read().unwrap()
                 .get(&sid)
                 .map(|c| OpenAiClient::with_credentials(&c.endpoint, &c.api_key))
+        } else if state.config.is_configured() {
+            Some(state.client.clone())
         } else {
             None
         };
