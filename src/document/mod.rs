@@ -2,7 +2,6 @@ pub mod docx;
 pub mod odt;
 pub mod pdf;
 
-pub use docx::translate_docx;
 pub use odt::translate_odt;
 pub use pdf::translate_pdf;
 
@@ -14,6 +13,140 @@ use crate::api::{chat::translate_single, client::OpenAiClient};
 // We use a highly unlikely string as a batch separator because null bytes
 // are often stripped by LLM APIs or tokenizers, breaking the split logic.
 const PARA_SEP: &str = "[---PARAGRAPH_SEPARATOR---]";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OutputFormat {
+    Pdf,
+    Odt,
+}
+
+impl OutputFormat {
+    /// Parse from a string ("pdf" or "odt"). Returns None if unrecognised.
+    pub fn from_str(s: &str) -> Option<Self> {
+        let s = s.trim();
+        if s.eq_ignore_ascii_case("pdf") {
+            Some(Self::Pdf)
+        } else if s.eq_ignore_ascii_case("odt") {
+            Some(Self::Odt)
+        } else {
+            None
+        }
+    }
+
+    /// Default output format for a given input extension.
+    pub fn default_for(ext: &str) -> Self {
+        let ext = ext.trim();
+        if ext.eq_ignore_ascii_case("pdf") {
+            Self::Pdf
+        } else {
+            Self::Odt // odt and docx → ODT
+        }
+    }
+
+    pub fn ext(&self) -> &'static str {
+        match self {
+            Self::Pdf => "pdf",
+            Self::Odt => "odt",
+        }
+    }
+
+    pub fn mime(&self) -> &'static str {
+        match self {
+            Self::Pdf => "application/pdf",
+            Self::Odt => "application/vnd.oasis.opendocument.text",
+        }
+    }
+}
+
+/// Translate a document (PDF, DOCX, or ODT) and return output bytes in the requested format.
+/// Returns `(bytes, output_ext, mime_type)`.
+pub async fn translate_document(
+    bytes: &[u8],
+    input_ext: &str,
+    output_fmt: OutputFormat,
+    client: &OpenAiClient,
+    model: &str,
+    source_lang: &str,
+    target_lang: &str,
+) -> Result<(Vec<u8>, &'static str, &'static str)> {
+    let out = match (input_ext.to_lowercase().as_str(), output_fmt) {
+        // ODT→ODT preserves original structure; PDF→PDF re-renders (lossy)
+        ("odt", OutputFormat::Odt) => {
+            translate_odt(bytes, client, model, source_lang, target_lang).await?
+        }
+        ("pdf", OutputFormat::Pdf) => {
+            translate_pdf(bytes, client, model, source_lang, target_lang).await?
+        }
+
+        // DOCX → ODT
+        ("docx", OutputFormat::Odt) => {
+            let paragraphs = docx::extract_docx_paragraphs(bytes)?;
+            let translated = translate_paragraphs_sparse(&paragraphs, client, model, source_lang, target_lang).await?;
+            odt::build_odt_from_paragraphs(&translated)?
+        }
+
+        // DOCX → PDF
+        ("docx", OutputFormat::Pdf) => {
+            let paragraphs = docx::extract_docx_paragraphs(bytes)?;
+            let translated = translate_paragraphs_sparse(&paragraphs, client, model, source_lang, target_lang).await?;
+            pdf::build_pdf_from_text(&translated.join("\n"))?
+        }
+
+        // ODT → PDF
+        ("odt", OutputFormat::Pdf) => {
+            let paragraphs = odt::extract_odt_paragraphs(bytes)?;
+            let translated = translate_paragraphs_sparse(&paragraphs, client, model, source_lang, target_lang).await?;
+            pdf::build_pdf_from_text(&translated.join("\n"))?
+        }
+
+        // PDF → ODT
+        ("pdf", OutputFormat::Odt) => {
+            let text = pdf::extract_pdf_text(bytes)?;
+            let (translated, _, _) =
+                crate::api::chat::translate(client, model, source_lang, target_lang, &text)
+                    .await?;
+            odt::build_odt_from_text(&translated)?
+        }
+
+        _ => anyhow::bail!("unsupported input format: .{input_ext}"),
+    };
+
+    Ok((out, output_fmt.ext(), output_fmt.mime()))
+}
+
+/// Translate paragraphs while skipping empty ones and preserving their positions.
+///
+/// Empty paragraphs are left as empty strings in the output, matching the
+/// behaviour of `translate_odt` and ensuring blank-line spacing is preserved
+/// across all cross-format conversion paths.
+async fn translate_paragraphs_sparse(
+    paragraphs: &[String],
+    client: &OpenAiClient,
+    model: &str,
+    source_lang: &str,
+    target_lang: &str,
+) -> Result<Vec<String>> {
+    let non_empty_indices: Vec<usize> = paragraphs
+        .iter()
+        .enumerate()
+        .filter(|(_, t)| !t.trim().is_empty())
+        .map(|(i, _)| i)
+        .collect();
+
+    if non_empty_indices.is_empty() {
+        return Ok(paragraphs.iter().map(|_| String::new()).collect());
+    }
+
+    let non_empty_refs: Vec<&str> = non_empty_indices.iter().map(|&i| paragraphs[i].as_str()).collect();
+    let translated_non_empty =
+        translate_paragraphs(&non_empty_refs, client, model, source_lang, target_lang).await?;
+
+    let mut translated: Vec<String> = paragraphs.iter().map(|_| String::new()).collect();
+    for (j, &idx) in non_empty_indices.iter().enumerate() {
+        translated[idx] = translated_non_empty[j].clone();
+    }
+    Ok(translated)
+}
 
 /// Translate a list of paragraph strings, preserving order and count.
 ///
@@ -45,7 +178,11 @@ pub async fn translate_paragraphs(
 
     for (i, para) in paragraphs.iter().enumerate() {
         let para_chars = para.chars().count();
-        let cost = if current.is_empty() { para_chars } else { sep_chars + para_chars };
+        let cost = if current.is_empty() {
+            para_chars
+        } else {
+            sep_chars + para_chars
+        };
 
         if !current.is_empty() && current_len + cost > max_chars {
             batches.push(std::mem::take(&mut current));
@@ -69,7 +206,8 @@ pub async fn translate_paragraphs(
             .collect::<Vec<_>>()
             .join(&sep_full);
 
-        let translated = translate_single(client, model, source_lang, target_lang, &joined).await?;
+        let translated =
+            translate_single(client, model, source_lang, target_lang, &joined).await?;
 
         // Split on the separator.  If the model slightly alters surrounding
         // whitespace we still find the marker itself.

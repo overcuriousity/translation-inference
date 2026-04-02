@@ -135,6 +135,121 @@ fn replace_para_content(para_xml: &str, translation: &str) -> String {
     format!("{}{}{}", &para_xml[..open_end], escaped, close_tag)
 }
 
+/// Extract plain text paragraphs from an ODT file, including empty ones to preserve layout.
+pub fn extract_odt_paragraphs(bytes: &[u8]) -> Result<Vec<String>> {
+    let mut archive = ZipArchive::new(Cursor::new(bytes))
+        .context("failed to open ODT (ZIP) archive")?;
+    let xml = read_entry(&mut archive, ODT_MAIN)
+        .context("content.xml not found in ODT")?;
+    let xml_str = String::from_utf8(xml).context("content.xml is not valid UTF-8")?;
+    let para_ranges = find_para_ranges(&xml_str);
+    let texts: Vec<String> = para_ranges
+        .iter()
+        .map(|r| extract_para_text(&xml_str[r.clone()]))
+        .collect();
+    Ok(texts)
+}
+
+/// Create a minimal ODT ZIP from a list of paragraph strings.
+pub fn build_odt_from_paragraphs(paragraphs: &[String]) -> Result<Vec<u8>> {
+    let cursor = Cursor::new(Vec::new());
+    let mut zip = ZipWriter::new(cursor);
+
+    // mimetype must be stored (uncompressed) and first
+    let stored_opts = SimpleFileOptions::default()
+        .compression_method(zip::CompressionMethod::Stored);
+    zip.start_file("mimetype", stored_opts)?;
+    zip.write_all(b"application/vnd.oasis.opendocument.text")?;
+
+    let deflate_opts = SimpleFileOptions::default()
+        .compression_method(zip::CompressionMethod::Deflated);
+
+    // META-INF/manifest.xml
+    let manifest = r#"<?xml version="1.0" encoding="UTF-8"?>
+<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">
+  <manifest:file-entry manifest:full-path="/" manifest:media-type="application/vnd.oasis.opendocument.text"/>
+  <manifest:file-entry manifest:full-path="mimetype" manifest:media-type="text/plain"/>
+  <manifest:file-entry manifest:full-path="META-INF/manifest.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>
+</manifest:manifest>"#;
+    zip.start_file("META-INF/manifest.xml", deflate_opts)?;
+    zip.write_all(manifest.as_bytes())?;
+
+    // content.xml
+    let mut content = String::from(
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\
+         <office:document-content \
+           xmlns:office=\"urn:oasis:names:tc:opendocument:xmlns:office:1.0\" \
+           xmlns:text=\"urn:oasis:names:tc:opendocument:xmlns:text:1.0\" \
+           office:version=\"1.3\">\
+         <office:automatic-styles/>\
+         <office:body><office:text>",
+    );
+    for para in paragraphs {
+        content.push_str("<text:p text:style-name=\"Standard\">");
+        content.push_str(&xml_escape(para));
+        content.push_str("</text:p>");
+    }
+    content.push_str("</office:text></office:body></office:document-content>");
+    zip.start_file("content.xml", deflate_opts)?;
+    zip.write_all(content.as_bytes())?;
+
+    Ok(zip.finish()?.into_inner())
+}
+
+/// Create a minimal ODT from plain text, splitting on double newlines (or single newlines).
+pub fn build_odt_from_text(text: &str) -> Result<Vec<u8>> {
+    let normalized = text.replace("\r\n", "\n").replace('\r', "\n");
+    let paragraphs: Vec<String> = if normalized.contains("\n\n") {
+        // When there are double newlines, treat them as paragraph separators, but
+        // preserve additional newlines in longer runs as empty paragraphs instead of
+        // collapsing them into leading newlines of the next paragraph.
+        let mut paragraphs = Vec::new();
+        let mut current = String::new();
+        let chars: Vec<char> = normalized.chars().collect();
+        let mut i = 0;
+        while i < chars.len() {
+            if chars[i] != '\n' {
+                current.push(chars[i]);
+                i += 1;
+            } else {
+                // We have at least one '\n'; count how many consecutive newlines.
+                let mut j = i;
+                while j < chars.len() && chars[j] == '\n' {
+                    j += 1;
+                }
+                let run = j - i;
+                if run == 1 {
+                    // Single newline inside a paragraph: keep as a literal newline.
+                    current.push('\n');
+                } else {
+                    // One or more paragraph separators: each pair of newlines ends
+                    // the current paragraph and starts a new one (possibly empty).
+                    let pairs = run / 2;
+                    for _ in 0..pairs {
+                        paragraphs.push(current);
+                        current = String::new();
+                    }
+                    if run % 2 == 1 {
+                        // Leftover newline from an odd-length run: treat it as an
+                        // additional separator that creates an empty paragraph,
+                        // instead of leaving it as a leading newline in the next
+                        // paragraph.
+                        paragraphs.push(current.clone());
+                        current.clear();
+                    }
+                }
+                i = j;
+            }
+        }
+        paragraphs.push(current);
+        paragraphs
+    } else {
+        normalized.split('\n').map(|s| s.to_string()).collect()
+    };
+    build_odt_from_paragraphs(&paragraphs)
+}
+
 fn xml_escape(s: &str) -> String {
     s.replace('&', "&amp;")
         .replace('<', "&lt;")

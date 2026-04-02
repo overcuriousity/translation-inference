@@ -3,7 +3,7 @@ use base64::{Engine as _, engine::general_purpose::STANDARD as B64};
 use std::path::Path;
 use std::sync::Arc;
 
-use crate::document;
+use crate::document::{self, OutputFormat};
 use crate::models::{DocumentFile, ErrorResponse, TranslateDocumentResponse};
 use crate::routes::translate::resolve_client;
 use crate::AppState;
@@ -21,6 +21,7 @@ pub async fn post_translate_document(
     let mut model: Option<String> = None;
     let mut endpoint: Option<String> = None;
     let mut api_key: Option<String> = None;
+    let mut output_format: Option<String> = None;
 
     while let Some(field) = multipart
         .next_field()
@@ -57,6 +58,10 @@ pub async fn post_translate_document(
                 let v = field.text().await.map_err(|e| err(StatusCode::BAD_REQUEST, e.to_string()))?;
                 if !v.is_empty() { api_key = Some(v); }
             }
+            Some("output_format") => {
+                let v = field.text().await.map_err(|e| err(StatusCode::BAD_REQUEST, e.to_string()))?;
+                if !v.is_empty() { output_format = Some(v); }
+            }
             _ => {}
         }
     }
@@ -82,41 +87,38 @@ pub async fn post_translate_document(
             .and_then(|s| s.to_str())
             .unwrap_or("document");
 
-        match ext.as_str() {
-            "docx" => {
-                let out = document::translate_docx(&bytes, &client, model_str, &source_lang, &target_lang)
-                    .await
-                    .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, format!("{filename}: {e:#}")))?;
-                result_files.push(DocumentFile {
-                    filename: format!("{stem}_translated.docx"),
-                    data: B64.encode(&out),
-                    mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document".into(),
-                });
-            }
-            "odt" => {
-                let out = document::translate_odt(&bytes, &client, model_str, &source_lang, &target_lang)
-                    .await
-                    .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, format!("{filename}: {e:#}")))?;
-                result_files.push(DocumentFile {
-                    filename: format!("{stem}_translated.odt"),
-                    data: B64.encode(&out),
-                    mime: "application/vnd.oasis.opendocument.text".into(),
-                });
-            }
-            "pdf" => {
-                let out = document::translate_pdf(&bytes, &client, model_str, &source_lang, &target_lang)
-                    .await
-                    .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, format!("{filename}: {e:#}")))?;
-                result_files.push(DocumentFile {
-                    filename: format!("{stem}_translated.pdf"),
-                    data: B64.encode(&out),
-                    mime: "application/pdf".into(),
-                });
-            }
-            _ => {
-                return Err(err(StatusCode::BAD_REQUEST, format!("Unsupported file type: .{ext}")));
-            }
+        if !matches!(ext.as_str(), "pdf" | "odt" | "docx") {
+            return Err(err(StatusCode::BAD_REQUEST, format!("Unsupported file type: .{ext}")));
         }
+
+        let output_fmt = match output_format.as_deref() {
+            Some(fmt_str) => match OutputFormat::from_str(fmt_str) {
+                Some(fmt) => fmt,
+                None => return Err(err(
+                    StatusCode::BAD_REQUEST,
+                    format!("Invalid output_format: {fmt_str}. Supported values are: pdf, odt."),
+                )),
+            },
+            None => OutputFormat::default_for(&ext),
+        };
+
+        let (out, out_ext, mime) = document::translate_document(
+            bytes,
+            &ext,
+            output_fmt,
+            &client,
+            model_str,
+            &source_lang,
+            &target_lang,
+        )
+        .await
+        .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, format!("{filename}: {e:#}")))?;
+
+        result_files.push(DocumentFile {
+            filename: format!("{stem}_translated.{out_ext}"),
+            data: B64.encode(&out),
+            mime: mime.into(),
+        });
     }
 
     Ok(Json(TranslateDocumentResponse { files: result_files }))
