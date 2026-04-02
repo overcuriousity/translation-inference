@@ -77,7 +77,6 @@ async function init() {
         sourceText.value = await res.text();
         updateCharCount();
         if (hasAccess) {
-          clearTimeout(translationTimeout);
           translate(true);
         } else {
           showConfigPanel('Please configure your API credentials to enable auto-translation.');
