@@ -453,6 +453,10 @@ voiceBtn.addEventListener('click', async () => {
       const mimeType = recorder.mimeType || 'audio/webm';
       const ext = mimeType.includes('ogg') ? 'ogg' : mimeType.includes('mp4') ? 'mp4' : 'webm';
       const blob = new Blob(chunks, { type: mimeType });
+      if (blob.size === 0) {
+        showNotification('Recording was empty — please try again', 'error');
+        return;
+      }
       const file = new File([blob], `recording.${ext}`, { type: mimeType });
       await handleFiles([file]);
     });
