@@ -16,7 +16,7 @@ A fast, memory-efficient, Rust-based translation and transcription inference ser
 - **Modern Web Interface**: A clean, built-in static web UI. Supports session-based credential storage (bring your own API key directly in the browser).
 - **Auto-Model Fetching**: Automatically fetches available models from the connected endpoint.
 - **Gated Tier** *(optional)*: A second server-side backend protected by a shared access key. Users enter the access key in the UI to unlock the pre-configured backend — the actual LLM credentials never leave the server. Useful for shared deployments where you want to expose a curated model without distributing the API key.
-- **Text-to-Speech** *(optional)*: Read translated text aloud — or read the source text back — via any OpenAI-compatible `/v1/audio/speech` endpoint. Works with hosted APIs (e.g. OpenAI) and self-hosted local models. The recommended self-hosted option is **[speaches-ai](https://speaches.ai)** running the Kokoro-82M-v1.0-ONNX model, which provides multilingual voices for en, es, fr, hi, it, ja, pt, and zh. Per-language voice selection is supported via `TTS_VOICE_MAP`. Users can also supply their own TTS endpoint and key directly in the browser (BYOK). Long texts are automatically split into chunks before synthesis.
+- **Text-to-Speech** *(optional)*: Read translated text aloud — or read the source text back — via any OpenAI-compatible `/v1/audio/speech` endpoint. Works with hosted APIs (e.g. OpenAI) and self-hosted local models. The recommended self-hosted option is **[speaches-ai](https://speaches.ai)** running the Kokoro-82M-v1.0-ONNX model, which provides multilingual voices for en, es, fr, hi, it, ja, and pt (zh voices exist in the model but are currently broken due to an espeak language-code mismatch in speaches-ai). Per-language voice selection is supported via `TTS_VOICE_MAP`. Users can also supply their own TTS endpoint and key directly in the browser (BYOK). Long texts are automatically split into chunks before synthesis.
 - **Automatic Source Language Detection**: When text is entered, the source language is detected automatically via a lightweight LLM inference call (triggered immediately on paste, or after a 500 ms typing pause). The detected language is shown as a badge in the source panel and enables the source TTS button.
 - **Bitvault Integration** *(optional)*: Save source or translated text as Bitvault pastes directly from the UI, and preload source text from a Bitvault raw URL via the `?from=` query parameter.
 
@@ -89,7 +89,7 @@ LISTEN_ADDR=0.0.0.0:3000
 # TTS_VOICE_MAP: per-language voice overrides — comma-separated lang:voice pairs.
 #   The frontend sends ISO 639-1 codes (en, fr, es, ja, zh, ...) as the language key.
 #
-#   Full Kokoro-82M-v1.0-ONNX voice list (speaches-ai):
+#   Kokoro-82M-v1.0-ONNX working voices (confirmed against phonemizer/espeak):
 #     en (US) female: af_heart, af_alloy, af_aoede, af_bella, af_jessica, af_kore,
 #                     af_nicole, af_nova, af_river, af_sarah, af_sky
 #     en (US) male:   am_adam, am_echo, am_eric, am_fenrir, am_liam, am_michael,
@@ -102,15 +102,15 @@ LISTEN_ADDR=0.0.0.0:3000
 #     it female:      if_sara      | it male:   im_nicola
 #     ja female:      jf_alpha, jf_gongitsune, jf_nezumi, jf_tebukuro | ja male: jm_kumo
 #     pt female:      pf_dora      | pt male:   pm_alex, pm_santa
-#     zh female:      zf_xiaobei, zf_xiaoni, zf_xiaoxiao, zf_xiaoyi
-#     zh male:        zm_yunjian, zm_yunxi, zm_yunxia, zm_yunyang
+#     zh [BROKEN]: Kokoro passes lang code "zh" to espeak but espeak expects "cmn";
+#                  omit from TTS_VOICE_MAP until fixed upstream in speaches-ai.
 #
 # TTS_API_BASE_URL=http://tts.example.com
 # TTS_API_KEY=your-tts-api-key-here
 # TTS_MODEL=speaches-ai/Kokoro-82M-v1.0-ONNX-fp16
 # TTS_VOICE=af_heart
 # TTS_CHUNK_SIZE=0
-# TTS_VOICE_MAP=en:af_heart,es:ef_dora,fr:ff_siwis,hi:hf_alpha,it:if_sara,ja:jf_alpha,pt:pf_dora,zh:zf_xiaobei,zh-TW:zf_xiaobei
+# TTS_VOICE_MAP=en:af_heart,es:ef_dora,fr:ff_siwis,hi:hf_alpha,it:if_sara,ja:jf_alpha,pt:pf_dora
 
 # Optional: Gated tier — a second backend protected by an access key.
 # Users must enter GATED_ACCESS_KEY in the UI to unlock this tier.
