@@ -1,5 +1,13 @@
 use anyhow::Result;
 
+/// A single entry in `TTS_VOICE_MAP`.
+/// Parsed from `lang:voice@model` in the `TTS_VOICE_MAP` environment variable.
+#[derive(Debug, Clone)]
+pub struct TtsVoiceEntry {
+    pub voice: String,
+    pub model: String,
+}
+
 #[derive(Debug, Clone)]
 pub struct AppConfig {
     pub api_base_url: String,
@@ -16,16 +24,16 @@ pub struct AppConfig {
     pub bitvault_api_key: Option<String>,
     pub tts_api_base_url: String,
     pub tts_api_key: String,
-    pub tts_model: String,
-    pub tts_voice: String,
     /// Maximum **bytes** per TTS request chunk. `None` (the default) disables
-    /// chunking entirely — recommended for local models (e.g. Qwen3-TTS) that
-    /// have no per-request size limit. Set `TTS_CHUNK_SIZE=4000` to restore
-    /// OpenAI-API-compatible behaviour; `TTS_CHUNK_SIZE=0` also means no chunking.
+    /// chunking entirely — recommended for local models that have no per-request
+    /// size limit. Set `TTS_CHUNK_SIZE=4000` to restore OpenAI hosted-API limits;
+    /// `TTS_CHUNK_SIZE=0` also means no chunking.
     pub tts_chunk_size: Option<usize>,
-    /// Maps language codes to Piper voice names, e.g. `en` → `en_US-lessac-medium`.
-    /// Populated from `TTS_VOICE_MAP=en:en_US-lessac-medium,de:de_DE-thorsten-medium,...`
-    pub tts_voice_map: std::collections::HashMap<String, String>,
+    /// Per-language TTS voice and model configuration.
+    /// Populated from `TTS_VOICE_MAP=en:af_heart@speaches-ai/Kokoro-82M-v1.0-ONNX-fp16,...`
+    /// Required format per entry: `lang:voice@model`.
+    /// The map keys determine which languages show TTS buttons in the UI.
+    pub tts_voice_map: std::collections::HashMap<String, TtsVoiceEntry>,
 }
 
 impl AppConfig {
@@ -68,10 +76,6 @@ impl AppConfig {
                 .filter(|s| !s.is_empty()),
             tts_api_base_url: std::env::var("TTS_API_BASE_URL").unwrap_or_default(),
             tts_api_key: std::env::var("TTS_API_KEY").unwrap_or_default(),
-            tts_model: std::env::var("TTS_MODEL")
-                .unwrap_or_else(|_| "tts-1".to_string()),
-            tts_voice: std::env::var("TTS_VOICE")
-                .unwrap_or_else(|_| "alloy".to_string()),
             tts_chunk_size: match std::env::var("TTS_CHUNK_SIZE").ok().as_deref() {
                 Some("0") | None => None,
                 Some(s) => s.parse::<usize>().ok().filter(|&n| n > 0),
@@ -82,15 +86,20 @@ impl AppConfig {
                 .filter_map(|pair| {
                     let mut it = pair.trim().splitn(2, ':');
                     let raw_lang = it.next()?.trim().to_string();
-                    let voice = it.next()?.trim().to_string();
-                    if raw_lang.is_empty() || voice.is_empty() { return None; }
+                    let value = it.next()?.trim().to_string();
+                    if raw_lang.is_empty() || value.is_empty() { return None; }
+                    // Require `voice@model` format; silently skip malformed entries.
+                    let at = value.find('@')?;
+                    let voice = value[..at].trim().to_string();
+                    let model = value[at + 1..].trim().to_string();
+                    if voice.is_empty() || model.is_empty() { return None; }
                     // Normalise to canonical casing (e.g. zh-tw → zh-TW) so keys
                     // match what /api/languages and the frontend use.
                     let lang = match raw_lang.to_lowercase().as_str() {
                         "zh-tw" => "zh-TW".to_string(),
                         other   => other.to_string(),
                     };
-                    Some((lang, voice))
+                    Some((lang, TtsVoiceEntry { voice, model }))
                 })
                 .collect(),
         })
