@@ -1,5 +1,6 @@
 pub mod bitvault;
 pub mod config;
+pub mod detect_language;
 pub mod document;
 pub mod languages;
 pub mod models;

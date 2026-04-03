@@ -123,6 +123,7 @@ async fn main() -> Result<()> {
         .route("/api/languages", get(routes::languages::get_languages))
         .route("/api/models", get(routes::models::get_models))
         .route("/api/tts", post(routes::tts::post_tts))
+        .route("/api/detect-language", post(routes::detect_language::post_detect_language))
         .layer(DefaultBodyLimit::max(100 * 1024 * 1024))
         .layer(CompressionLayer::new())
         .layer(cors)

@@ -90,6 +90,18 @@ pub struct TtsRequest {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct DetectLanguageRequest {
+    pub text: String,
+    pub endpoint: Option<String>,
+    pub api_key: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct DetectLanguageResponse {
+    pub language: String,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct GatedAccessRequest {
     pub access_key: String,
 }
