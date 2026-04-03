@@ -1074,3 +1074,39 @@ function showNotification(msg, type = '') {
 }
 
 init();
+
+// ── Title cycling ────────────────────────────────────────────────────────────
+(function () {
+  const words = [
+    'Translation',   // English
+    'Übersetzung',   // German
+    'Traduction',    // French
+    'Traducción',    // Spanish
+    'Tradução',      // Portuguese
+    'Traduzione',    // Italian
+    'Перевод',       // Russian
+    'Μετάφραση',     // Greek
+    'Çeviri',        // Turkish
+    'Překlad',       // Czech
+    '翻訳',           // Japanese
+    '번역',           // Korean
+    '翻译',           // Chinese (Simplified)
+    'ترجمه',         // Persian
+    'ترجمة',         // Arabic
+    'תרגום',         // Hebrew
+    'Tafsiri',       // Swahili
+    'अनुवाद',        // Hindi
+    'மொழிபெயர்ப்பு', // Tamil
+    'Fordítás',      // Hungarian
+    'Käännös',       // Finnish
+    'Översättning',  // Swedish
+    'Vertaling',     // Dutch
+  ];
+  const el = document.querySelector('.app-title');
+  if (!el) return;
+  let idx = 0;
+  setInterval(() => {
+    idx = (idx + 1) % words.length;
+    el.textContent = words[idx];
+  }, 2000);
+}());
