@@ -150,6 +150,26 @@ pub fn check_authenticated(
         ));
     }
 
+    // Gated mode: Bearer token present → must match access key.
+    // No Bearer token → free tier: allow when server is configured (mirrors resolve_client).
+    let provided = headers
+        .get(header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .unwrap_or("");
+
+    if provided.is_empty() {
+        if state.config.is_configured() || state.config.is_tts_configured() {
+            return Ok(());
+        }
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            Json(ErrorResponse {
+                error: "No API credentials configured. Please set up your endpoint via the web interface.".into(),
+            }),
+        ));
+    }
+
     verify_bearer(headers, access_key)
 }
 
