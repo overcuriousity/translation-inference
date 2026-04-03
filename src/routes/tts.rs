@@ -42,7 +42,11 @@ pub async fn post_tts(
     }
     let mut audio_bytes: Vec<u8> = Vec::new();
     let tts_model = state.config.tts_model.clone();
-    let tts_voice = state.config.tts_voice.clone();
+    let tts_voice = req.target_lang
+        .as_deref()
+        .and_then(|lang| state.config.tts_voice_map.get(lang))
+        .cloned()
+        .unwrap_or_else(|| state.config.tts_voice.clone());
 
     for chunk in chunks {
         let payload = serde_json::json!({

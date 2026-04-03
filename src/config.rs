@@ -23,6 +23,9 @@ pub struct AppConfig {
     /// have no per-request size limit. Set `TTS_CHUNK_SIZE=4000` to restore
     /// OpenAI-API-compatible behaviour; `TTS_CHUNK_SIZE=0` also means no chunking.
     pub tts_chunk_size: Option<usize>,
+    /// Maps language codes to Piper voice names, e.g. `en` → `en_US-lessac-medium`.
+    /// Populated from `TTS_VOICE_MAP=en:en_US-lessac-medium,de:de_DE-thorsten-medium,...`
+    pub tts_voice_map: std::collections::HashMap<String, String>,
 }
 
 impl AppConfig {
@@ -73,6 +76,17 @@ impl AppConfig {
                 Some("0") | None => None,
                 Some(s) => s.parse::<usize>().ok().filter(|&n| n > 0),
             },
+            tts_voice_map: std::env::var("TTS_VOICE_MAP")
+                .unwrap_or_default()
+                .split(',')
+                .filter_map(|pair| {
+                    let mut it = pair.trim().splitn(2, ':');
+                    let lang = it.next()?.trim().to_string();
+                    let voice = it.next()?.trim().to_string();
+                    if lang.is_empty() || voice.is_empty() { return None; }
+                    Some((lang, voice))
+                })
+                .collect(),
         })
     }
 
