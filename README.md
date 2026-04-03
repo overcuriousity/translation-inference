@@ -138,21 +138,8 @@ LISTEN_ADDR=0.0.0.0:3000
 # TTS_API_BASE_URL=http://tts.example.com
 # TTS_API_KEY=your-tts-api-key-here
 # TTS_CHUNK_SIZE=0
-# TTS_VOICE_MAP=\
-#   en:af_heart@speaches-ai/Kokoro-82M-v1.0-ONNX-fp16,\
-#   es:ef_dora@speaches-ai/Kokoro-82M-v1.0-ONNX-fp16,\
-#   fr:ff_siwis@speaches-ai/Kokoro-82M-v1.0-ONNX-fp16,\
-#   hi:hf_alpha@speaches-ai/Kokoro-82M-v1.0-ONNX-fp16,\
-#   it:if_sara@speaches-ai/Kokoro-82M-v1.0-ONNX-fp16,\
-#   pt:pf_dora@speaches-ai/Kokoro-82M-v1.0-ONNX-fp16,\
-#   ar:kareem@speaches-ai/piper-ar_JO-kareem-medium,\
-#   cs:jirka@speaches-ai/piper-cs_CZ-jirka-medium,\
-#   da:talesyntese@speaches-ai/piper-da_DK-talesyntese-medium,\
-#   de:thorsten@speaches-ai/piper-de_DE-thorsten-high,\
-#   el:rapunzelina@speaches-ai/piper-el_GR-rapunzelina-low,\
-#   fi:harri@speaches-ai/piper-fi_FI-harri-medium,\
-#   hu:anna@speaches-ai/piper-hu_HU-anna-medium,\
-#   nl:mls@speaches-ai/piper-nl_NL-mls-medium,\
+# `.env` files do not support backslash line continuations; keep this value on one line.
+# TTS_VOICE_MAP=en:af_heart@speaches-ai/Kokoro-82M-v1.0-ONNX-fp16,es:ef_dora@speaches-ai/Kokoro-82M-v1.0-ONNX-fp16,fr:ff_siwis@speaches-ai/Kokoro-82M-v1.0-ONNX-fp16,hi:hf_alpha@speaches-ai/Kokoro-82M-v1.0-ONNX-fp16,it:if_sara@speaches-ai/Kokoro-82M-v1.0-ONNX-fp16,pt:pf_dora@speaches-ai/Kokoro-82M-v1.0-ONNX-fp16,ar:kareem@speaches-ai/piper-ar_JO-kareem-medium,cs:jirka@speaches-ai/piper-cs_CZ-jirka-medium,da:talesyntese@speaches-ai/piper-da_DK-talesyntese-medium,de:thorsten@speaches-ai/piper-de_DE-thorsten-high,el:rapunzelina@speaches-ai/piper-el_GR-rapunzelina-low,fi:harri@speaches-ai/piper-fi_FI-harri-medium,hu:anna@speaches-ai/piper-hu_HU-anna-medium,nl:mls@speaches-ai/piper-nl_NL-mls-medium,
 #   no:talesyntese@speaches-ai/piper-no_NO-talesyntese-medium,\
 #   pl:darkman@speaches-ai/piper-pl_PL-darkman-medium,\
 #   ro:mihai@speaches-ai/piper-ro_RO-mihai-medium,\
