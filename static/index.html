@@ -50,6 +50,13 @@
         <button id="config-connect-btn" class="btn-primary">Connect</button>
         <span id="config-msg" class="config-msg"></span>
       </div>
+      <!-- TTS BYOK row -->
+      <div class="config-row">
+        <input id="config-tts-endpoint" type="url" class="config-input" placeholder="TTS Endpoint URL (optional)" />
+        <input id="config-tts-apikey" type="password" class="config-input" placeholder="TTS API Key (optional)" />
+        <button id="config-tts-btn" class="btn-primary">Set TTS</button>
+        <span id="tts-msg" class="config-msg"></span>
+      </div>
     </div>
   </div>
 
@@ -115,6 +122,9 @@
 
       <div class="panel-footer">
         <div class="footer-left">
+          <button id="tts-btn" class="icon-btn hidden" title="Read aloud" aria-label="Read aloud" aria-pressed="false">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+          </button>
           <span id="chunk-progress" class="chunk-progress hidden"></span>
         </div>
         <div class="footer-right">

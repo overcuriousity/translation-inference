@@ -101,6 +101,58 @@ pub async fn post_translate(
     }
 }
 
+/// Validate the Bearer token against `access_key` using a constant-time compare.
+/// Returns `Ok(())` on match, or an UNAUTHORIZED error.
+fn verify_bearer(
+    headers: &HeaderMap,
+    access_key: &str,
+) -> Result<(), (StatusCode, Json<ErrorResponse>)> {
+    let provided = headers
+        .get(header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .unwrap_or("");
+
+    use subtle::ConstantTimeEq;
+    if provided.as_bytes().ct_eq(access_key.as_bytes()).unwrap_u8() == 0 {
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            Json(ErrorResponse { error: "Invalid or missing access key.".into() }),
+        ));
+    }
+    Ok(())
+}
+
+/// Verify the request is authenticated (session cookie or Bearer token).
+/// Returns `Ok(())` if authenticated, or the appropriate error response.
+pub fn check_authenticated(
+    state: &AppState,
+    headers: &HeaderMap,
+) -> Result<(), (StatusCode, Json<ErrorResponse>)> {
+    if let Some(sid) = get_session_id(headers) {
+        if state.sessions.read().unwrap().contains_key(&sid) {
+            return Ok(());
+        }
+    }
+
+    let access_key = &state.config.gated_access_key;
+    if access_key.is_empty() {
+        // Personal/local mode: no gated key configured.
+        // Allow access when the server itself is configured (mirrors resolve_client behaviour).
+        if state.config.is_configured() || state.config.is_tts_configured() {
+            return Ok(());
+        }
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            Json(ErrorResponse {
+                error: "Direct API access is disabled. Use the web interface.".into(),
+            }),
+        ));
+    }
+
+    verify_bearer(headers, access_key)
+}
+
 pub fn resolve_client(
     state: &AppState,
     endpoint: Option<&str>,

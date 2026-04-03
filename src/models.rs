@@ -75,6 +75,16 @@ pub struct StatusResponse {
     /// Which tier the active session belongs to: "byok" or "gated".
     pub session_tier: Option<String>,
     pub bitvault_configured: bool,
+    pub tts_configured: bool,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TtsRequest {
+    pub text: String,
+    /// Optional BYOK override — TTS endpoint base URL.
+    pub tts_endpoint: Option<String>,
+    /// Optional BYOK override — TTS API key.
+    pub tts_api_key: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

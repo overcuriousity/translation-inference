@@ -5,8 +5,14 @@ let availableLanguages = [];
 let availableModels    = [];
 let userEndpoint       = '';
 let userApiKey         = '';
+let userTtsEndpoint    = '';
+let userTtsApiKey      = '';
 let lastTranslatedText = '';
+let lastOutputText     = '';     // actual translated output (differs from source)
+let ttsObjectUrl       = null;   // current blob: URL for the active TTS audio
 let mediaRecorder      = null;
+let ttsAudio           = null;   // active Audio instance
+let serverTtsConfigured = false;
 
 // ── DOM refs ─────────────────────────────────────────────────────────────
 const targetLangSel    = document.getElementById('target-lang');
@@ -41,13 +47,18 @@ const settingsBtn      = document.getElementById('settings-btn');
 const dropOverlay      = document.getElementById('drop-overlay');
 const voiceBtn         = document.getElementById('voice-btn');
 const sourcePanel      = document.querySelector('.panel-source');
-const saveSrcBtn       = document.getElementById('save-src-btn');
-const saveOutBtn       = document.getElementById('save-out-btn');
+const saveSrcBtn           = document.getElementById('save-src-btn');
+const saveOutBtn           = document.getElementById('save-out-btn');
+const ttsBtn               = document.getElementById('tts-btn');
+const configTtsEndpoint    = document.getElementById('config-tts-endpoint');
+const configTtsApikey      = document.getElementById('config-tts-apikey');
+const configTtsBtn         = document.getElementById('config-tts-btn');
+const ttsMsg               = document.getElementById('tts-msg');
 
 // ── Boot ─────────────────────────────────────────────────────────────────
 async function init() {
   const status = await fetch('/api/status').then(r => r.json())
-    .catch(() => ({ server_configured: false, gated_configured: false, session_active: false, bitvault_configured: false }));
+    .catch(() => ({ server_configured: false, gated_configured: false, session_active: false, bitvault_configured: false, tts_configured: false }));
 
   if (status.bitvault_configured) {
     saveSrcBtn.classList.remove('hidden');
@@ -58,6 +69,9 @@ async function init() {
     gatedRow.classList.remove('hidden');
     configSeparator.classList.remove('hidden');
   }
+
+  serverTtsConfigured = !!status.tts_configured;
+  updateTtsButtonVisibility();
 
   const hasAccess = status.server_configured || status.session_active;
   if (!hasAccess) {
@@ -262,6 +276,8 @@ async function translate(isAuto = false) {
 
   setOutputLoading(true);
   lastTranslatedText = text;
+  lastOutputText = '';
+  updateTtsButtonVisibility();
 
   try {
     const body = {
@@ -314,11 +330,15 @@ async function translate(isAuto = false) {
       const partial = textSoFar.slice(0, errIdx);
       const errMsg  = textSoFar.slice(errIdx + ERR_SENTINEL.length).trim();
       setOutput(partial);
+      lastOutputText = partial;
       if (!isAuto) showNotification(errMsg || 'Translation error', 'error');
+    } else {
+      lastOutputText = textSoFar;
     }
 
     chunkProgress.classList.add('hidden');
     detectedBadge.classList.add('hidden');
+    updateTtsButtonVisibility();
 
   } catch (e) {
     if (!isAuto) showNotification('Network error', 'error');
@@ -345,8 +365,8 @@ sourceText.addEventListener('keydown', e => {
   }
 });
 
-targetLangSel.addEventListener('change', () => { lastTranslatedText = ''; translate(true); });
-modelSel.addEventListener('change', () => { lastTranslatedText = ''; translate(true); });
+targetLangSel.addEventListener('change', () => { lastTranslatedText = ''; lastOutputText = ''; translate(true); });
+modelSel.addEventListener('change', () => { lastTranslatedText = ''; lastOutputText = ''; translate(true); });
 
 // ── Transcription & Upload ────────────────────────────────────────────────
 function setTranscribeBusy(busy) {
@@ -421,11 +441,14 @@ translateBtn.addEventListener('click', () => translate());
 clearBtn.addEventListener('click', () => {
   sourceText.value = '';
   lastTranslatedText = '';
+  lastOutputText = '';
   setOutput('');
   updateCharCount();
   detectedBadge.classList.add('hidden');
   chunkProgress.classList.add('hidden');
   copyBtn.classList.add('hidden');
+  ttsBtn.classList.add('hidden');
+  stopTts();
   outputFormatSel.classList.add('hidden');
   renderResultsDocList([]);
   transcribeStatus.innerHTML = '';
@@ -594,6 +617,8 @@ function setOutput(text) {
   if (!text) {
     outputDiv.innerHTML = '<span class="placeholder">Translation will appear here…</span>';
     copyBtn.classList.add('hidden');
+    stopTts();
+    updateTtsButtonVisibility();
   } else {
     outputDiv.textContent = text;
     copyBtn.classList.remove('hidden');
@@ -694,6 +719,123 @@ saveOutBtn.addEventListener('click', () => {
   if (!tab) { showNotification('Allow popups to save to Bitvault', 'error'); return; }
   tab.opener = null;
   saveToBitvault(text, tab);
+});
+
+// ── TTS ───────────────────────────────────────────────────────────────────
+function updateTtsButtonVisibility() {
+  const hasTts = serverTtsConfigured || !!userTtsEndpoint;
+  // Only show the button when there is translated text available.
+  const hasText = lastOutputText.trim().length > 0;
+  if (hasTts && hasText) {
+    ttsBtn.classList.remove('hidden');
+  } else {
+    ttsBtn.classList.add('hidden');
+    stopTts();
+  }
+}
+
+function stopTts() {
+  if (ttsAudio) {
+    ttsAudio.pause();
+    ttsAudio.src = '';
+    ttsAudio = null;
+  }
+  if (ttsObjectUrl) {
+    URL.revokeObjectURL(ttsObjectUrl);
+    ttsObjectUrl = null;
+  }
+  ttsBtn.classList.remove('playing', 'loading');
+  ttsBtn.setAttribute('aria-pressed', 'false');
+  ttsBtn.title = 'Read aloud';
+}
+
+ttsBtn.addEventListener('click', async () => {
+  // Ignore clicks while a TTS request is already in flight.
+  if (ttsBtn.classList.contains('loading')) return;
+  // Second click stops playback.
+  if (ttsAudio && !ttsAudio.paused) {
+    stopTts();
+    return;
+  }
+
+  const text = lastOutputText.trim();
+  if (!text) return;
+
+  ttsBtn.classList.add('loading');
+  ttsBtn.setAttribute('aria-pressed', 'true');
+  ttsBtn.title = 'Loading audio\u2026';
+
+  try {
+    const body = { text };
+    if (userTtsEndpoint && userTtsApiKey) {
+      body.tts_endpoint = userTtsEndpoint;
+      body.tts_api_key  = userTtsApiKey;
+    }
+
+    const res = await fetch('/api/tts', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(body),
+    });
+
+    if (!res.ok) {
+      let msg = 'TTS failed';
+      try { const d = await res.json(); msg = d.error || msg; } catch (_) {}
+      showNotification(msg, 'error');
+      ttsBtn.classList.remove('loading');
+      ttsBtn.setAttribute('aria-pressed', 'false');
+      ttsBtn.title = 'Read aloud';
+      return;
+    }
+
+    const blob = await res.blob();
+    stopTts(); // revoke any previous blob URL and clear audio before creating a new one
+    ttsObjectUrl = URL.createObjectURL(blob);
+
+    ttsAudio = new Audio(ttsObjectUrl);
+    ttsAudio.addEventListener('ended', () => {
+      stopTts();
+    });
+    ttsAudio.addEventListener('error', () => {
+      showNotification('Audio playback error', 'error');
+      stopTts();
+    });
+
+    ttsBtn.classList.remove('loading');
+    ttsBtn.classList.add('playing');
+    ttsBtn.title = 'Stop';
+    await ttsAudio.play();
+  } catch (e) {
+    showNotification('Network error', 'error');
+    ttsBtn.classList.remove('loading');
+    ttsBtn.setAttribute('aria-pressed', 'false');
+    ttsBtn.title = 'Read aloud';
+  }
+});
+
+configTtsBtn.addEventListener('click', () => {
+  const ep  = configTtsEndpoint.value.trim();
+  const key = configTtsApikey.value.trim();
+
+  if (ep && !key) {
+    ttsMsg.textContent = 'TTS API key required.';
+    ttsMsg.className = 'config-msg error';
+    return;
+  }
+
+  userTtsEndpoint = ep;
+  userTtsApiKey   = key;
+
+  if (ep) {
+    ttsMsg.textContent = '\u2713 TTS endpoint set';
+    ttsMsg.className = 'config-msg success';
+  } else {
+    ttsMsg.textContent = 'TTS endpoint cleared';
+    ttsMsg.className = 'config-msg';
+  }
+
+  updateTtsButtonVisibility();
+  setTimeout(() => { ttsMsg.textContent = ''; }, 2000);
 });
 
 let notifTimer = null;

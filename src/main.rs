@@ -39,6 +39,8 @@ pub struct AppState {
     pub client: OpenAiClient,
     /// Pre-built client for the gated tier (None if not configured).
     pub gated_client: Option<OpenAiClient>,
+    /// Pre-built client for the TTS endpoint (None if not configured).
+    pub tts_client: Option<OpenAiClient>,
     /// Separate reqwest client for Bitvault proxy fetches with redirects disabled
     /// to prevent SSRF via open redirects on the Bitvault host.
     pub bitvault_http: reqwest::Client,
@@ -78,6 +80,12 @@ async fn main() -> Result<()> {
     } else {
         None
     };
+    let tts_client = if config.is_tts_configured() {
+        tracing::info!("TTS configured with endpoint: {}", config.tts_api_base_url);
+        Some(OpenAiClient::with_credentials(&config.tts_api_base_url, &config.tts_api_key))
+    } else {
+        None
+    };
     let bitvault_http = reqwest::Client::builder()
         .redirect(reqwest::redirect::Policy::none())
         .timeout(std::time::Duration::from_secs(30))
@@ -87,6 +95,7 @@ async fn main() -> Result<()> {
         config,
         client,
         gated_client,
+        tts_client,
         bitvault_http,
         sessions: std::sync::RwLock::new(std::collections::HashMap::new()),
     });
@@ -113,6 +122,7 @@ async fn main() -> Result<()> {
         .route("/api/proxy-text", get(routes::bitvault::get_proxy_text))
         .route("/api/languages", get(routes::languages::get_languages))
         .route("/api/models", get(routes::models::get_models))
+        .route("/api/tts", post(routes::tts::post_tts))
         .layer(DefaultBodyLimit::max(100 * 1024 * 1024))
         .layer(CompressionLayer::new())
         .layer(cors)

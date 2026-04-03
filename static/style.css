@@ -529,11 +529,15 @@ body {
   .panels {
     grid-template-columns: 1fr;
     padding: 12px;
+    gap: 0;
     overflow-y: auto;
   }
+  /* Scale the button down so -½height margins cancel it out, leaving no dead space */
   .swap-btn {
+    width: 32px;
+    height: 32px;
     transform: rotate(90deg);
-    margin: -20px 0;
+    margin: -16px auto;
   }
   .swap-btn:hover { transform: rotate(270deg); }
   body { overflow: auto; }
@@ -589,9 +593,9 @@ body {
     border-radius: var(--radius);
   }
 
-  /* Panels: tighter padding on very small screens */
+  /* Panels: tighter padding on very small screens.
+     gap intentionally omitted — the 900px rule sets gap:0 for the swap-btn fix. */
   .panels {
     padding: 8px;
-    gap: 8px;
   }
 }
