@@ -14,6 +14,7 @@ let mediaRecorder      = null;
 let ttsAudio           = null;   // active Audio instance
 let serverTtsConfigured = false;
 let serverTtsLanguages  = [];   // language codes with a configured TTS voice
+let sessionActive       = false; // true when a web-interface session cookie exists
 let detectedSourceLang    = null;  // language code like 'en', null = not yet detected
 let lastDetectedTextLength = 0;
 let lastDetectedTextSnippet = '';
@@ -82,6 +83,7 @@ async function init() {
 
   serverTtsConfigured = !!status.tts_configured;
   serverTtsLanguages  = status.tts_languages || [];
+  sessionActive       = !!status.session_active;
   updateTtsButtonVisibility();
   updateSrcTtsButtonVisibility();
 
@@ -103,8 +105,8 @@ async function init() {
       if (res.ok) {
         sourceText.value = await res.text();
         updateCharCount();
-        detectLanguage(sourceText.value);
         if (hasAccess) {
+          detectLanguage(sourceText.value);
           translate(true);
         } else {
           showConfigPanel('Please configure your API credentials to enable auto-translation.');
@@ -151,6 +153,7 @@ configGatedBtn.addEventListener('click', async () => {
     if (res.ok) {
       userEndpoint = '';
       userApiKey   = '';
+      sessionActive = true;
       configAccesskey.value = '';
       gatedMsg.textContent = '\u2713 Access granted';
       gatedMsg.className = 'config-msg success';
@@ -192,6 +195,7 @@ configConnectBtn.addEventListener('click', async () => {
     if (res.ok) {
       userEndpoint = ep;
       userApiKey   = key;
+      sessionActive = true;
       configMsg.textContent = '✓ Connected';
       configMsg.className = 'config-msg success';
       await Promise.all([loadLanguages(), loadModels()]);
@@ -419,6 +423,7 @@ async function handleFiles(files) {
   prepareOutputFormatForFiles(files);
   const fileArray = Array.from(files);
   sourceText.value = '';
+  resetDetectedLang();
   sourceText.disabled = true;
   setTranscribeBusy(true);
   showPendingQueue(fileArray);
@@ -765,7 +770,7 @@ saveOutBtn.addEventListener('click', () => {
 
 // ── TTS ───────────────────────────────────────────────────────────────────
 function updateTtsButtonVisibility() {
-  const hasTts = !!userTtsEndpoint
+  const hasTts = (sessionActive && !!userTtsEndpoint)
     || (serverTtsConfigured && serverTtsLanguages.includes(targetLangSel.value));
   // Only show the button when there is translated text available.
   const hasText = lastOutputText.trim().length > 0;
@@ -965,7 +970,7 @@ function scheduleDetection(text) {
 
 // ── Source TTS ────────────────────────────────────────────────────────────
 function updateSrcTtsButtonVisibility() {
-  const hasTts = !!userTtsEndpoint
+  const hasTts = (sessionActive && !!userTtsEndpoint)
     || (serverTtsConfigured && detectedSourceLang !== null && serverTtsLanguages.includes(detectedSourceLang));
   const hasText = sourceText.value.trim().length > 0;
   const hasLang = detectedSourceLang !== null;
@@ -1000,20 +1005,7 @@ srcTtsBtn.addEventListener('click', async () => {
   }
 
   const text = sourceText.value.trim();
-  if (!text) return;
-
-  // Detect language on demand if not yet detected
-  if (detectedSourceLang === null) {
-    srcTtsBtn.classList.add('loading');
-    srcTtsBtn.title = 'Detecting language\u2026';
-    await detectLanguage(text);
-    srcTtsBtn.classList.remove('loading');
-    srcTtsBtn.title = 'Read source aloud';
-    if (detectedSourceLang === null) {
-      showNotification('Could not detect source language', 'error');
-      return;
-    }
-  }
+  if (!text || detectedSourceLang === null) return;
 
   stopTts();  // stop output TTS if playing
   srcTtsBtn.classList.add('loading');

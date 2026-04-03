@@ -19,15 +19,22 @@ pub async fn post_tts(
 ) -> Result<Response, (StatusCode, Json<ErrorResponse>)> {
     check_authenticated(&state, &headers)?;
 
-    // BYOK overrides (tts_endpoint/tts_api_key) are only honoured for web-interface
-    // sessions; free-tier and unauthenticated callers may not proxy to arbitrary endpoints.
+    // BYOK overrides (tts_endpoint/tts_api_key) are only honoured for authenticated
+    // callers (web-interface session cookie or Bearer token). Free-tier requests
+    // (no credentials) may not proxy to arbitrary TTS endpoints.
     let has_session = get_session_id(&headers)
         .map(|sid| state.sessions.read().unwrap().contains_key(&sid))
         .unwrap_or(false);
+    let has_bearer = headers
+        .get(header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .map(|v| v.trim_start().starts_with("Bearer "))
+        .unwrap_or(false);
+    let allow_byok = has_session || has_bearer;
     let client = resolve_tts_client(
         &state,
-        if has_session { req.tts_endpoint.as_deref() } else { None },
-        if has_session { req.tts_api_key.as_deref() } else { None },
+        if allow_byok { req.tts_endpoint.as_deref() } else { None },
+        if allow_byok { req.tts_api_key.as_deref() } else { None },
     )?;
 
     if req.text.trim().is_empty() {
