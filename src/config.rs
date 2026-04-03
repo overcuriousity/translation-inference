@@ -24,10 +24,6 @@ pub struct AppConfig {
     pub bitvault_api_key: Option<String>,
     pub tts_api_base_url: String,
     pub tts_api_key: String,
-<<<<<<< HEAD
-    pub tts_voice: String,
-=======
->>>>>>> dddc4df2ec24cf6d5b62a2033881ce6a43dba000
     /// Maximum **bytes** per TTS request chunk. `None` (the default) disables
     /// chunking entirely — recommended for local models that have no per-request
     /// size limit. Set `TTS_CHUNK_SIZE=4000` to restore OpenAI hosted-API limits;
@@ -80,11 +76,6 @@ impl AppConfig {
                 .filter(|s| !s.is_empty()),
             tts_api_base_url: std::env::var("TTS_API_BASE_URL").unwrap_or_default(),
             tts_api_key: std::env::var("TTS_API_KEY").unwrap_or_default(),
-<<<<<<< HEAD
-            tts_voice: std::env::var("TTS_VOICE")
-                .unwrap_or_else(|_| "alloy".to_string()),
-=======
->>>>>>> dddc4df2ec24cf6d5b62a2033881ce6a43dba000
             tts_chunk_size: match std::env::var("TTS_CHUNK_SIZE").ok().as_deref() {
                 Some("0") | None => None,
                 Some(s) => s.parse::<usize>().ok().filter(|&n| n > 0),

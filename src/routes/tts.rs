@@ -57,13 +57,6 @@ pub async fn post_tts(
         ));
     }
     let mut audio_bytes: Vec<u8> = Vec::new();
-<<<<<<< HEAD
-    let voice_entry = req.target_lang
-        .as_deref()
-        .and_then(|lang| state.config.tts_voice_map.get(lang))
-        .cloned()
-        .unwrap_or_else(|| state.config.tts_voice.clone());
-=======
     let entry = state.config.tts_voice_map.get(req.target_lang.as_str())
         .ok_or_else(|| (
             StatusCode::BAD_REQUEST,
@@ -77,22 +70,6 @@ pub async fn post_tts(
         ))?;
     let tts_model = entry.model.clone();
     let tts_voice = entry.voice.clone();
->>>>>>> dddc4df2ec24cf6d5b62a2033881ce6a43dba000
-
-    // Voice map entries use "voice@model" notation to specify both the voice
-    // name and the model in a single value (e.g. "af_heart@speaches-ai/Kokoro-82M-v1.0-ONNX-fp16").
-    // Split them so the correct model is sent in `model` and only the bare
-    // voice name goes in `voice`.
-    let (tts_voice, tts_model) = match voice_entry.find('@') {
-        Some(at) => (voice_entry[..at].to_string(), voice_entry[at + 1..].to_string()),
-        None => {
-            tracing::error!("TTS voice entry has no @model suffix: {voice_entry:?}; use voice@model format in TTS_VOICE_MAP");
-            return Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse { error: "TTS misconfiguration: voice entry must use voice@model format".into() }),
-            ));
-        }
-    };
 
     for chunk in chunks {
         let payload = serde_json::json!({
