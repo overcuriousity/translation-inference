@@ -76,6 +76,8 @@ pub struct StatusResponse {
     pub session_tier: Option<String>,
     pub bitvault_configured: bool,
     pub tts_configured: bool,
+    /// Language codes that have a TTS voice configured (keys of TTS_VOICE_MAP).
+    pub tts_languages: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -87,6 +89,18 @@ pub struct TtsRequest {
     pub tts_endpoint: Option<String>,
     /// Optional BYOK override — TTS API key.
     pub tts_api_key: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DetectLanguageRequest {
+    pub text: String,
+    pub endpoint: Option<String>,
+    pub api_key: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct DetectLanguageResponse {
+    pub language: String,
 }
 
 #[derive(Debug, Deserialize)]

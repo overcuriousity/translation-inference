@@ -13,6 +13,16 @@ let ttsObjectUrl       = null;   // current blob: URL for the active TTS audio
 let mediaRecorder      = null;
 let ttsAudio           = null;   // active Audio instance
 let serverTtsConfigured = false;
+let serverTtsLanguages  = [];   // language codes with a configured TTS voice
+let sessionActive       = false; // true when a web-interface session cookie exists
+let detectedSourceLang    = null;  // language code like 'en', null = not yet detected
+let lastDetectedTextLength = 0;
+let lastDetectedTextSnippet = '';
+let detectionTimer        = null;
+let detectionRequestId    = 0;    // incremented per request; guards stale async responses
+let isPasting             = false;
+let srcTtsAudio           = null;
+let srcTtsObjectUrl       = null;
 
 // ── DOM refs ─────────────────────────────────────────────────────────────
 const targetLangSel    = document.getElementById('target-lang');
@@ -54,6 +64,7 @@ const configTtsEndpoint    = document.getElementById('config-tts-endpoint');
 const configTtsApikey      = document.getElementById('config-tts-apikey');
 const configTtsBtn         = document.getElementById('config-tts-btn');
 const ttsMsg               = document.getElementById('tts-msg');
+const srcTtsBtn            = document.getElementById('src-tts-btn');
 
 // ── Boot ─────────────────────────────────────────────────────────────────
 async function init() {
@@ -71,7 +82,10 @@ async function init() {
   }
 
   serverTtsConfigured = !!status.tts_configured;
+  serverTtsLanguages  = status.tts_languages || [];
+  sessionActive       = !!status.session_active;
   updateTtsButtonVisibility();
+  updateSrcTtsButtonVisibility();
 
   const hasAccess = status.server_configured || status.session_active;
   if (!hasAccess) {
@@ -92,6 +106,7 @@ async function init() {
         sourceText.value = await res.text();
         updateCharCount();
         if (hasAccess) {
+          detectLanguage(sourceText.value);
           translate(true);
         } else {
           showConfigPanel('Please configure your API credentials to enable auto-translation.');
@@ -138,6 +153,7 @@ configGatedBtn.addEventListener('click', async () => {
     if (res.ok) {
       userEndpoint = '';
       userApiKey   = '';
+      sessionActive = true;
       configAccesskey.value = '';
       gatedMsg.textContent = '\u2713 Access granted';
       gatedMsg.className = 'config-msg success';
@@ -179,6 +195,7 @@ configConnectBtn.addEventListener('click', async () => {
     if (res.ok) {
       userEndpoint = ep;
       userApiKey   = key;
+      sessionActive = true;
       configMsg.textContent = '✓ Connected';
       configMsg.className = 'config-msg success';
       await Promise.all([loadLanguages(), loadModels()]);
@@ -215,7 +232,10 @@ async function loadLanguages() {
     targetLangSel.innerHTML = '';
     for (const lang of availableLanguages.filter(l => l.code !== 'auto')) {
       const opt = document.createElement('option');
-      opt.value = lang.code; opt.textContent = lang.name;
+      opt.value = lang.code;
+      opt.textContent = serverTtsLanguages.includes(lang.code)
+        ? lang.name + ' 🔊'
+        : lang.name;
       targetLangSel.appendChild(opt);
     }
 
@@ -337,7 +357,6 @@ async function translate(isAuto = false) {
     }
 
     chunkProgress.classList.add('hidden');
-    detectedBadge.classList.add('hidden');
     updateTtsButtonVisibility();
 
   } catch (e) {
@@ -356,6 +375,31 @@ function targetLangName(code) {
 // ── Input ─────────────────────────────────────────────────────────────────
 sourceText.addEventListener('input', () => {
   updateCharCount();
+  if (isPasting) return;
+  const text = sourceText.value;
+  if (!text.trim()) {
+    resetDetectedLang();
+  } else {
+    scheduleDetection(text);
+  }
+});
+
+sourceText.addEventListener('paste', () => {
+  isPasting = true;
+  setTimeout(() => {
+    isPasting = false;
+    const text = sourceText.value;
+    if (text.trim()) {
+      // Reset stale detection state before starting a fresh request.
+      detectedSourceLang = null;
+      detectedBadge.classList.add('hidden');
+      updateSrcTtsButtonVisibility();
+      clearTimeout(detectionTimer);
+      detectLanguage(text);
+    } else {
+      resetDetectedLang();
+    }
+  }, 0);
 });
 
 sourceText.addEventListener('keydown', e => {
@@ -379,6 +423,7 @@ async function handleFiles(files) {
   prepareOutputFormatForFiles(files);
   const fileArray = Array.from(files);
   sourceText.value = '';
+  resetDetectedLang();
   sourceText.disabled = true;
   setTranscribeBusy(true);
   showPendingQueue(fileArray);
@@ -444,7 +489,7 @@ clearBtn.addEventListener('click', () => {
   lastOutputText = '';
   setOutput('');
   updateCharCount();
-  detectedBadge.classList.add('hidden');
+  resetDetectedLang();
   chunkProgress.classList.add('hidden');
   copyBtn.classList.add('hidden');
   ttsBtn.classList.add('hidden');
@@ -468,6 +513,8 @@ swapBtn.addEventListener('click', () => {
     sourceText.value = tgt;
     setOutput('');
     updateCharCount();
+    resetDetectedLang();
+    scheduleDetection(tgt);
   }
 });
 
@@ -723,7 +770,8 @@ saveOutBtn.addEventListener('click', () => {
 
 // ── TTS ───────────────────────────────────────────────────────────────────
 function updateTtsButtonVisibility() {
-  const hasTts = serverTtsConfigured || !!userTtsEndpoint;
+  const hasTts = (sessionActive && !!userTtsEndpoint)
+    || (serverTtsConfigured && serverTtsLanguages.includes(targetLangSel.value));
   // Only show the button when there is translated text available.
   const hasText = lastOutputText.trim().length > 0;
   if (hasTts && hasText) {
@@ -761,6 +809,7 @@ ttsBtn.addEventListener('click', async () => {
   const text = lastOutputText.trim();
   if (!text) return;
 
+  stopSrcTts();
   ttsBtn.classList.add('loading');
   ttsBtn.setAttribute('aria-pressed', 'true');
   ttsBtn.title = 'Loading audio\u2026';
@@ -841,7 +890,178 @@ configTtsBtn.addEventListener('click', () => {
   }
 
   updateTtsButtonVisibility();
+  updateSrcTtsButtonVisibility();
   setTimeout(() => { ttsMsg.textContent = ''; }, 2000);
+});
+
+// ── Language detection ────────────────────────────────────────────────────
+function resetDetectedLang() {
+  detectedSourceLang = null;
+  lastDetectedTextLength = 0;
+  lastDetectedTextSnippet = '';
+  detectionRequestId++;    // discard any in-flight request
+  clearTimeout(detectionTimer);
+  detectionTimer = null;
+  detectedBadge.classList.add('hidden');
+  updateSrcTtsButtonVisibility();
+}
+
+function isSignificantTextChange(text) {
+  if (lastDetectedTextLength === 0 && lastDetectedTextSnippet === '') return true;
+  const lenDiff = Math.abs(text.length - lastDetectedTextLength);
+  const threshold = Math.max(50, Math.floor(lastDetectedTextLength * 0.2));
+  if (lenDiff > threshold) return true;
+  return text.slice(0, 100) !== lastDetectedTextSnippet.slice(0, 100);
+}
+
+async function detectLanguage(text) {
+  const reqId   = ++detectionRequestId;
+  const snippet = text.slice(0, 500);
+  if (snippet.trim().length < 10) {
+    resetDetectedLang();
+    return;
+  }
+
+  try {
+    const body = { text: snippet, ...apiCredentials() };
+    const res = await fetch('/api/detect-language', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) return;
+
+    // Discard response if a newer request has since been issued.
+    if (reqId !== detectionRequestId) return;
+
+    const data = await res.json();
+    const code = data.language.trim();
+    const lang = availableLanguages.find(l => l.code.toLowerCase() === code.toLowerCase() && l.code !== 'auto');
+    if (lang) {
+      detectedSourceLang = lang.code;
+      lastDetectedTextLength = text.length;
+      lastDetectedTextSnippet = text.slice(0, 500);
+      detectedBadge.textContent = lang.name;
+      detectedBadge.classList.remove('hidden');
+      updateSrcTtsButtonVisibility();
+    }
+  } catch (_) {
+    // Silently ignore detection errors
+  }
+}
+
+function scheduleDetection(text) {
+  if (text.trim().length < 10) {
+    resetDetectedLang();
+    return;
+  }
+  if (!isSignificantTextChange(text)) return;
+
+  // Significant change: reset displayed detection and invalidate any
+  // in-flight request before scheduling the new one.
+  detectedSourceLang = null;
+  detectedBadge.classList.add('hidden');
+  updateSrcTtsButtonVisibility();
+  detectionRequestId++;
+
+  clearTimeout(detectionTimer);
+  detectionTimer = setTimeout(() => detectLanguage(text), 500);
+}
+
+// ── Source TTS ────────────────────────────────────────────────────────────
+function updateSrcTtsButtonVisibility() {
+  const hasTts = (sessionActive && !!userTtsEndpoint)
+    || (serverTtsConfigured && detectedSourceLang !== null && serverTtsLanguages.includes(detectedSourceLang));
+  const hasText = sourceText.value.trim().length > 0;
+  const hasLang = detectedSourceLang !== null;
+  if (hasTts && hasText && hasLang) {
+    srcTtsBtn.classList.remove('hidden');
+  } else {
+    srcTtsBtn.classList.add('hidden');
+    stopSrcTts();
+  }
+}
+
+function stopSrcTts() {
+  if (srcTtsAudio) {
+    srcTtsAudio.pause();
+    srcTtsAudio.src = '';
+    srcTtsAudio = null;
+  }
+  if (srcTtsObjectUrl) {
+    URL.revokeObjectURL(srcTtsObjectUrl);
+    srcTtsObjectUrl = null;
+  }
+  srcTtsBtn.classList.remove('playing', 'loading');
+  srcTtsBtn.setAttribute('aria-pressed', 'false');
+  srcTtsBtn.title = 'Read source aloud';
+}
+
+srcTtsBtn.addEventListener('click', async () => {
+  if (srcTtsBtn.classList.contains('loading')) return;
+  if (srcTtsAudio && !srcTtsAudio.paused) {
+    stopSrcTts();
+    return;
+  }
+
+  const text = sourceText.value.trim();
+  if (!text || detectedSourceLang === null) return;
+
+  stopTts();  // stop output TTS if playing
+  srcTtsBtn.classList.add('loading');
+  srcTtsBtn.setAttribute('aria-pressed', 'true');
+  srcTtsBtn.title = 'Loading audio\u2026';
+
+  try {
+    const body = { text, target_lang: detectedSourceLang };
+    if (userTtsEndpoint && userTtsApiKey) {
+      body.tts_endpoint = userTtsEndpoint;
+      body.tts_api_key  = userTtsApiKey;
+    }
+
+    const res = await fetch('/api/tts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) {
+      let msg = 'TTS failed';
+      try { const d = await res.json(); msg = d.error || msg; } catch (_) {}
+      showNotification(msg, 'error');
+      srcTtsBtn.classList.remove('loading');
+      srcTtsBtn.setAttribute('aria-pressed', 'false');
+      srcTtsBtn.title = 'Read source aloud';
+      return;
+    }
+
+    const blob = await res.blob();
+    stopSrcTts();
+    srcTtsObjectUrl = URL.createObjectURL(blob);
+
+    srcTtsAudio = new Audio(srcTtsObjectUrl);
+    srcTtsAudio.addEventListener('ended', () => stopSrcTts());
+    srcTtsAudio.addEventListener('error', () => {
+      if (!srcTtsAudio) return;
+      showNotification('Audio playback error', 'error');
+      stopSrcTts();
+    });
+
+    srcTtsBtn.classList.remove('loading');
+    srcTtsBtn.classList.add('playing');
+    srcTtsBtn.title = 'Stop';
+    srcTtsAudio.play().catch(err => {
+      if (err.name !== 'AbortError') {
+        showNotification('Audio playback error', 'error');
+        stopSrcTts();
+      }
+    });
+  } catch (e) {
+    showNotification('Network error', 'error');
+    srcTtsBtn.classList.remove('loading');
+    srcTtsBtn.setAttribute('aria-pressed', 'false');
+    srcTtsBtn.title = 'Read source aloud';
+  }
 });
 
 let notifTimer = null;

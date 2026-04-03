@@ -81,9 +81,15 @@ impl AppConfig {
                 .split(',')
                 .filter_map(|pair| {
                     let mut it = pair.trim().splitn(2, ':');
-                    let lang = it.next()?.trim().to_string();
+                    let raw_lang = it.next()?.trim().to_string();
                     let voice = it.next()?.trim().to_string();
-                    if lang.is_empty() || voice.is_empty() { return None; }
+                    if raw_lang.is_empty() || voice.is_empty() { return None; }
+                    // Normalise to canonical casing (e.g. zh-tw → zh-TW) so keys
+                    // match what /api/languages and the frontend use.
+                    let lang = match raw_lang.to_lowercase().as_str() {
+                        "zh-tw" => "zh-TW".to_string(),
+                        other   => other.to_string(),
+                    };
                     Some((lang, voice))
                 })
                 .collect(),
