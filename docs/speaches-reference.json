@@ -1,0 +1,4192 @@
+{
+    "data": [
+        {
+            "id": "speaches-ai/Kokoro-82M-v1.0-ONNX-fp16",
+            "created": 1742486373,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "multilingual"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 24000,
+            "voices": [
+                {
+                    "name": "af_heart",
+                    "language": "en-us",
+                    "gender": "female",
+                    "id": "af_heart"
+                },
+                {
+                    "name": "af_alloy",
+                    "language": "en-us",
+                    "gender": "female",
+                    "id": "af_alloy"
+                },
+                {
+                    "name": "af_aoede",
+                    "language": "en-us",
+                    "gender": "female",
+                    "id": "af_aoede"
+                },
+                {
+                    "name": "af_bella",
+                    "language": "en-us",
+                    "gender": "female",
+                    "id": "af_bella"
+                },
+                {
+                    "name": "af_jessica",
+                    "language": "en-us",
+                    "gender": "female",
+                    "id": "af_jessica"
+                },
+                {
+                    "name": "af_kore",
+                    "language": "en-us",
+                    "gender": "female",
+                    "id": "af_kore"
+                },
+                {
+                    "name": "af_nicole",
+                    "language": "en-us",
+                    "gender": "female",
+                    "id": "af_nicole"
+                },
+                {
+                    "name": "af_nova",
+                    "language": "en-us",
+                    "gender": "female",
+                    "id": "af_nova"
+                },
+                {
+                    "name": "af_river",
+                    "language": "en-us",
+                    "gender": "female",
+                    "id": "af_river"
+                },
+                {
+                    "name": "af_sarah",
+                    "language": "en-us",
+                    "gender": "female",
+                    "id": "af_sarah"
+                },
+                {
+                    "name": "af_sky",
+                    "language": "en-us",
+                    "gender": "female",
+                    "id": "af_sky"
+                },
+                {
+                    "name": "am_adam",
+                    "language": "en-us",
+                    "gender": "male",
+                    "id": "am_adam"
+                },
+                {
+                    "name": "am_echo",
+                    "language": "en-us",
+                    "gender": "male",
+                    "id": "am_echo"
+                },
+                {
+                    "name": "am_eric",
+                    "language": "en-us",
+                    "gender": "male",
+                    "id": "am_eric"
+                },
+                {
+                    "name": "am_fenrir",
+                    "language": "en-us",
+                    "gender": "male",
+                    "id": "am_fenrir"
+                },
+                {
+                    "name": "am_liam",
+                    "language": "en-us",
+                    "gender": "male",
+                    "id": "am_liam"
+                },
+                {
+                    "name": "am_michael",
+                    "language": "en-us",
+                    "gender": "male",
+                    "id": "am_michael"
+                },
+                {
+                    "name": "am_onyx",
+                    "language": "en-us",
+                    "gender": "male",
+                    "id": "am_onyx"
+                },
+                {
+                    "name": "am_puck",
+                    "language": "en-us",
+                    "gender": "male",
+                    "id": "am_puck"
+                },
+                {
+                    "name": "am_santa",
+                    "language": "en-us",
+                    "gender": "male",
+                    "id": "am_santa"
+                },
+                {
+                    "name": "bf_alice",
+                    "language": "en-gb",
+                    "gender": "female",
+                    "id": "bf_alice"
+                },
+                {
+                    "name": "bf_emma",
+                    "language": "en-gb",
+                    "gender": "female",
+                    "id": "bf_emma"
+                },
+                {
+                    "name": "bf_isabella",
+                    "language": "en-gb",
+                    "gender": "female",
+                    "id": "bf_isabella"
+                },
+                {
+                    "name": "bf_lily",
+                    "language": "en-gb",
+                    "gender": "female",
+                    "id": "bf_lily"
+                },
+                {
+                    "name": "bm_daniel",
+                    "language": "en-gb",
+                    "gender": "male",
+                    "id": "bm_daniel"
+                },
+                {
+                    "name": "bm_fable",
+                    "language": "en-gb",
+                    "gender": "male",
+                    "id": "bm_fable"
+                },
+                {
+                    "name": "bm_george",
+                    "language": "en-gb",
+                    "gender": "male",
+                    "id": "bm_george"
+                },
+                {
+                    "name": "bm_lewis",
+                    "language": "en-gb",
+                    "gender": "male",
+                    "id": "bm_lewis"
+                },
+                {
+                    "name": "jf_alpha",
+                    "language": "ja",
+                    "gender": "female",
+                    "id": "jf_alpha"
+                },
+                {
+                    "name": "jf_gongitsune",
+                    "language": "ja",
+                    "gender": "female",
+                    "id": "jf_gongitsune"
+                },
+                {
+                    "name": "jf_nezumi",
+                    "language": "ja",
+                    "gender": "female",
+                    "id": "jf_nezumi"
+                },
+                {
+                    "name": "jf_tebukuro",
+                    "language": "ja",
+                    "gender": "female",
+                    "id": "jf_tebukuro"
+                },
+                {
+                    "name": "jm_kumo",
+                    "language": "ja",
+                    "gender": "male",
+                    "id": "jm_kumo"
+                },
+                {
+                    "name": "zf_xiaobei",
+                    "language": "zh",
+                    "gender": "female",
+                    "id": "zf_xiaobei"
+                },
+                {
+                    "name": "zf_xiaoni",
+                    "language": "zh",
+                    "gender": "female",
+                    "id": "zf_xiaoni"
+                },
+                {
+                    "name": "zf_xiaoxiao",
+                    "language": "zh",
+                    "gender": "female",
+                    "id": "zf_xiaoxiao"
+                },
+                {
+                    "name": "zf_xiaoyi",
+                    "language": "zh",
+                    "gender": "female",
+                    "id": "zf_xiaoyi"
+                },
+                {
+                    "name": "zm_yunjian",
+                    "language": "zh",
+                    "gender": "male",
+                    "id": "zm_yunjian"
+                },
+                {
+                    "name": "zm_yunxi",
+                    "language": "zh",
+                    "gender": "male",
+                    "id": "zm_yunxi"
+                },
+                {
+                    "name": "zm_yunxia",
+                    "language": "zh",
+                    "gender": "male",
+                    "id": "zm_yunxia"
+                },
+                {
+                    "name": "zm_yunyang",
+                    "language": "zh",
+                    "gender": "male",
+                    "id": "zm_yunyang"
+                },
+                {
+                    "name": "ef_dora",
+                    "language": "es",
+                    "gender": "female",
+                    "id": "ef_dora"
+                },
+                {
+                    "name": "em_alex",
+                    "language": "es",
+                    "gender": "male",
+                    "id": "em_alex"
+                },
+                {
+                    "name": "em_santa",
+                    "language": "es",
+                    "gender": "male",
+                    "id": "em_santa"
+                },
+                {
+                    "name": "ff_siwis",
+                    "language": "fr-fr",
+                    "gender": "female",
+                    "id": "ff_siwis"
+                },
+                {
+                    "name": "hf_alpha",
+                    "language": "hi",
+                    "gender": "female",
+                    "id": "hf_alpha"
+                },
+                {
+                    "name": "hf_beta",
+                    "language": "hi",
+                    "gender": "female",
+                    "id": "hf_beta"
+                },
+                {
+                    "name": "hm_omega",
+                    "language": "hi",
+                    "gender": "male",
+                    "id": "hm_omega"
+                },
+                {
+                    "name": "hm_psi",
+                    "language": "hi",
+                    "gender": "male",
+                    "id": "hm_psi"
+                },
+                {
+                    "name": "if_sara",
+                    "language": "it",
+                    "gender": "female",
+                    "id": "if_sara"
+                },
+                {
+                    "name": "im_nicola",
+                    "language": "it",
+                    "gender": "male",
+                    "id": "im_nicola"
+                },
+                {
+                    "name": "pf_dora",
+                    "language": "pt-br",
+                    "gender": "female",
+                    "id": "pf_dora"
+                },
+                {
+                    "name": "pm_alex",
+                    "language": "pt-br",
+                    "gender": "male",
+                    "id": "pm_alex"
+                },
+                {
+                    "name": "pm_santa",
+                    "language": "pt-br",
+                    "gender": "male",
+                    "id": "pm_santa"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/Kokoro-82M-v1.0-ONNX-int8",
+            "created": 1742486382,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "multilingual"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 24000,
+            "voices": [
+                {
+                    "name": "af_heart",
+                    "language": "en-us",
+                    "gender": "female",
+                    "id": "af_heart"
+                },
+                {
+                    "name": "af_alloy",
+                    "language": "en-us",
+                    "gender": "female",
+                    "id": "af_alloy"
+                },
+                {
+                    "name": "af_aoede",
+                    "language": "en-us",
+                    "gender": "female",
+                    "id": "af_aoede"
+                },
+                {
+                    "name": "af_bella",
+                    "language": "en-us",
+                    "gender": "female",
+                    "id": "af_bella"
+                },
+                {
+                    "name": "af_jessica",
+                    "language": "en-us",
+                    "gender": "female",
+                    "id": "af_jessica"
+                },
+                {
+                    "name": "af_kore",
+                    "language": "en-us",
+                    "gender": "female",
+                    "id": "af_kore"
+                },
+                {
+                    "name": "af_nicole",
+                    "language": "en-us",
+                    "gender": "female",
+                    "id": "af_nicole"
+                },
+                {
+                    "name": "af_nova",
+                    "language": "en-us",
+                    "gender": "female",
+                    "id": "af_nova"
+                },
+                {
+                    "name": "af_river",
+                    "language": "en-us",
+                    "gender": "female",
+                    "id": "af_river"
+                },
+                {
+                    "name": "af_sarah",
+                    "language": "en-us",
+                    "gender": "female",
+                    "id": "af_sarah"
+                },
+                {
+                    "name": "af_sky",
+                    "language": "en-us",
+                    "gender": "female",
+                    "id": "af_sky"
+                },
+                {
+                    "name": "am_adam",
+                    "language": "en-us",
+                    "gender": "male",
+                    "id": "am_adam"
+                },
+                {
+                    "name": "am_echo",
+                    "language": "en-us",
+                    "gender": "male",
+                    "id": "am_echo"
+                },
+                {
+                    "name": "am_eric",
+                    "language": "en-us",
+                    "gender": "male",
+                    "id": "am_eric"
+                },
+                {
+                    "name": "am_fenrir",
+                    "language": "en-us",
+                    "gender": "male",
+                    "id": "am_fenrir"
+                },
+                {
+                    "name": "am_liam",
+                    "language": "en-us",
+                    "gender": "male",
+                    "id": "am_liam"
+                },
+                {
+                    "name": "am_michael",
+                    "language": "en-us",
+                    "gender": "male",
+                    "id": "am_michael"
+                },
+                {
+                    "name": "am_onyx",
+                    "language": "en-us",
+                    "gender": "male",
+                    "id": "am_onyx"
+                },
+                {
+                    "name": "am_puck",
+                    "language": "en-us",
+                    "gender": "male",
+                    "id": "am_puck"
+                },
+                {
+                    "name": "am_santa",
+                    "language": "en-us",
+                    "gender": "male",
+                    "id": "am_santa"
+                },
+                {
+                    "name": "bf_alice",
+                    "language": "en-gb",
+                    "gender": "female",
+                    "id": "bf_alice"
+                },
+                {
+                    "name": "bf_emma",
+                    "language": "en-gb",
+                    "gender": "female",
+                    "id": "bf_emma"
+                },
+                {
+                    "name": "bf_isabella",
+                    "language": "en-gb",
+                    "gender": "female",
+                    "id": "bf_isabella"
+                },
+                {
+                    "name": "bf_lily",
+                    "language": "en-gb",
+                    "gender": "female",
+                    "id": "bf_lily"
+                },
+                {
+                    "name": "bm_daniel",
+                    "language": "en-gb",
+                    "gender": "male",
+                    "id": "bm_daniel"
+                },
+                {
+                    "name": "bm_fable",
+                    "language": "en-gb",
+                    "gender": "male",
+                    "id": "bm_fable"
+                },
+                {
+                    "name": "bm_george",
+                    "language": "en-gb",
+                    "gender": "male",
+                    "id": "bm_george"
+                },
+                {
+                    "name": "bm_lewis",
+                    "language": "en-gb",
+                    "gender": "male",
+                    "id": "bm_lewis"
+                },
+                {
+                    "name": "jf_alpha",
+                    "language": "ja",
+                    "gender": "female",
+                    "id": "jf_alpha"
+                },
+                {
+                    "name": "jf_gongitsune",
+                    "language": "ja",
+                    "gender": "female",
+                    "id": "jf_gongitsune"
+                },
+                {
+                    "name": "jf_nezumi",
+                    "language": "ja",
+                    "gender": "female",
+                    "id": "jf_nezumi"
+                },
+                {
+                    "name": "jf_tebukuro",
+                    "language": "ja",
+                    "gender": "female",
+                    "id": "jf_tebukuro"
+                },
+                {
+                    "name": "jm_kumo",
+                    "language": "ja",
+                    "gender": "male",
+                    "id": "jm_kumo"
+                },
+                {
+                    "name": "zf_xiaobei",
+                    "language": "zh",
+                    "gender": "female",
+                    "id": "zf_xiaobei"
+                },
+                {
+                    "name": "zf_xiaoni",
+                    "language": "zh",
+                    "gender": "female",
+                    "id": "zf_xiaoni"
+                },
+                {
+                    "name": "zf_xiaoxiao",
+                    "language": "zh",
+                    "gender": "female",
+                    "id": "zf_xiaoxiao"
+                },
+                {
+                    "name": "zf_xiaoyi",
+                    "language": "zh",
+                    "gender": "female",
+                    "id": "zf_xiaoyi"
+                },
+                {
+                    "name": "zm_yunjian",
+                    "language": "zh",
+                    "gender": "male",
+                    "id": "zm_yunjian"
+                },
+                {
+                    "name": "zm_yunxi",
+                    "language": "zh",
+                    "gender": "male",
+                    "id": "zm_yunxi"
+                },
+                {
+                    "name": "zm_yunxia",
+                    "language": "zh",
+                    "gender": "male",
+                    "id": "zm_yunxia"
+                },
+                {
+                    "name": "zm_yunyang",
+                    "language": "zh",
+                    "gender": "male",
+                    "id": "zm_yunyang"
+                },
+                {
+                    "name": "ef_dora",
+                    "language": "es",
+                    "gender": "female",
+                    "id": "ef_dora"
+                },
+                {
+                    "name": "em_alex",
+                    "language": "es",
+                    "gender": "male",
+                    "id": "em_alex"
+                },
+                {
+                    "name": "em_santa",
+                    "language": "es",
+                    "gender": "male",
+                    "id": "em_santa"
+                },
+                {
+                    "name": "ff_siwis",
+                    "language": "fr-fr",
+                    "gender": "female",
+                    "id": "ff_siwis"
+                },
+                {
+                    "name": "hf_alpha",
+                    "language": "hi",
+                    "gender": "female",
+                    "id": "hf_alpha"
+                },
+                {
+                    "name": "hf_beta",
+                    "language": "hi",
+                    "gender": "female",
+                    "id": "hf_beta"
+                },
+                {
+                    "name": "hm_omega",
+                    "language": "hi",
+                    "gender": "male",
+                    "id": "hm_omega"
+                },
+                {
+                    "name": "hm_psi",
+                    "language": "hi",
+                    "gender": "male",
+                    "id": "hm_psi"
+                },
+                {
+                    "name": "if_sara",
+                    "language": "it",
+                    "gender": "female",
+                    "id": "if_sara"
+                },
+                {
+                    "name": "im_nicola",
+                    "language": "it",
+                    "gender": "male",
+                    "id": "im_nicola"
+                },
+                {
+                    "name": "pf_dora",
+                    "language": "pt-br",
+                    "gender": "female",
+                    "id": "pf_dora"
+                },
+                {
+                    "name": "pm_alex",
+                    "language": "pt-br",
+                    "gender": "male",
+                    "id": "pm_alex"
+                },
+                {
+                    "name": "pm_santa",
+                    "language": "pt-br",
+                    "gender": "male",
+                    "id": "pm_santa"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/Kokoro-82M-v1.0-ONNX",
+            "created": 1742486489,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "multilingual"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 24000,
+            "voices": [
+                {
+                    "name": "af_heart",
+                    "language": "en-us",
+                    "gender": "female",
+                    "id": "af_heart"
+                },
+                {
+                    "name": "af_alloy",
+                    "language": "en-us",
+                    "gender": "female",
+                    "id": "af_alloy"
+                },
+                {
+                    "name": "af_aoede",
+                    "language": "en-us",
+                    "gender": "female",
+                    "id": "af_aoede"
+                },
+                {
+                    "name": "af_bella",
+                    "language": "en-us",
+                    "gender": "female",
+                    "id": "af_bella"
+                },
+                {
+                    "name": "af_jessica",
+                    "language": "en-us",
+                    "gender": "female",
+                    "id": "af_jessica"
+                },
+                {
+                    "name": "af_kore",
+                    "language": "en-us",
+                    "gender": "female",
+                    "id": "af_kore"
+                },
+                {
+                    "name": "af_nicole",
+                    "language": "en-us",
+                    "gender": "female",
+                    "id": "af_nicole"
+                },
+                {
+                    "name": "af_nova",
+                    "language": "en-us",
+                    "gender": "female",
+                    "id": "af_nova"
+                },
+                {
+                    "name": "af_river",
+                    "language": "en-us",
+                    "gender": "female",
+                    "id": "af_river"
+                },
+                {
+                    "name": "af_sarah",
+                    "language": "en-us",
+                    "gender": "female",
+                    "id": "af_sarah"
+                },
+                {
+                    "name": "af_sky",
+                    "language": "en-us",
+                    "gender": "female",
+                    "id": "af_sky"
+                },
+                {
+                    "name": "am_adam",
+                    "language": "en-us",
+                    "gender": "male",
+                    "id": "am_adam"
+                },
+                {
+                    "name": "am_echo",
+                    "language": "en-us",
+                    "gender": "male",
+                    "id": "am_echo"
+                },
+                {
+                    "name": "am_eric",
+                    "language": "en-us",
+                    "gender": "male",
+                    "id": "am_eric"
+                },
+                {
+                    "name": "am_fenrir",
+                    "language": "en-us",
+                    "gender": "male",
+                    "id": "am_fenrir"
+                },
+                {
+                    "name": "am_liam",
+                    "language": "en-us",
+                    "gender": "male",
+                    "id": "am_liam"
+                },
+                {
+                    "name": "am_michael",
+                    "language": "en-us",
+                    "gender": "male",
+                    "id": "am_michael"
+                },
+                {
+                    "name": "am_onyx",
+                    "language": "en-us",
+                    "gender": "male",
+                    "id": "am_onyx"
+                },
+                {
+                    "name": "am_puck",
+                    "language": "en-us",
+                    "gender": "male",
+                    "id": "am_puck"
+                },
+                {
+                    "name": "am_santa",
+                    "language": "en-us",
+                    "gender": "male",
+                    "id": "am_santa"
+                },
+                {
+                    "name": "bf_alice",
+                    "language": "en-gb",
+                    "gender": "female",
+                    "id": "bf_alice"
+                },
+                {
+                    "name": "bf_emma",
+                    "language": "en-gb",
+                    "gender": "female",
+                    "id": "bf_emma"
+                },
+                {
+                    "name": "bf_isabella",
+                    "language": "en-gb",
+                    "gender": "female",
+                    "id": "bf_isabella"
+                },
+                {
+                    "name": "bf_lily",
+                    "language": "en-gb",
+                    "gender": "female",
+                    "id": "bf_lily"
+                },
+                {
+                    "name": "bm_daniel",
+                    "language": "en-gb",
+                    "gender": "male",
+                    "id": "bm_daniel"
+                },
+                {
+                    "name": "bm_fable",
+                    "language": "en-gb",
+                    "gender": "male",
+                    "id": "bm_fable"
+                },
+                {
+                    "name": "bm_george",
+                    "language": "en-gb",
+                    "gender": "male",
+                    "id": "bm_george"
+                },
+                {
+                    "name": "bm_lewis",
+                    "language": "en-gb",
+                    "gender": "male",
+                    "id": "bm_lewis"
+                },
+                {
+                    "name": "jf_alpha",
+                    "language": "ja",
+                    "gender": "female",
+                    "id": "jf_alpha"
+                },
+                {
+                    "name": "jf_gongitsune",
+                    "language": "ja",
+                    "gender": "female",
+                    "id": "jf_gongitsune"
+                },
+                {
+                    "name": "jf_nezumi",
+                    "language": "ja",
+                    "gender": "female",
+                    "id": "jf_nezumi"
+                },
+                {
+                    "name": "jf_tebukuro",
+                    "language": "ja",
+                    "gender": "female",
+                    "id": "jf_tebukuro"
+                },
+                {
+                    "name": "jm_kumo",
+                    "language": "ja",
+                    "gender": "male",
+                    "id": "jm_kumo"
+                },
+                {
+                    "name": "zf_xiaobei",
+                    "language": "zh",
+                    "gender": "female",
+                    "id": "zf_xiaobei"
+                },
+                {
+                    "name": "zf_xiaoni",
+                    "language": "zh",
+                    "gender": "female",
+                    "id": "zf_xiaoni"
+                },
+                {
+                    "name": "zf_xiaoxiao",
+                    "language": "zh",
+                    "gender": "female",
+                    "id": "zf_xiaoxiao"
+                },
+                {
+                    "name": "zf_xiaoyi",
+                    "language": "zh",
+                    "gender": "female",
+                    "id": "zf_xiaoyi"
+                },
+                {
+                    "name": "zm_yunjian",
+                    "language": "zh",
+                    "gender": "male",
+                    "id": "zm_yunjian"
+                },
+                {
+                    "name": "zm_yunxi",
+                    "language": "zh",
+                    "gender": "male",
+                    "id": "zm_yunxi"
+                },
+                {
+                    "name": "zm_yunxia",
+                    "language": "zh",
+                    "gender": "male",
+                    "id": "zm_yunxia"
+                },
+                {
+                    "name": "zm_yunyang",
+                    "language": "zh",
+                    "gender": "male",
+                    "id": "zm_yunyang"
+                },
+                {
+                    "name": "ef_dora",
+                    "language": "es",
+                    "gender": "female",
+                    "id": "ef_dora"
+                },
+                {
+                    "name": "em_alex",
+                    "language": "es",
+                    "gender": "male",
+                    "id": "em_alex"
+                },
+                {
+                    "name": "em_santa",
+                    "language": "es",
+                    "gender": "male",
+                    "id": "em_santa"
+                },
+                {
+                    "name": "ff_siwis",
+                    "language": "fr-fr",
+                    "gender": "female",
+                    "id": "ff_siwis"
+                },
+                {
+                    "name": "hf_alpha",
+                    "language": "hi",
+                    "gender": "female",
+                    "id": "hf_alpha"
+                },
+                {
+                    "name": "hf_beta",
+                    "language": "hi",
+                    "gender": "female",
+                    "id": "hf_beta"
+                },
+                {
+                    "name": "hm_omega",
+                    "language": "hi",
+                    "gender": "male",
+                    "id": "hm_omega"
+                },
+                {
+                    "name": "hm_psi",
+                    "language": "hi",
+                    "gender": "male",
+                    "id": "hm_psi"
+                },
+                {
+                    "name": "if_sara",
+                    "language": "it",
+                    "gender": "female",
+                    "id": "if_sara"
+                },
+                {
+                    "name": "im_nicola",
+                    "language": "it",
+                    "gender": "male",
+                    "id": "im_nicola"
+                },
+                {
+                    "name": "pf_dora",
+                    "language": "pt-br",
+                    "gender": "female",
+                    "id": "pf_dora"
+                },
+                {
+                    "name": "pm_alex",
+                    "language": "pt-br",
+                    "gender": "male",
+                    "id": "pm_alex"
+                },
+                {
+                    "name": "pm_santa",
+                    "language": "pt-br",
+                    "gender": "male",
+                    "id": "pm_santa"
+                }
+            ]
+        },
+        {
+            "id": "suronek/Kokoro-82M-v1.1-zh-ONNX",
+            "created": 1759400858,
+            "object": "model",
+            "owned_by": "suronek",
+            "language": [
+                "multilingual"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 24000,
+            "voices": [
+                {
+                    "name": "af_heart",
+                    "language": "en-us",
+                    "gender": "female",
+                    "id": "af_heart"
+                },
+                {
+                    "name": "af_alloy",
+                    "language": "en-us",
+                    "gender": "female",
+                    "id": "af_alloy"
+                },
+                {
+                    "name": "af_aoede",
+                    "language": "en-us",
+                    "gender": "female",
+                    "id": "af_aoede"
+                },
+                {
+                    "name": "af_bella",
+                    "language": "en-us",
+                    "gender": "female",
+                    "id": "af_bella"
+                },
+                {
+                    "name": "af_jessica",
+                    "language": "en-us",
+                    "gender": "female",
+                    "id": "af_jessica"
+                },
+                {
+                    "name": "af_kore",
+                    "language": "en-us",
+                    "gender": "female",
+                    "id": "af_kore"
+                },
+                {
+                    "name": "af_nicole",
+                    "language": "en-us",
+                    "gender": "female",
+                    "id": "af_nicole"
+                },
+                {
+                    "name": "af_nova",
+                    "language": "en-us",
+                    "gender": "female",
+                    "id": "af_nova"
+                },
+                {
+                    "name": "af_river",
+                    "language": "en-us",
+                    "gender": "female",
+                    "id": "af_river"
+                },
+                {
+                    "name": "af_sarah",
+                    "language": "en-us",
+                    "gender": "female",
+                    "id": "af_sarah"
+                },
+                {
+                    "name": "af_sky",
+                    "language": "en-us",
+                    "gender": "female",
+                    "id": "af_sky"
+                },
+                {
+                    "name": "am_adam",
+                    "language": "en-us",
+                    "gender": "male",
+                    "id": "am_adam"
+                },
+                {
+                    "name": "am_echo",
+                    "language": "en-us",
+                    "gender": "male",
+                    "id": "am_echo"
+                },
+                {
+                    "name": "am_eric",
+                    "language": "en-us",
+                    "gender": "male",
+                    "id": "am_eric"
+                },
+                {
+                    "name": "am_fenrir",
+                    "language": "en-us",
+                    "gender": "male",
+                    "id": "am_fenrir"
+                },
+                {
+                    "name": "am_liam",
+                    "language": "en-us",
+                    "gender": "male",
+                    "id": "am_liam"
+                },
+                {
+                    "name": "am_michael",
+                    "language": "en-us",
+                    "gender": "male",
+                    "id": "am_michael"
+                },
+                {
+                    "name": "am_onyx",
+                    "language": "en-us",
+                    "gender": "male",
+                    "id": "am_onyx"
+                },
+                {
+                    "name": "am_puck",
+                    "language": "en-us",
+                    "gender": "male",
+                    "id": "am_puck"
+                },
+                {
+                    "name": "am_santa",
+                    "language": "en-us",
+                    "gender": "male",
+                    "id": "am_santa"
+                },
+                {
+                    "name": "bf_alice",
+                    "language": "en-gb",
+                    "gender": "female",
+                    "id": "bf_alice"
+                },
+                {
+                    "name": "bf_emma",
+                    "language": "en-gb",
+                    "gender": "female",
+                    "id": "bf_emma"
+                },
+                {
+                    "name": "bf_isabella",
+                    "language": "en-gb",
+                    "gender": "female",
+                    "id": "bf_isabella"
+                },
+                {
+                    "name": "bf_lily",
+                    "language": "en-gb",
+                    "gender": "female",
+                    "id": "bf_lily"
+                },
+                {
+                    "name": "bm_daniel",
+                    "language": "en-gb",
+                    "gender": "male",
+                    "id": "bm_daniel"
+                },
+                {
+                    "name": "bm_fable",
+                    "language": "en-gb",
+                    "gender": "male",
+                    "id": "bm_fable"
+                },
+                {
+                    "name": "bm_george",
+                    "language": "en-gb",
+                    "gender": "male",
+                    "id": "bm_george"
+                },
+                {
+                    "name": "bm_lewis",
+                    "language": "en-gb",
+                    "gender": "male",
+                    "id": "bm_lewis"
+                },
+                {
+                    "name": "jf_alpha",
+                    "language": "ja",
+                    "gender": "female",
+                    "id": "jf_alpha"
+                },
+                {
+                    "name": "jf_gongitsune",
+                    "language": "ja",
+                    "gender": "female",
+                    "id": "jf_gongitsune"
+                },
+                {
+                    "name": "jf_nezumi",
+                    "language": "ja",
+                    "gender": "female",
+                    "id": "jf_nezumi"
+                },
+                {
+                    "name": "jf_tebukuro",
+                    "language": "ja",
+                    "gender": "female",
+                    "id": "jf_tebukuro"
+                },
+                {
+                    "name": "jm_kumo",
+                    "language": "ja",
+                    "gender": "male",
+                    "id": "jm_kumo"
+                },
+                {
+                    "name": "zf_xiaobei",
+                    "language": "zh",
+                    "gender": "female",
+                    "id": "zf_xiaobei"
+                },
+                {
+                    "name": "zf_xiaoni",
+                    "language": "zh",
+                    "gender": "female",
+                    "id": "zf_xiaoni"
+                },
+                {
+                    "name": "zf_xiaoxiao",
+                    "language": "zh",
+                    "gender": "female",
+                    "id": "zf_xiaoxiao"
+                },
+                {
+                    "name": "zf_xiaoyi",
+                    "language": "zh",
+                    "gender": "female",
+                    "id": "zf_xiaoyi"
+                },
+                {
+                    "name": "zm_yunjian",
+                    "language": "zh",
+                    "gender": "male",
+                    "id": "zm_yunjian"
+                },
+                {
+                    "name": "zm_yunxi",
+                    "language": "zh",
+                    "gender": "male",
+                    "id": "zm_yunxi"
+                },
+                {
+                    "name": "zm_yunxia",
+                    "language": "zh",
+                    "gender": "male",
+                    "id": "zm_yunxia"
+                },
+                {
+                    "name": "zm_yunyang",
+                    "language": "zh",
+                    "gender": "male",
+                    "id": "zm_yunyang"
+                },
+                {
+                    "name": "ef_dora",
+                    "language": "es",
+                    "gender": "female",
+                    "id": "ef_dora"
+                },
+                {
+                    "name": "em_alex",
+                    "language": "es",
+                    "gender": "male",
+                    "id": "em_alex"
+                },
+                {
+                    "name": "em_santa",
+                    "language": "es",
+                    "gender": "male",
+                    "id": "em_santa"
+                },
+                {
+                    "name": "ff_siwis",
+                    "language": "fr-fr",
+                    "gender": "female",
+                    "id": "ff_siwis"
+                },
+                {
+                    "name": "hf_alpha",
+                    "language": "hi",
+                    "gender": "female",
+                    "id": "hf_alpha"
+                },
+                {
+                    "name": "hf_beta",
+                    "language": "hi",
+                    "gender": "female",
+                    "id": "hf_beta"
+                },
+                {
+                    "name": "hm_omega",
+                    "language": "hi",
+                    "gender": "male",
+                    "id": "hm_omega"
+                },
+                {
+                    "name": "hm_psi",
+                    "language": "hi",
+                    "gender": "male",
+                    "id": "hm_psi"
+                },
+                {
+                    "name": "if_sara",
+                    "language": "it",
+                    "gender": "female",
+                    "id": "if_sara"
+                },
+                {
+                    "name": "im_nicola",
+                    "language": "it",
+                    "gender": "male",
+                    "id": "im_nicola"
+                },
+                {
+                    "name": "pf_dora",
+                    "language": "pt-br",
+                    "gender": "female",
+                    "id": "pf_dora"
+                },
+                {
+                    "name": "pm_alex",
+                    "language": "pt-br",
+                    "gender": "male",
+                    "id": "pm_alex"
+                },
+                {
+                    "name": "pm_santa",
+                    "language": "pt-br",
+                    "gender": "male",
+                    "id": "pm_santa"
+                }
+            ]
+        },
+        {
+            "id": "ba0zi/Kokoro-82M-v1.1-zh-ONNX",
+            "created": 1774447927,
+            "object": "model",
+            "owned_by": "ba0zi",
+            "language": [
+                "multilingual"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 24000,
+            "voices": [
+                {
+                    "name": "af_heart",
+                    "language": "en-us",
+                    "gender": "female",
+                    "id": "af_heart"
+                },
+                {
+                    "name": "af_alloy",
+                    "language": "en-us",
+                    "gender": "female",
+                    "id": "af_alloy"
+                },
+                {
+                    "name": "af_aoede",
+                    "language": "en-us",
+                    "gender": "female",
+                    "id": "af_aoede"
+                },
+                {
+                    "name": "af_bella",
+                    "language": "en-us",
+                    "gender": "female",
+                    "id": "af_bella"
+                },
+                {
+                    "name": "af_jessica",
+                    "language": "en-us",
+                    "gender": "female",
+                    "id": "af_jessica"
+                },
+                {
+                    "name": "af_kore",
+                    "language": "en-us",
+                    "gender": "female",
+                    "id": "af_kore"
+                },
+                {
+                    "name": "af_nicole",
+                    "language": "en-us",
+                    "gender": "female",
+                    "id": "af_nicole"
+                },
+                {
+                    "name": "af_nova",
+                    "language": "en-us",
+                    "gender": "female",
+                    "id": "af_nova"
+                },
+                {
+                    "name": "af_river",
+                    "language": "en-us",
+                    "gender": "female",
+                    "id": "af_river"
+                },
+                {
+                    "name": "af_sarah",
+                    "language": "en-us",
+                    "gender": "female",
+                    "id": "af_sarah"
+                },
+                {
+                    "name": "af_sky",
+                    "language": "en-us",
+                    "gender": "female",
+                    "id": "af_sky"
+                },
+                {
+                    "name": "am_adam",
+                    "language": "en-us",
+                    "gender": "male",
+                    "id": "am_adam"
+                },
+                {
+                    "name": "am_echo",
+                    "language": "en-us",
+                    "gender": "male",
+                    "id": "am_echo"
+                },
+                {
+                    "name": "am_eric",
+                    "language": "en-us",
+                    "gender": "male",
+                    "id": "am_eric"
+                },
+                {
+                    "name": "am_fenrir",
+                    "language": "en-us",
+                    "gender": "male",
+                    "id": "am_fenrir"
+                },
+                {
+                    "name": "am_liam",
+                    "language": "en-us",
+                    "gender": "male",
+                    "id": "am_liam"
+                },
+                {
+                    "name": "am_michael",
+                    "language": "en-us",
+                    "gender": "male",
+                    "id": "am_michael"
+                },
+                {
+                    "name": "am_onyx",
+                    "language": "en-us",
+                    "gender": "male",
+                    "id": "am_onyx"
+                },
+                {
+                    "name": "am_puck",
+                    "language": "en-us",
+                    "gender": "male",
+                    "id": "am_puck"
+                },
+                {
+                    "name": "am_santa",
+                    "language": "en-us",
+                    "gender": "male",
+                    "id": "am_santa"
+                },
+                {
+                    "name": "bf_alice",
+                    "language": "en-gb",
+                    "gender": "female",
+                    "id": "bf_alice"
+                },
+                {
+                    "name": "bf_emma",
+                    "language": "en-gb",
+                    "gender": "female",
+                    "id": "bf_emma"
+                },
+                {
+                    "name": "bf_isabella",
+                    "language": "en-gb",
+                    "gender": "female",
+                    "id": "bf_isabella"
+                },
+                {
+                    "name": "bf_lily",
+                    "language": "en-gb",
+                    "gender": "female",
+                    "id": "bf_lily"
+                },
+                {
+                    "name": "bm_daniel",
+                    "language": "en-gb",
+                    "gender": "male",
+                    "id": "bm_daniel"
+                },
+                {
+                    "name": "bm_fable",
+                    "language": "en-gb",
+                    "gender": "male",
+                    "id": "bm_fable"
+                },
+                {
+                    "name": "bm_george",
+                    "language": "en-gb",
+                    "gender": "male",
+                    "id": "bm_george"
+                },
+                {
+                    "name": "bm_lewis",
+                    "language": "en-gb",
+                    "gender": "male",
+                    "id": "bm_lewis"
+                },
+                {
+                    "name": "jf_alpha",
+                    "language": "ja",
+                    "gender": "female",
+                    "id": "jf_alpha"
+                },
+                {
+                    "name": "jf_gongitsune",
+                    "language": "ja",
+                    "gender": "female",
+                    "id": "jf_gongitsune"
+                },
+                {
+                    "name": "jf_nezumi",
+                    "language": "ja",
+                    "gender": "female",
+                    "id": "jf_nezumi"
+                },
+                {
+                    "name": "jf_tebukuro",
+                    "language": "ja",
+                    "gender": "female",
+                    "id": "jf_tebukuro"
+                },
+                {
+                    "name": "jm_kumo",
+                    "language": "ja",
+                    "gender": "male",
+                    "id": "jm_kumo"
+                },
+                {
+                    "name": "zf_xiaobei",
+                    "language": "zh",
+                    "gender": "female",
+                    "id": "zf_xiaobei"
+                },
+                {
+                    "name": "zf_xiaoni",
+                    "language": "zh",
+                    "gender": "female",
+                    "id": "zf_xiaoni"
+                },
+                {
+                    "name": "zf_xiaoxiao",
+                    "language": "zh",
+                    "gender": "female",
+                    "id": "zf_xiaoxiao"
+                },
+                {
+                    "name": "zf_xiaoyi",
+                    "language": "zh",
+                    "gender": "female",
+                    "id": "zf_xiaoyi"
+                },
+                {
+                    "name": "zm_yunjian",
+                    "language": "zh",
+                    "gender": "male",
+                    "id": "zm_yunjian"
+                },
+                {
+                    "name": "zm_yunxi",
+                    "language": "zh",
+                    "gender": "male",
+                    "id": "zm_yunxi"
+                },
+                {
+                    "name": "zm_yunxia",
+                    "language": "zh",
+                    "gender": "male",
+                    "id": "zm_yunxia"
+                },
+                {
+                    "name": "zm_yunyang",
+                    "language": "zh",
+                    "gender": "male",
+                    "id": "zm_yunyang"
+                },
+                {
+                    "name": "ef_dora",
+                    "language": "es",
+                    "gender": "female",
+                    "id": "ef_dora"
+                },
+                {
+                    "name": "em_alex",
+                    "language": "es",
+                    "gender": "male",
+                    "id": "em_alex"
+                },
+                {
+                    "name": "em_santa",
+                    "language": "es",
+                    "gender": "male",
+                    "id": "em_santa"
+                },
+                {
+                    "name": "ff_siwis",
+                    "language": "fr-fr",
+                    "gender": "female",
+                    "id": "ff_siwis"
+                },
+                {
+                    "name": "hf_alpha",
+                    "language": "hi",
+                    "gender": "female",
+                    "id": "hf_alpha"
+                },
+                {
+                    "name": "hf_beta",
+                    "language": "hi",
+                    "gender": "female",
+                    "id": "hf_beta"
+                },
+                {
+                    "name": "hm_omega",
+                    "language": "hi",
+                    "gender": "male",
+                    "id": "hm_omega"
+                },
+                {
+                    "name": "hm_psi",
+                    "language": "hi",
+                    "gender": "male",
+                    "id": "hm_psi"
+                },
+                {
+                    "name": "if_sara",
+                    "language": "it",
+                    "gender": "female",
+                    "id": "if_sara"
+                },
+                {
+                    "name": "im_nicola",
+                    "language": "it",
+                    "gender": "male",
+                    "id": "im_nicola"
+                },
+                {
+                    "name": "pf_dora",
+                    "language": "pt-br",
+                    "gender": "female",
+                    "id": "pf_dora"
+                },
+                {
+                    "name": "pm_alex",
+                    "language": "pt-br",
+                    "gender": "male",
+                    "id": "pm_alex"
+                },
+                {
+                    "name": "pm_santa",
+                    "language": "pt-br",
+                    "gender": "male",
+                    "id": "pm_santa"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-ar_JO-kareem-low",
+            "created": 1742445408,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "ar"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "kareem",
+                    "language": "ar",
+                    "id": "kareem"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-ar_JO-kareem-medium",
+            "created": 1742445559,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "ar"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "kareem",
+                    "language": "ar",
+                    "id": "kareem"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-ca_ES-upc_ona-medium",
+            "created": 1742445565,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "ca"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "upc_ona",
+                    "language": "ca",
+                    "id": "upc_ona"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-ca_ES-upc_ona-x_low",
+            "created": 1742445570,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "ca"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 16000,
+            "voices": [
+                {
+                    "name": "upc_ona",
+                    "language": "ca",
+                    "id": "upc_ona"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-ca_ES-upc_pau-x_low",
+            "created": 1742445573,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "ca"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 16000,
+            "voices": [
+                {
+                    "name": "upc_pau",
+                    "language": "ca",
+                    "id": "upc_pau"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-cs_CZ-jirka-low",
+            "created": 1742445576,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "cs"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "jirka",
+                    "language": "cs",
+                    "id": "jirka"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-cs_CZ-jirka-medium",
+            "created": 1742445581,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "cs"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "jirka",
+                    "language": "cs",
+                    "id": "jirka"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-cy_GB-gwryw_gogleddol-medium",
+            "created": 1742445584,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "cy"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "gwryw_gogleddol",
+                    "language": "cy",
+                    "id": "gwryw_gogleddol"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-da_DK-talesyntese-medium",
+            "created": 1742445588,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "da"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "talesyntese",
+                    "language": "da",
+                    "id": "talesyntese"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-de_DE-eva_k-x_low",
+            "created": 1742445592,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "de"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 16000,
+            "voices": [
+                {
+                    "name": "eva_k",
+                    "language": "de",
+                    "id": "eva_k"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-de_DE-karlsson-low",
+            "created": 1742445594,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "de"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "karlsson",
+                    "language": "de",
+                    "id": "karlsson"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-de_DE-kerstin-low",
+            "created": 1742445601,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "de"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "kerstin",
+                    "language": "de",
+                    "id": "kerstin"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-de_DE-mls-medium",
+            "created": 1742445605,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "de"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "mls",
+                    "language": "de",
+                    "id": "mls"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-de_DE-pavoque-low",
+            "created": 1742445610,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "de"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "pavoque",
+                    "language": "de",
+                    "id": "pavoque"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-de_DE-ramona-low",
+            "created": 1742445774,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "de"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "ramona",
+                    "language": "de",
+                    "id": "ramona"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-de_DE-thorsten-high",
+            "created": 1742445789,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "de"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "thorsten",
+                    "language": "de",
+                    "id": "thorsten"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-de_DE-thorsten-low",
+            "created": 1742445807,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "de"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "thorsten",
+                    "language": "de",
+                    "id": "thorsten"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-de_DE-thorsten-medium",
+            "created": 1742445820,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "de"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "thorsten",
+                    "language": "de",
+                    "id": "thorsten"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-de_DE-thorsten_emotional-medium",
+            "created": 1742445836,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "de"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "thorsten_emotional",
+                    "language": "de",
+                    "id": "thorsten_emotional"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-el_GR-rapunzelina-low",
+            "created": 1742445851,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "el"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "rapunzelina",
+                    "language": "el",
+                    "id": "rapunzelina"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-en_GB-alan-low",
+            "created": 1742445865,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "en"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "alan",
+                    "language": "en",
+                    "id": "alan"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-en_GB-alan-medium",
+            "created": 1742445879,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "en"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "alan",
+                    "language": "en",
+                    "id": "alan"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-en_GB-alba-medium",
+            "created": 1742445894,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "en"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "alba",
+                    "language": "en",
+                    "id": "alba"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-en_GB-aru-medium",
+            "created": 1742445908,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "en"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "aru",
+                    "language": "en",
+                    "id": "aru"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-en_GB-cori-high",
+            "created": 1742445923,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "en"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "cori",
+                    "language": "en",
+                    "id": "cori"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-en_GB-cori-medium",
+            "created": 1742445945,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "en"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "cori",
+                    "language": "en",
+                    "id": "cori"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-en_GB-jenny_dioco-medium",
+            "created": 1742445958,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "en"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "jenny_dioco",
+                    "language": "en",
+                    "id": "jenny_dioco"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-en_GB-northern_english_male-medium",
+            "created": 1742445972,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "en"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "northern_english_male",
+                    "language": "en",
+                    "id": "northern_english_male"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-en_GB-semaine-medium",
+            "created": 1742445987,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "en"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "semaine",
+                    "language": "en",
+                    "id": "semaine"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-en_GB-southern_english_female-low",
+            "created": 1742446007,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "en"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "southern_english_female",
+                    "language": "en",
+                    "id": "southern_english_female"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-en_GB-vctk-medium",
+            "created": 1742446021,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "en"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "vctk",
+                    "language": "en",
+                    "id": "vctk"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-en_US-amy-low",
+            "created": 1742446036,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "en"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "amy",
+                    "language": "en",
+                    "id": "amy"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-en_US-amy-medium",
+            "created": 1742446057,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "en"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "amy",
+                    "language": "en",
+                    "id": "amy"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-en_US-arctic-medium",
+            "created": 1742446072,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "en"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "arctic",
+                    "language": "en",
+                    "id": "arctic"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-en_US-bryce-medium",
+            "created": 1742446086,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "en"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "bryce",
+                    "language": "en",
+                    "id": "bryce"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-en_US-danny-low",
+            "created": 1742446100,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "en"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "danny",
+                    "language": "en",
+                    "id": "danny"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-en_US-hfc_female-medium",
+            "created": 1742446114,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "en"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "hfc_female",
+                    "language": "en",
+                    "id": "hfc_female"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-en_US-hfc_male-medium",
+            "created": 1742446128,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "en"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "hfc_male",
+                    "language": "en",
+                    "id": "hfc_male"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-en_US-joe-medium",
+            "created": 1742446144,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "en"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "joe",
+                    "language": "en",
+                    "id": "joe"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-en_US-john-medium",
+            "created": 1742446169,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "en"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "john",
+                    "language": "en",
+                    "id": "john"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-en_US-kathleen-low",
+            "created": 1742446183,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "en"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "kathleen",
+                    "language": "en",
+                    "id": "kathleen"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-en_US-kristin-medium",
+            "created": 1742446197,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "en"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "kristin",
+                    "language": "en",
+                    "id": "kristin"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-en_US-kusal-medium",
+            "created": 1742446211,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "en"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "kusal",
+                    "language": "en",
+                    "id": "kusal"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-en_US-l2arctic-medium",
+            "created": 1742446228,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "en"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "l2arctic",
+                    "language": "en",
+                    "id": "l2arctic"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-en_US-lessac-high",
+            "created": 1742446243,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "en"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "lessac",
+                    "language": "en",
+                    "id": "lessac"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-en_US-lessac-low",
+            "created": 1742446259,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "en"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "lessac",
+                    "language": "en",
+                    "id": "lessac"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-en_US-lessac-medium",
+            "created": 1742446273,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "en"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "lessac",
+                    "language": "en",
+                    "id": "lessac"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-en_US-libritts-high",
+            "created": 1742446287,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "en"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "libritts",
+                    "language": "en",
+                    "id": "libritts"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-en_US-libritts_r-medium",
+            "created": 1742446306,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "en"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "libritts_r",
+                    "language": "en",
+                    "id": "libritts_r"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-en_US-ljspeech-high",
+            "created": 1742446320,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "en"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "ljspeech",
+                    "language": "en",
+                    "id": "ljspeech"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-en_US-ljspeech-medium",
+            "created": 1742446336,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "en"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "ljspeech",
+                    "language": "en",
+                    "id": "ljspeech"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-en_US-norman-medium",
+            "created": 1742446351,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "en"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "norman",
+                    "language": "en",
+                    "id": "norman"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-en_US-ryan-high",
+            "created": 1742446366,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "en"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "ryan",
+                    "language": "en",
+                    "id": "ryan"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-en_US-ryan-low",
+            "created": 1742446383,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "en"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "ryan",
+                    "language": "en",
+                    "id": "ryan"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-en_US-ryan-medium",
+            "created": 1742446396,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "en"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "ryan",
+                    "language": "en",
+                    "id": "ryan"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-es_ES-carlfm-x_low",
+            "created": 1742446410,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "es"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 16000,
+            "voices": [
+                {
+                    "name": "carlfm",
+                    "language": "es",
+                    "id": "carlfm"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-es_ES-davefx-medium",
+            "created": 1742446422,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "es"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "davefx",
+                    "language": "es",
+                    "id": "davefx"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-es_ES-mls_10246-low",
+            "created": 1742446436,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "es"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "mls_10246",
+                    "language": "es",
+                    "id": "mls_10246"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-es_ES-mls_9972-low",
+            "created": 1742446450,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "es"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "mls_9972",
+                    "language": "es",
+                    "id": "mls_9972"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-es_ES-sharvard-medium",
+            "created": 1742446464,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "es"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "sharvard",
+                    "language": "es",
+                    "id": "sharvard"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-es_MX-ald-medium",
+            "created": 1742446479,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "es"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "ald",
+                    "language": "es",
+                    "id": "ald"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-es_MX-claude-high",
+            "created": 1742446493,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "es"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "claude",
+                    "language": "es",
+                    "id": "claude"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-fa_IR-amir-medium",
+            "created": 1742446506,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "fa"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "amir",
+                    "language": "fa",
+                    "id": "amir"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-fa_IR-gyro-medium",
+            "created": 1742446520,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "fa"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "gyro",
+                    "language": "fa",
+                    "id": "gyro"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-fi_FI-harri-low",
+            "created": 1742446535,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "fi"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "harri",
+                    "language": "fi",
+                    "id": "harri"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-fi_FI-harri-medium",
+            "created": 1742446550,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "fi"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "harri",
+                    "language": "fi",
+                    "id": "harri"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-fr_FR-gilles-low",
+            "created": 1742446564,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "fr"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "gilles",
+                    "language": "fr",
+                    "id": "gilles"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-fr_FR-mls-medium",
+            "created": 1742446577,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "fr"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "mls",
+                    "language": "fr",
+                    "id": "mls"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-fr_FR-mls_1840-low",
+            "created": 1742446592,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "fr"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "mls_1840",
+                    "language": "fr",
+                    "id": "mls_1840"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-fr_FR-siwis-low",
+            "created": 1742446606,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "fr"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "siwis",
+                    "language": "fr",
+                    "id": "siwis"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-fr_FR-siwis-medium",
+            "created": 1742446619,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "fr"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "siwis",
+                    "language": "fr",
+                    "id": "siwis"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-fr_FR-tom-medium",
+            "created": 1742446633,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "fr"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "tom",
+                    "language": "fr",
+                    "id": "tom"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-fr_FR-upmc-medium",
+            "created": 1742446667,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "fr"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "upmc",
+                    "language": "fr",
+                    "id": "upmc"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-hu_HU-anna-medium",
+            "created": 1742446681,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "hu"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "anna",
+                    "language": "hu",
+                    "id": "anna"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-hu_HU-berta-medium",
+            "created": 1742446695,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "hu"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "berta",
+                    "language": "hu",
+                    "id": "berta"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-hu_HU-imre-medium",
+            "created": 1742446709,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "hu"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "imre",
+                    "language": "hu",
+                    "id": "imre"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-is_IS-bui-medium",
+            "created": 1742446722,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "is"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "bui",
+                    "language": "is",
+                    "id": "bui"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-is_IS-salka-medium",
+            "created": 1742446737,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "is"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "salka",
+                    "language": "is",
+                    "id": "salka"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-is_IS-steinn-medium",
+            "created": 1742446751,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "is"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "steinn",
+                    "language": "is",
+                    "id": "steinn"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-is_IS-ugla-medium",
+            "created": 1742446765,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "is"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "ugla",
+                    "language": "is",
+                    "id": "ugla"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-it_IT-paola-medium",
+            "created": 1742446779,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "it"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "paola",
+                    "language": "it",
+                    "id": "paola"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-it_IT-riccardo-x_low",
+            "created": 1742446793,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "it"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 16000,
+            "voices": [
+                {
+                    "name": "riccardo",
+                    "language": "it",
+                    "id": "riccardo"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-ka_GE-natia-medium",
+            "created": 1742446806,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "ka"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "natia",
+                    "language": "ka",
+                    "id": "natia"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-kk_KZ-iseke-x_low",
+            "created": 1742446820,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "kk"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 16000,
+            "voices": [
+                {
+                    "name": "iseke",
+                    "language": "kk",
+                    "id": "iseke"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-kk_KZ-issai-high",
+            "created": 1742446833,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "kk"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "issai",
+                    "language": "kk",
+                    "id": "issai"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-kk_KZ-raya-x_low",
+            "created": 1742446849,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "kk"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 16000,
+            "voices": [
+                {
+                    "name": "raya",
+                    "language": "kk",
+                    "id": "raya"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-lb_LU-marylux-medium",
+            "created": 1742446864,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "lb"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "marylux",
+                    "language": "lb",
+                    "id": "marylux"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-lv_LV-aivars-medium",
+            "created": 1742446879,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "lv"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "aivars",
+                    "language": "lv",
+                    "id": "aivars"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-ne_NP-google-medium",
+            "created": 1742446902,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "ne"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "google",
+                    "language": "ne",
+                    "id": "google"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-ne_NP-google-x_low",
+            "created": 1742446917,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "ne"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 16000,
+            "voices": [
+                {
+                    "name": "google",
+                    "language": "ne",
+                    "id": "google"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-nl_BE-nathalie-medium",
+            "created": 1742446930,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "nl"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "nathalie",
+                    "language": "nl",
+                    "id": "nathalie"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-nl_BE-nathalie-x_low",
+            "created": 1742446945,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "nl"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 16000,
+            "voices": [
+                {
+                    "name": "nathalie",
+                    "language": "nl",
+                    "id": "nathalie"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-nl_BE-rdh-medium",
+            "created": 1742446959,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "nl"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "rdh",
+                    "language": "nl",
+                    "id": "rdh"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-nl_BE-rdh-x_low",
+            "created": 1742446973,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "nl"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 16000,
+            "voices": [
+                {
+                    "name": "rdh",
+                    "language": "nl",
+                    "id": "rdh"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-nl_NL-mls-medium",
+            "created": 1742446986,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "nl"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "mls",
+                    "language": "nl",
+                    "id": "mls"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-nl_NL-mls_5809-low",
+            "created": 1742447001,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "nl"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "mls_5809",
+                    "language": "nl",
+                    "id": "mls_5809"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-nl_NL-mls_7432-low",
+            "created": 1742447014,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "nl"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "mls_7432",
+                    "language": "nl",
+                    "id": "mls_7432"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-no_NO-talesyntese-medium",
+            "created": 1742447028,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "no"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "talesyntese",
+                    "language": "no",
+                    "id": "talesyntese"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-pl_PL-darkman-medium",
+            "created": 1742447067,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "pl"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "darkman",
+                    "language": "pl",
+                    "id": "darkman"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-pl_PL-gosia-medium",
+            "created": 1742447082,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "pl"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "gosia",
+                    "language": "pl",
+                    "id": "gosia"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-pl_PL-mc_speech-medium",
+            "created": 1742447096,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "pl"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "mc_speech",
+                    "language": "pl",
+                    "id": "mc_speech"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-pl_PL-mls_6892-low",
+            "created": 1742447110,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "pl"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "mls_6892",
+                    "language": "pl",
+                    "id": "mls_6892"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-pt_BR-edresson-low",
+            "created": 1742447125,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "pt"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "edresson",
+                    "language": "pt",
+                    "id": "edresson"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-pt_BR-faber-medium",
+            "created": 1742447139,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "pt"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "faber",
+                    "language": "pt",
+                    "id": "faber"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-zh_CN-huayan-x_low",
+            "created": 1742447752,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "zh"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 16000,
+            "voices": [
+                {
+                    "name": "huayan",
+                    "language": "zh",
+                    "id": "huayan"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-ro_RO-mihai-medium",
+            "created": 1742447816,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "ro"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "mihai",
+                    "language": "ro",
+                    "id": "mihai"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-ru_RU-denis-medium",
+            "created": 1742447826,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "ru"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "denis",
+                    "language": "ru",
+                    "id": "denis"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-ru_RU-dmitri-medium",
+            "created": 1742447836,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "ru"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "dmitri",
+                    "language": "ru",
+                    "id": "dmitri"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-ru_RU-irina-medium",
+            "created": 1742447845,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "ru"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "irina",
+                    "language": "ru",
+                    "id": "irina"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-ru_RU-ruslan-medium",
+            "created": 1742447854,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "ru"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "ruslan",
+                    "language": "ru",
+                    "id": "ruslan"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-sk_SK-lili-medium",
+            "created": 1742447862,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "sk"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "lili",
+                    "language": "sk",
+                    "id": "lili"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-sl_SI-artur-medium",
+            "created": 1742447871,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "sl"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "artur",
+                    "language": "sl",
+                    "id": "artur"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-sr_RS-serbski_institut-medium",
+            "created": 1742447881,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "sr"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "serbski_institut",
+                    "language": "sr",
+                    "id": "serbski_institut"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-sv_SE-nst-medium",
+            "created": 1742447894,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "sv"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "nst",
+                    "language": "sv",
+                    "id": "nst"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-sw_CD-lanfrica-medium",
+            "created": 1742447903,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "sw"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "lanfrica",
+                    "language": "sw",
+                    "id": "lanfrica"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-tr_TR-dfki-medium",
+            "created": 1742447912,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "tr"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "dfki",
+                    "language": "tr",
+                    "id": "dfki"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-tr_TR-fahrettin-medium",
+            "created": 1742447922,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "tr"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "fahrettin",
+                    "language": "tr",
+                    "id": "fahrettin"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-tr_TR-fettah-medium",
+            "created": 1742447930,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "tr"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "fettah",
+                    "language": "tr",
+                    "id": "fettah"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-uk_UA-lada-x_low",
+            "created": 1742447951,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "uk"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 16000,
+            "voices": [
+                {
+                    "name": "lada",
+                    "language": "uk",
+                    "id": "lada"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-uk_UA-ukrainian_tts-medium",
+            "created": 1742447959,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "uk"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "ukrainian_tts",
+                    "language": "uk",
+                    "id": "ukrainian_tts"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-vi_VN-25hours_single-low",
+            "created": 1742447969,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "vi"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "25hours_single",
+                    "language": "vi",
+                    "id": "25hours_single"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-vi_VN-vais1000-medium",
+            "created": 1742447979,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "vi"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "vais1000",
+                    "language": "vi",
+                    "id": "vais1000"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-vi_VN-vivos-x_low",
+            "created": 1742447990,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "vi"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 16000,
+            "voices": [
+                {
+                    "name": "vivos",
+                    "language": "vi",
+                    "id": "vivos"
+                }
+            ]
+        },
+        {
+            "id": "speaches-ai/piper-zh_CN-huayan-medium",
+            "created": 1742447999,
+            "object": "model",
+            "owned_by": "speaches-ai",
+            "language": [
+                "zh"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "huayan",
+                    "language": "zh",
+                    "id": "huayan"
+                }
+            ]
+        },
+        {
+            "id": "Stoned-Code/piper-en_US-glados-medium",
+            "created": 1751710475,
+            "object": "model",
+            "owned_by": "Stoned-Code",
+            "language": [
+                "en"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "glados",
+                    "language": "en",
+                    "id": "glados"
+                }
+            ]
+        },
+        {
+            "id": "giganticlab/piper-id_ID-news_tts-medium",
+            "created": 1757365111,
+            "object": "model",
+            "owned_by": "giganticlab",
+            "language": [
+                "id"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "news_tts",
+                    "language": "id",
+                    "id": "news_tts"
+                }
+            ]
+        },
+        {
+            "id": "systemofapwne/piper-de_DE-glados-high",
+            "created": 1758203580,
+            "object": "model",
+            "owned_by": "systemofapwne",
+            "language": [
+                "de"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "glados",
+                    "language": "de",
+                    "id": "glados"
+                }
+            ]
+        },
+        {
+            "id": "systemofapwne/piper-de_DE-glados-medium",
+            "created": 1758210824,
+            "object": "model",
+            "owned_by": "systemofapwne",
+            "language": [
+                "de"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "glados",
+                    "language": "de",
+                    "id": "glados"
+                }
+            ]
+        },
+        {
+            "id": "systemofapwne/piper-de_DE-glados-low",
+            "created": 1758211176,
+            "object": "model",
+            "owned_by": "systemofapwne",
+            "language": [
+                "de"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "glados",
+                    "language": "de",
+                    "id": "glados"
+                }
+            ]
+        },
+        {
+            "id": "systemofapwne/piper-de_DE-glados_turret-high",
+            "created": 1758211498,
+            "object": "model",
+            "owned_by": "systemofapwne",
+            "language": [
+                "de"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "glados_turret",
+                    "language": "de",
+                    "id": "glados_turret"
+                }
+            ]
+        },
+        {
+            "id": "systemofapwne/piper-de_DE-glados_turret-medium",
+            "created": 1758211902,
+            "object": "model",
+            "owned_by": "systemofapwne",
+            "language": [
+                "de"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "glados_turret",
+                    "language": "de",
+                    "id": "glados_turret"
+                }
+            ]
+        },
+        {
+            "id": "systemofapwne/piper-de_DE-glados_turret-low",
+            "created": 1758212101,
+            "object": "model",
+            "owned_by": "systemofapwne",
+            "language": [
+                "de"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "glados_turret",
+                    "language": "de",
+                    "id": "glados_turret"
+                }
+            ]
+        },
+        {
+            "id": "systemofapwne/piper-en_US-glados-high",
+            "created": 1758213226,
+            "object": "model",
+            "owned_by": "systemofapwne",
+            "language": [
+                "en"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "glados",
+                    "language": "en",
+                    "id": "glados"
+                }
+            ]
+        },
+        {
+            "id": "ufozone/piper-de_DE-jarvis-high",
+            "created": 1763330130,
+            "object": "model",
+            "owned_by": "ufozone",
+            "language": [
+                "de"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "jarvis",
+                    "language": "de",
+                    "id": "jarvis"
+                }
+            ]
+        },
+        {
+            "id": "ufozone/piper-de_DE-jarvis-medium",
+            "created": 1763893116,
+            "object": "model",
+            "owned_by": "ufozone",
+            "language": [
+                "de"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "jarvis",
+                    "language": "de",
+                    "id": "jarvis"
+                }
+            ]
+        },
+        {
+            "id": "ufozone/piper-de_DE-miro-medium",
+            "created": 1766354762,
+            "object": "model",
+            "owned_by": "ufozone",
+            "language": [
+                "de"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "miro",
+                    "language": "de",
+                    "id": "miro"
+                }
+            ]
+        },
+        {
+            "id": "ufozone/piper-de_DE-dii-medium",
+            "created": 1766354762,
+            "object": "model",
+            "owned_by": "ufozone",
+            "language": [
+                "de"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "dii",
+                    "language": "de",
+                    "id": "dii"
+                }
+            ]
+        },
+        {
+            "id": "TarcisoAmorim/piper-pt_BR-miro-high",
+            "created": 1768910592,
+            "object": "model",
+            "owned_by": "TarcisoAmorim",
+            "language": [
+                "pt"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "miro",
+                    "language": "pt",
+                    "id": "miro"
+                }
+            ]
+        },
+        {
+            "id": "semioniy/piper-en_US-megumin-medium",
+            "created": 1770282327,
+            "object": "model",
+            "owned_by": "semioniy",
+            "language": [
+                "en"
+            ],
+            "task": "text-to-speech",
+            "sample_rate": 22050,
+            "voices": [
+                {
+                    "name": "megumin",
+                    "language": "en",
+                    "id": "megumin"
+                }
+            ]
+        }
+    ],
+    "object": "list"
+}
