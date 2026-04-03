@@ -797,6 +797,7 @@ ttsBtn.addEventListener('click', async () => {
       stopTts();
     });
     ttsAudio.addEventListener('error', () => {
+      if (!ttsAudio) return; // triggered by stopTts() setting src='', not a real error
       showNotification('Audio playback error', 'error');
       stopTts();
     });
@@ -804,7 +805,12 @@ ttsBtn.addEventListener('click', async () => {
     ttsBtn.classList.remove('loading');
     ttsBtn.classList.add('playing');
     ttsBtn.title = 'Stop';
-    await ttsAudio.play();
+    ttsAudio.play().catch(err => {
+      if (err.name !== 'AbortError') {
+        showNotification('Audio playback error', 'error');
+        stopTts();
+      }
+    });
   } catch (e) {
     showNotification('Network error', 'error');
     ttsBtn.classList.remove('loading');
