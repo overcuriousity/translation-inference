@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use crate::api::client::OpenAiClient;
 use crate::models::{ErrorResponse, TtsRequest};
-use crate::routes::translate::check_authenticated;
+use crate::routes::translate::{check_authenticated, get_session_id};
 use crate::AppState;
 
 pub async fn post_tts(
@@ -19,7 +19,16 @@ pub async fn post_tts(
 ) -> Result<Response, (StatusCode, Json<ErrorResponse>)> {
     check_authenticated(&state, &headers)?;
 
-    let client = resolve_tts_client(&state, req.tts_endpoint.as_deref(), req.tts_api_key.as_deref())?;
+    // BYOK overrides (tts_endpoint/tts_api_key) are only honoured for web-interface
+    // sessions; free-tier and unauthenticated callers may not proxy to arbitrary endpoints.
+    let has_session = get_session_id(&headers)
+        .map(|sid| state.sessions.read().unwrap().contains_key(&sid))
+        .unwrap_or(false);
+    let client = resolve_tts_client(
+        &state,
+        if has_session { req.tts_endpoint.as_deref() } else { None },
+        if has_session { req.tts_api_key.as_deref() } else { None },
+    )?;
 
     if req.text.trim().is_empty() {
         return Err((
@@ -265,5 +274,40 @@ mod tests {
         for chunk in &chunks {
             assert!(chunk.len() <= TEST_LIMIT);
         }
+    }
+
+    // ── CJK / fullwidth punctuation ───────────────────────────────────────────
+
+    #[test]
+    fn japanese_fullwidth_period_splits_sentences() {
+        // '。' is U+3002 IDEOGRAPHIC FULL STOP — should act as a sentence boundary.
+        let sentences = split_sentences("これはテストです。次の文です。");
+        assert_eq!(sentences.len(), 2);
+        assert!(sentences[0].ends_with('。'));
+        assert!(sentences[1].ends_with('。'));
+    }
+
+    #[test]
+    fn cjk_text_splits_into_chunks() {
+        // Each Japanese sentence ends with '。'. Repeat until we exceed TEST_LIMIT.
+        let sentence = "これは長いテキストのテストです。";
+        let text = sentence.repeat((TEST_LIMIT / sentence.len()) + 5);
+        let chunks = split_into_chunks(&text, Some(TEST_LIMIT));
+        assert!(chunks.len() > 1);
+        for chunk in &chunks {
+            assert!(chunk.len() <= TEST_LIMIT);
+        }
+    }
+
+    #[test]
+    fn ideographic_space_consumed_after_terminator() {
+        // U+3000 IDEOGRAPHIC SPACE following a terminator should be absorbed into
+        // the preceding span, not left at the start of the next one.
+        let text = "文A。\u{3000}文B。";
+        let sentences = split_sentences(text);
+        assert_eq!(sentences.len(), 2);
+        // The ideographic space belongs to the first span.
+        assert!(sentences[0].ends_with('\u{3000}'));
+        assert!(sentences[1].starts_with('文'));
     }
 }

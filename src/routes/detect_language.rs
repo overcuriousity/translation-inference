@@ -87,18 +87,34 @@ pub async fn post_detect_language(
         .map(|c| c.message.content)
         .unwrap_or_default();
 
-    // Normalise: strip whitespace, backticks, quotes, trailing punctuation
-    let cleaned = raw.trim()
-        .trim_matches('`')
-        .trim_matches('"')
-        .trim_matches('\'')
-        .trim_matches('.');
+    // Normalise: keep only alphanumeric chars and '-', then validate the result
+    // looks like a plausible ISO 639-1 code (2-3 letters, optional region subtag).
+    let cleaned: String = raw.chars()
+        .filter(|c| c.is_ascii_alphanumeric() || *c == '-')
+        .collect();
 
-    // Lowercase for comparison, but restore canonical casing for region subtags
-    let language = match cleaned.to_lowercase().as_str() {
+    // Restore canonical casing for known region subtags
+    let normalised = match cleaned.to_lowercase().as_str() {
         "zh-tw" => "zh-TW".to_string(),
         other   => other.to_string(),
     };
 
-    Ok(Json(DetectLanguageResponse { language }))
+    // Reject responses that don't resemble a language code at all.
+    let valid = {
+        let p: Vec<&str> = normalised.splitn(2, '-').collect();
+        let base_ok = p[0].len() >= 2 && p[0].len() <= 3 && p[0].chars().all(|c| c.is_ascii_lowercase());
+        let region_ok = p.len() == 1
+            || (p[1].len() >= 2 && p[1].len() <= 4 && p[1].chars().all(|c| c.is_ascii_uppercase()));
+        base_ok && region_ok
+    };
+
+    if !valid {
+        tracing::warn!("Language detection returned unparseable code: {:?}", raw.trim());
+        return Err((
+            StatusCode::BAD_GATEWAY,
+            Json(ErrorResponse { error: "Language detection returned an unrecognised code".into() }),
+        ));
+    }
+
+    Ok(Json(DetectLanguageResponse { language: normalised }))
 }

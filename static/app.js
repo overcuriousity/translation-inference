@@ -894,6 +894,7 @@ function resetDetectedLang() {
   detectedSourceLang = null;
   lastDetectedTextLength = 0;
   lastDetectedTextSnippet = '';
+  detectionRequestId++;    // discard any in-flight request
   clearTimeout(detectionTimer);
   detectionTimer = null;
   detectedBadge.classList.add('hidden');
@@ -951,10 +952,12 @@ function scheduleDetection(text) {
   }
   if (!isSignificantTextChange(text)) return;
 
-  // Significant change: reset displayed detection, then re-detect
+  // Significant change: reset displayed detection and invalidate any
+  // in-flight request before scheduling the new one.
   detectedSourceLang = null;
   detectedBadge.classList.add('hidden');
   updateSrcTtsButtonVisibility();
+  detectionRequestId++;
 
   clearTimeout(detectionTimer);
   detectionTimer = setTimeout(() => detectLanguage(text), 500);
