@@ -1106,7 +1106,11 @@ init();
   if (!el) return;
   let idx = 0;
   setInterval(() => {
-    idx = (idx + 1) % words.length;
-    el.textContent = words[idx];
+    el.style.opacity = '0';
+    setTimeout(() => {
+      idx = (idx + 1) % words.length;
+      el.textContent = words[idx];
+      el.style.opacity = '1';
+    }, 350);
   }, 2000);
 }());
