@@ -57,11 +57,27 @@ pub async fn post_tts(
         ));
     }
     let mut audio_bytes: Vec<u8> = Vec::new();
+<<<<<<< HEAD
     let voice_entry = req.target_lang
         .as_deref()
         .and_then(|lang| state.config.tts_voice_map.get(lang))
         .cloned()
         .unwrap_or_else(|| state.config.tts_voice.clone());
+=======
+    let entry = state.config.tts_voice_map.get(req.target_lang.as_str())
+        .ok_or_else(|| (
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse {
+                error: format!(
+                    "No TTS voice configured for language '{}'. \
+                     Add '{}:voice@model' to TTS_VOICE_MAP.",
+                    req.target_lang, req.target_lang,
+                ),
+            }),
+        ))?;
+    let tts_model = entry.model.clone();
+    let tts_voice = entry.voice.clone();
+>>>>>>> dddc4df2ec24cf6d5b62a2033881ce6a43dba000
 
     // Voice map entries use "voice@model" notation to specify both the voice
     // name and the model in a single value (e.g. "af_heart@speaches-ai/Kokoro-82M-v1.0-ONNX-fp16").
