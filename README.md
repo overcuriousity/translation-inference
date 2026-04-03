@@ -85,7 +85,9 @@ LISTEN_ADDR=0.0.0.0:3000
 # All other languages fall back to TTS_VOICE.
 # TTS_MODEL: model ID your endpoint expects.
 # TTS_VOICE: default voice (fallback when target language has no TTS_VOICE_MAP entry).
-# TTS_CHUNK_SIZE: max bytes per synthesis request (unset/0 = no chunking, recommended for local models).
+# TTS_CHUNK_SIZE: max bytes per synthesis request (unset/0 = no chunking).
+#   For Japanese/CJK: set to ~500 — phonemizer word-count mismatches compound
+#   over long texts and cause speaches-ai to only synthesise the first sentence.
 # TTS_VOICE_MAP: per-language voice overrides — comma-separated lang:voice pairs.
 #   The frontend sends ISO 639-1 codes (en, fr, es, ja, zh, ...) as the language key.
 #

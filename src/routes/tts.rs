@@ -210,10 +210,13 @@ fn split_sentences(text: &str) -> Vec<String> {
 
     while i < len {
         let ch = chars[i];
-        if matches!(ch, '.' | '!' | '?') || ch == '\n' {
+        // ASCII sentence terminators + fullwidth equivalents used in Japanese, Chinese, Korean.
+        if matches!(ch, '.' | '!' | '?' | '。' | '！' | '？' | '…' | '\u{203C}' | '\u{2049}')
+            || ch == '\n'
+        {
             // Include the punctuation and any following whitespace in this span.
             let mut end = i + 1;
-            while end < len && chars[end] == ' ' {
+            while end < len && (chars[end] == ' ' || chars[end] == '\u{3000}') {
                 end += 1;
             }
             let span: String = chars[start..end].iter().collect();
