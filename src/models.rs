@@ -83,8 +83,8 @@ pub struct StatusResponse {
 #[derive(Debug, Deserialize)]
 pub struct TtsRequest {
     pub text: String,
-    /// Language code used to select a voice+model from TTS_VOICE_MAP (e.g. "en", "de").
-    pub target_lang: Option<String>,
+    /// Required language code used to select a voice+model from TTS_VOICE_MAP (e.g. "en", "de").
+    pub target_lang: String,
     /// Optional BYOK override — TTS endpoint base URL.
     pub tts_endpoint: Option<String>,
     /// Optional BYOK override — TTS API key.

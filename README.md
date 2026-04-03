@@ -85,16 +85,15 @@ LISTEN_ADDR=0.0.0.0:3000
 # Recommended: speaches-ai (https://speaches.ai) serving both Kokoro-82M and
 # Piper models.  TTS_VOICE_MAP routes each language to the right model+voice.
 #
-# TTS_VOICE_MAP  (replaces TTS_MODEL / TTS_VOICE)
-#   Comma-separated entries: lang:voice@model
+# TTS_VOICE_MAP  (sole TTS configuration — TTS_MODEL / TTS_VOICE are removed)
+#   Comma-separated entries: lang:voice@model  (@model is required)
 #   • lang   ISO 639-1 code (zh-TW for Traditional Chinese, zh for Simplified)
 #   • voice  voice ID accepted by the model
-#   • @model model ID override (omit to fall back to TTS_MODEL)
+#   • @model model ID to use for this language (required; entries without it are ignored)
 #   Languages listed here get TTS buttons in the UI; unlisted ones do not.
+#   Requests for an unlisted language return HTTP 400.
 #
 # TTS_CHUNK_SIZE: max bytes per request (0/unset = no chunking; 4000 = OpenAI limit)
-#
-# TTS_MODEL / TTS_VOICE are deprecated; prefer TTS_VOICE_MAP entries with @model.
 #
 # ── speaches-ai voice reference ──────────────────────────────────────────────
 #
