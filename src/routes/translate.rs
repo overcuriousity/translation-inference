@@ -187,7 +187,33 @@ pub fn resolve_client(
         ));
     }
 
-    verify_bearer(headers, access_key)?;
+    let provided = headers
+        .get(header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .unwrap_or("");
+
+    // No bearer token → free tier: use the server's own client if available.
+    if provided.is_empty() {
+        if state.config.is_configured() {
+            return Ok(state.client.clone());
+        }
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            Json(ErrorResponse {
+                error: "No API credentials configured. Please set up your endpoint via the web interface.".into(),
+            }),
+        ));
+    }
+
+    // Bearer token provided → must match the gated access key.
+    use subtle::ConstantTimeEq;
+    if provided.as_bytes().ct_eq(access_key.as_bytes()).unwrap_u8() == 0 {
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            Json(ErrorResponse { error: "Invalid access key.".into() }),
+        ));
+    }
 
     // Authenticated: use per-request BYOK credentials if provided,
     // then gated client, then server-level fallback.
