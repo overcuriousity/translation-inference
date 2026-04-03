@@ -13,6 +13,7 @@ let ttsObjectUrl       = null;   // current blob: URL for the active TTS audio
 let mediaRecorder      = null;
 let ttsAudio           = null;   // active Audio instance
 let serverTtsConfigured = false;
+let serverTtsLanguages  = [];   // language codes with a configured TTS voice
 let detectedSourceLang    = null;  // language code like 'en', null = not yet detected
 let lastDetectedTextLength = 0;
 let lastDetectedTextSnippet = '';
@@ -79,6 +80,7 @@ async function init() {
   }
 
   serverTtsConfigured = !!status.tts_configured;
+  serverTtsLanguages  = status.tts_languages || [];
   updateTtsButtonVisibility();
   updateSrcTtsButtonVisibility();
 
@@ -224,7 +226,10 @@ async function loadLanguages() {
     targetLangSel.innerHTML = '';
     for (const lang of availableLanguages.filter(l => l.code !== 'auto')) {
       const opt = document.createElement('option');
-      opt.value = lang.code; opt.textContent = lang.name;
+      opt.value = lang.code;
+      opt.textContent = serverTtsLanguages.includes(lang.code)
+        ? lang.name + ' 🔊'
+        : lang.name;
       targetLangSel.appendChild(opt);
     }
 
@@ -752,7 +757,8 @@ saveOutBtn.addEventListener('click', () => {
 
 // ── TTS ───────────────────────────────────────────────────────────────────
 function updateTtsButtonVisibility() {
-  const hasTts = serverTtsConfigured || !!userTtsEndpoint;
+  const hasTts = !!userTtsEndpoint
+    || (serverTtsConfigured && serverTtsLanguages.includes(targetLangSel.value));
   // Only show the button when there is translated text available.
   const hasText = lastOutputText.trim().length > 0;
   if (hasTts && hasText) {
@@ -944,7 +950,8 @@ function scheduleDetection(text) {
 
 // ── Source TTS ────────────────────────────────────────────────────────────
 function updateSrcTtsButtonVisibility() {
-  const hasTts = serverTtsConfigured || !!userTtsEndpoint;
+  const hasTts = !!userTtsEndpoint
+    || (serverTtsConfigured && detectedSourceLang !== null && serverTtsLanguages.includes(detectedSourceLang));
   const hasText = sourceText.value.trim().length > 0;
   const hasLang = detectedSourceLang !== null;
   if (hasTts && hasText && hasLang) {

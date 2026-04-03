@@ -24,6 +24,7 @@ pub async fn get_status(
         session_tier: session_tier_str,
         bitvault_configured: state.config.is_bitvault_configured(),
         tts_configured: state.config.is_tts_configured(),
+        tts_languages: state.config.tts_voice_map.keys().cloned().collect(),
     })
 }
 

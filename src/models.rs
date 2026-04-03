@@ -76,6 +76,8 @@ pub struct StatusResponse {
     pub session_tier: Option<String>,
     pub bitvault_configured: bool,
     pub tts_configured: bool,
+    /// Language codes that have a TTS voice configured (keys of TTS_VOICE_MAP).
+    pub tts_languages: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
