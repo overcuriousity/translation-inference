@@ -766,7 +766,7 @@ ttsBtn.addEventListener('click', async () => {
   ttsBtn.title = 'Loading audio\u2026';
 
   try {
-    const body = { text };
+    const body = { text, target_lang: targetLangSel.value };
     if (userTtsEndpoint && userTtsApiKey) {
       body.tts_endpoint = userTtsEndpoint;
       body.tts_api_key  = userTtsApiKey;
