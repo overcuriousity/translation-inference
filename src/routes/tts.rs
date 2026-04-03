@@ -57,14 +57,23 @@ pub async fn post_tts(
         ));
     }
     let mut audio_bytes: Vec<u8> = Vec::new();
-    let (tts_model, tts_voice) = req.target_lang
+    let entry = req.target_lang
         .as_deref()
         .and_then(|lang| state.config.tts_voice_map.get(lang))
-        .map(|entry| (
-            entry.model.as_deref().unwrap_or(&state.config.tts_model).to_string(),
-            entry.voice.clone(),
-        ))
-        .unwrap_or_else(|| (state.config.tts_model.clone(), state.config.tts_voice.clone()));
+        .ok_or_else(|| {
+            let lang = req.target_lang.as_deref().unwrap_or("(none)");
+            (
+                StatusCode::BAD_REQUEST,
+                Json(ErrorResponse {
+                    error: format!(
+                        "No TTS voice configured for language '{lang}'. \
+                         Add '{lang}:voice@model' to TTS_VOICE_MAP."
+                    ),
+                }),
+            )
+        })?;
+    let tts_model = entry.model.clone();
+    let tts_voice = entry.voice.clone();
 
     for chunk in chunks {
         let payload = serde_json::json!({
