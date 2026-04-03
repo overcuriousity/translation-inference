@@ -16,7 +16,7 @@ A fast, memory-efficient, Rust-based translation and transcription inference ser
 - **Modern Web Interface**: A clean, built-in static web UI. Supports session-based credential storage (bring your own API key directly in the browser).
 - **Auto-Model Fetching**: Automatically fetches available models from the connected endpoint.
 - **Gated Tier** *(optional)*: A second server-side backend protected by a shared access key. Users enter the access key in the UI to unlock the pre-configured backend — the actual LLM credentials never leave the server. Useful for shared deployments where you want to expose a curated model without distributing the API key.
-- **Text-to-Speech** *(optional)*: Read translated text aloud via any OpenAI-compatible `/v1/audio/speech` endpoint. Works with hosted APIs (e.g. OpenAI) and self-hosted local models (e.g. Qwen3-TTS). Users can also supply their own TTS endpoint and key directly in the browser (BYOK). Long texts are automatically split into chunks before synthesis.
+- **Text-to-Speech** *(optional)*: Read translated text aloud via any OpenAI-compatible `/v1/audio/speech` endpoint. Works with hosted APIs (e.g. OpenAI) and self-hosted local models. The recommended self-hosted option is **[speaches-ai](https://speaches.ai)** running the Kokoro-82M-v1.0-ONNX model, which provides multilingual voices for en, es, fr, hi, it, ja, pt, and zh. Per-language voice selection is supported via `TTS_VOICE_MAP`. Users can also supply their own TTS endpoint and key directly in the browser (BYOK). Long texts are automatically split into chunks before synthesis.
 - **Bitvault Integration** *(optional)*: Save source or translated text as Bitvault pastes directly from the UI, and preload source text from a Bitvault raw URL via the `?from=` query parameter.
 
 ## 🛠️ Prerequisites
@@ -79,13 +79,19 @@ LISTEN_ADDR=0.0.0.0:3000
 
 # Optional: TTS (text-to-speech) — enables the speaker button in the output panel.
 # Point at any OpenAI-compatible /v1/audio/speech endpoint.
-# TTS_MODEL defaults to "tts-1"; TTS_VOICE defaults to "alloy".
+# Recommended self-hosted option: speaches-ai (https://speaches.ai) with Kokoro-82M-v1.0-ONNX.
+# TTS_MODEL: model ID your endpoint expects.
+# TTS_VOICE: default voice (fallback when target language has no TTS_VOICE_MAP entry).
 # TTS_CHUNK_SIZE: max bytes per synthesis request (unset/0 = no chunking, recommended for local models).
+# TTS_VOICE_MAP: per-language voice overrides — comma-separated lang:voice pairs.
+#   The frontend sends ISO 639-1 codes (en, fr, es, ja, zh, ...) as the target language.
+#   Kokoro-82M voices covering all natively supported languages:
 # TTS_API_BASE_URL=http://tts.example.com
 # TTS_API_KEY=your-tts-api-key-here
-# TTS_MODEL=Qwen3-TTS
-# TTS_VOICE=alloy
+# TTS_MODEL=speaches-ai/Kokoro-82M-v1.0-ONNX-fp16
+# TTS_VOICE=af_heart
 # TTS_CHUNK_SIZE=0
+# TTS_VOICE_MAP=en:af_heart,es:ef_dora,fr:ff_siwis,hi:hf_alpha,it:if_sara,ja:jf_alpha,pt:pf_dora,zh:zf_xiaobei
 
 # Optional: Gated tier — a second backend protected by an access key.
 # Users must enter GATED_ACCESS_KEY in the UI to unlock this tier.
