@@ -16,6 +16,7 @@ A fast, memory-efficient, Rust-based translation and transcription inference ser
 - **Modern Web Interface**: A clean, built-in static web UI. Supports session-based credential storage (bring your own API key directly in the browser).
 - **Auto-Model Fetching**: Automatically fetches available models from the connected endpoint.
 - **Gated Tier** *(optional)*: A second server-side backend protected by a shared access key. Users enter the access key in the UI to unlock the pre-configured backend — the actual LLM credentials never leave the server. Useful for shared deployments where you want to expose a curated model without distributing the API key.
+- **Text-to-Speech** *(optional)*: Read translated text aloud via any OpenAI-compatible `/v1/audio/speech` endpoint. Works with hosted APIs (e.g. OpenAI) and self-hosted local models (e.g. Qwen3-TTS). Users can also supply their own TTS endpoint and key directly in the browser (BYOK). Long texts are automatically split into chunks before synthesis.
 - **Bitvault Integration** *(optional)*: Save source or translated text as Bitvault pastes directly from the UI, and preload source text from a Bitvault raw URL via the `?from=` query parameter.
 
 ## 🛠️ Prerequisites
@@ -76,6 +77,16 @@ WHISPER_MODELS=gpgpu/whisper
 # Server bind address
 LISTEN_ADDR=0.0.0.0:3000
 
+# Optional: TTS (text-to-speech) — enables the speaker button in the output panel.
+# Point at any OpenAI-compatible /v1/audio/speech endpoint.
+# TTS_MODEL defaults to "tts-1"; TTS_VOICE defaults to "alloy".
+# TTS_CHUNK_SIZE: max bytes per synthesis request (unset/0 = no chunking, recommended for local models).
+# TTS_API_BASE_URL=http://tts.example.com
+# TTS_API_KEY=your-tts-api-key-here
+# TTS_MODEL=Qwen3-TTS
+# TTS_VOICE=alloy
+# TTS_CHUNK_SIZE=0
+
 # Optional: Gated tier — a second backend protected by an access key.
 # Users must enter GATED_ACCESS_KEY in the UI to unlock this tier.
 # The actual LLM credentials (GATED_API_BASE_URL, GATED_API_KEY) stay server-side.
@@ -109,6 +120,7 @@ The service provides a RESTful API for integrations:
 - `POST /api/transcribe` - Transcribe an audio or video file.
 - `POST /api/translate-document` - Translate `.docx`, `.odt`, or `.pdf` files.
 - `POST /api/upload` - Unified upload endpoint for mixed media (transcribes audio/video, translates documents).
+- `POST /api/tts` - Synthesize translated text to speech. Requires `TTS_API_BASE_URL` to be configured server-side, or `tts_endpoint`+`tts_api_key` in the request body (BYOK). Request body: `{ "text": "...", "tts_endpoint": "...", "tts_api_key": "..." }`. Returns `audio/mpeg`.
 - `POST /api/save-to-bitvault` - *(requires `BITVAULT_URL`)* Save text as a Bitvault paste and return its URL.
 - `GET /api/proxy-text?url=<raw-url>` - *(requires `BITVAULT_URL`)* Proxy raw text from a Bitvault URL (used by the `?from=` preload feature to avoid CORS).
 

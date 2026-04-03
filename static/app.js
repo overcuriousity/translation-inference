@@ -277,6 +277,7 @@ async function translate(isAuto = false) {
   setOutputLoading(true);
   lastTranslatedText = text;
   lastOutputText = '';
+  updateTtsButtonVisibility();
 
   try {
     const body = {
