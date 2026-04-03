@@ -16,7 +16,6 @@ pub struct AppConfig {
     pub bitvault_api_key: Option<String>,
     pub tts_api_base_url: String,
     pub tts_api_key: String,
-    pub tts_model: String,
     pub tts_voice: String,
     /// Maximum **bytes** per TTS request chunk. `None` (the default) disables
     /// chunking entirely — recommended for local models (e.g. Qwen3-TTS) that
@@ -68,8 +67,6 @@ impl AppConfig {
                 .filter(|s| !s.is_empty()),
             tts_api_base_url: std::env::var("TTS_API_BASE_URL").unwrap_or_default(),
             tts_api_key: std::env::var("TTS_API_KEY").unwrap_or_default(),
-            tts_model: std::env::var("TTS_MODEL")
-                .unwrap_or_else(|_| "tts-1".to_string()),
             tts_voice: std::env::var("TTS_VOICE")
                 .unwrap_or_else(|_| "alloy".to_string()),
             tts_chunk_size: match std::env::var("TTS_CHUNK_SIZE").ok().as_deref() {
