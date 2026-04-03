@@ -18,6 +18,7 @@ let detectedSourceLang    = null;  // language code like 'en', null = not yet de
 let lastDetectedTextLength = 0;
 let lastDetectedTextSnippet = '';
 let detectionTimer        = null;
+let detectionRequestId    = 0;    // incremented per request; guards stale async responses
 let isPasting             = false;
 let srcTtsAudio           = null;
 let srcTtsObjectUrl       = null;
@@ -102,6 +103,7 @@ async function init() {
       if (res.ok) {
         sourceText.value = await res.text();
         updateCharCount();
+        detectLanguage(sourceText.value);
         if (hasAccess) {
           translate(true);
         } else {
@@ -384,6 +386,10 @@ sourceText.addEventListener('paste', () => {
     isPasting = false;
     const text = sourceText.value;
     if (text.trim()) {
+      // Reset stale detection state before starting a fresh request.
+      detectedSourceLang = null;
+      detectedBadge.classList.add('hidden');
+      updateSrcTtsButtonVisibility();
       clearTimeout(detectionTimer);
       detectLanguage(text);
     } else {
@@ -502,6 +508,8 @@ swapBtn.addEventListener('click', () => {
     sourceText.value = tgt;
     setOutput('');
     updateCharCount();
+    resetDetectedLang();
+    scheduleDetection(tgt);
   }
 });
 
@@ -901,6 +909,7 @@ function isSignificantTextChange(text) {
 }
 
 async function detectLanguage(text) {
+  const reqId   = ++detectionRequestId;
   const snippet = text.slice(0, 500);
   if (snippet.trim().length < 10) {
     resetDetectedLang();
@@ -915,6 +924,9 @@ async function detectLanguage(text) {
       body: JSON.stringify(body),
     });
     if (!res.ok) return;
+
+    // Discard response if a newer request has since been issued.
+    if (reqId !== detectionRequestId) return;
 
     const data = await res.json();
     const code = data.language.trim();

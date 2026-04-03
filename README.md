@@ -148,7 +148,7 @@ The service provides a RESTful API for integrations:
 - `POST /api/translate-document` - Translate `.docx`, `.odt`, or `.pdf` files.
 - `POST /api/upload` - Unified upload endpoint for mixed media (transcribes audio/video, translates documents).
 - `POST /api/tts` - Synthesize text to speech. Requires `TTS_API_BASE_URL` to be configured server-side, or `tts_endpoint`+`tts_api_key` in the request body (BYOK). Request body: `{ "text": "...", "target_lang": "en", "tts_endpoint": "...", "tts_api_key": "..." }`. Returns `audio/mpeg`.
-- `POST /api/detect-language` - Detect the language of a text snippet (up to 500 chars). Uses the same translation LLM and auth as `/api/translate`. Request body: `{ "text": "..." }`. Returns `{ "language": "en" }` (ISO 639-1 code).
+- `POST /api/detect-language` - Detect the language of a text snippet (up to 500 chars). Uses the same translation LLM and auth as `/api/translate`. Request body: `{ "text": "...", "endpoint": "...", "api_key": "..." }` (`endpoint`+`api_key` are optional BYOK overrides, same as `/api/translate`). Returns `{ "language": "en" }` (ISO 639-1 code; Traditional Chinese returns `zh-TW`).
 - `POST /api/save-to-bitvault` - *(requires `BITVAULT_URL`)* Save text as a Bitvault paste and return its URL.
 - `GET /api/proxy-text?url=<raw-url>` - *(requires `BITVAULT_URL`)* Proxy raw text from a Bitvault URL (used by the `?from=` preload feature to avoid CORS).
 

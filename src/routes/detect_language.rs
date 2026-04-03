@@ -87,8 +87,18 @@ pub async fn post_detect_language(
         .map(|c| c.message.content)
         .unwrap_or_default();
 
-    // Normalise: trim whitespace and surrounding quotes, lowercase
-    let language = raw.trim().trim_matches('"').trim_matches('\'').to_lowercase();
+    // Normalise: strip whitespace, backticks, quotes, trailing punctuation
+    let cleaned = raw.trim()
+        .trim_matches('`')
+        .trim_matches('"')
+        .trim_matches('\'')
+        .trim_matches('.');
+
+    // Lowercase for comparison, but restore canonical casing for region subtags
+    let language = match cleaned.to_lowercase().as_str() {
+        "zh-tw" => "zh-TW".to_string(),
+        other   => other.to_string(),
+    };
 
     Ok(Json(DetectLanguageResponse { language }))
 }
