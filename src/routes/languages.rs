@@ -18,6 +18,8 @@ pub async fn get_languages() -> Json<LanguagesResponse> {
         Language { code: "zh-TW".into(), name: "Chinese (Traditional)".into() },
         Language { code: "ja".into(), name: "Japanese".into() },
         Language { code: "ko".into(), name: "Korean".into() },
+        Language { code: "vi".into(), name: "Vietnamese".into() },
+        Language { code: "id".into(), name: "Indonesian".into() },
         Language { code: "ar".into(), name: "Arabic".into() },
         Language { code: "tr".into(), name: "Turkish".into() },
         Language { code: "uk".into(), name: "Ukrainian".into() },

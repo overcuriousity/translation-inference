@@ -16,7 +16,7 @@ A fast, memory-efficient, Rust-based translation and transcription inference ser
 - **Modern Web Interface**: A clean, built-in static web UI. Supports session-based credential storage (bring your own API key directly in the browser).
 - **Auto-Model Fetching**: Automatically fetches available models from the connected endpoint.
 - **Gated Tier** *(optional)*: A second server-side backend protected by a shared access key. Users enter the access key in the UI to unlock the pre-configured backend — the actual LLM credentials never leave the server. Useful for shared deployments where you want to expose a curated model without distributing the API key.
-- **Text-to-Speech** *(optional)*: Read translated text aloud — or read the source text back — via any OpenAI-compatible `/v1/audio/speech` endpoint. Works with hosted APIs (e.g. OpenAI) and self-hosted local models. The recommended self-hosted option is **[speaches-ai](https://speaches.ai)**, which can serve both Kokoro-82M (en, es, fr, hi, it, pt) and Piper models (de, ru, zh, ar, cs, da, el, fi, hu, nl, no, pl, ro, sv, tr, uk, and more) from the same instance. `TTS_VOICE_MAP` selects the right model and voice per language; see the configuration section for a comprehensive example. Users can also supply their own TTS endpoint and key directly in the browser (BYOK). Long texts are automatically split into chunks before synthesis.
+- **Text-to-Speech** *(optional)*: Read translated text aloud — or read the source text back — via any OpenAI-compatible `/v1/audio/speech` endpoint. Works with hosted APIs (e.g. OpenAI) and self-hosted local models. `TTS_VOICE_MAP` routes each language to the right voice and model; see the configuration section for a full example. Users can also supply their own TTS endpoint and key directly in the browser (BYOK). Long texts are automatically split into chunks before synthesis.
 - **Automatic Source Language Detection**: When text is entered, the source language is detected automatically via a lightweight LLM inference call (triggered immediately on paste, or after a 500 ms typing pause). The detected language is shown as a badge in the source panel and enables the source TTS button.
 - **Bitvault Integration** *(optional)*: Save source or translated text as Bitvault pastes directly from the UI, and preload source text from a Bitvault raw URL via the `?from=` query parameter.
 
@@ -82,57 +82,15 @@ LISTEN_ADDR=0.0.0.0:3000
 # Enables speaker buttons in the source and output panels.
 # Point TTS_API_BASE_URL at any OpenAI-compatible /v1/audio/speech endpoint.
 #
-# Recommended: speaches-ai (https://speaches.ai) serving both Kokoro-82M and
-# Piper models.  TTS_VOICE_MAP routes each language to the right model+voice.
-#
-# TTS_VOICE_MAP  (sole TTS configuration — TTS_MODEL / TTS_VOICE are removed)
+# TTS_VOICE_MAP  (sole TTS configuration)
 #   Comma-separated entries: lang:voice@model  (@model is required)
 #   • lang   ISO 639-1 code (zh-TW for Traditional Chinese, zh for Simplified)
-#   • voice  voice ID accepted by the model
-#   • @model model ID to use for this language (required; entries without it are ignored)
+#   • voice  voice ID accepted by the model (see your TTS provider's docs)
+#   • @model model ID as registered at your API provider
 #   Languages listed here get TTS buttons in the UI; unlisted ones do not.
 #   Requests for an unlisted language return HTTP 400.
 #
 # TTS_CHUNK_SIZE: max bytes per request (0/unset = no chunking; 4000 = OpenAI limit)
-#
-# ── speaches-ai voice reference ──────────────────────────────────────────────
-#
-#  Kokoro-82M-v1.0-ONNX-fp16  (speaches-ai/Kokoro-82M-v1.0-ONNX-fp16)
-#   en (US) ♀  af_heart · af_alloy · af_aoede · af_bella · af_jessica · af_kore
-#              af_nicole · af_nova · af_river · af_sarah · af_sky
-#   en (US) ♂  am_adam · am_echo · am_eric · am_fenrir · am_liam · am_michael
-#              am_onyx · am_puck · am_santa
-#   en (GB) ♀  bf_alice · bf_emma · bf_isabella · bf_lily
-#   en (GB) ♂  bm_daniel · bm_fable · bm_george · bm_lewis
-#   es ♀  ef_dora          es ♂  em_alex · em_santa
-#   fr ♀  ff_siwis
-#   hi ♀  hf_alpha · hf_beta   hi ♂  hm_omega · hm_psi
-#   it ♀  if_sara          it ♂  im_nicola
-#   pt ♀  pf_dora          pt ♂  pm_alex · pm_santa
-#   zh Kokoro voices (zf_*, zm_*): BROKEN — speaches-ai passes "zh" to espeak
-#      which expects "cmn"; use the Piper zh model below instead.
-#   ja Kokoro voices (jf_*, jm_*): BROKEN — espeak switches phoneme sets
-#      mid-utterance; no Piper ja model available in speaches-ai.
-#
-#  Piper models  (single voice per model)
-#   ar   kareem       speaches-ai/piper-ar_JO-kareem-medium
-#   cs   jirka        speaches-ai/piper-cs_CZ-jirka-medium
-#   da   talesyntese  speaches-ai/piper-da_DK-talesyntese-medium
-#   de   thorsten     speaches-ai/piper-de_DE-thorsten-high
-#   el   rapunzelina  speaches-ai/piper-el_GR-rapunzelina-low
-#   fi   harri        speaches-ai/piper-fi_FI-harri-medium
-#   hu   anna         speaches-ai/piper-hu_HU-anna-medium
-#   nl   mls          speaches-ai/piper-nl_NL-mls-medium
-#   no   talesyntese  speaches-ai/piper-no_NO-talesyntese-medium
-#   pl   darkman      speaches-ai/piper-pl_PL-darkman-medium
-#   ro   mihai        speaches-ai/piper-ro_RO-mihai-medium
-#   ru   ruslan       speaches-ai/piper-ru_RU-ruslan-medium
-#   sv   nst          speaches-ai/piper-sv_SE-nst-medium
-#   tr   dfki         speaches-ai/piper-tr_TR-dfki-medium
-#   uk   lada         speaches-ai/piper-uk_UA-lada-x_low
-#   zh   huayan       speaches-ai/piper-zh_CN-huayan-medium  (Simplified + Traditional)
-#
-#  No TTS support: bg (Bulgarian), ko (Korean), ja (Japanese)
 # ─────────────────────────────────────────────────────────────────────────────
 #
 # TTS_API_BASE_URL=http://tts.example.com
