@@ -387,7 +387,7 @@ body {
 /* ── Notifications ───────────────────────────────────────────────────────── */
 .notification {
   position: fixed;
-  bottom: 32px;
+  bottom: 56px;
   left: 50%;
   transform: translateX(-50%);
   padding: 12px 24px;
@@ -521,6 +521,22 @@ body {
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
+
+/* ── App Footer ─────────────────────────────────────────────────────────── */
+.app-footer {
+  flex-shrink: 0;
+  text-align: center;
+  padding: 6px 16px;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+.app-footer a {
+  color: var(--color-text-muted);
+  text-decoration: none;
+}
+.app-footer a:hover { color: var(--color-primary); }
 
 /* ── Utilities ──────────────────────────────────────────────────────────── */
 .hidden { display: none !important; }

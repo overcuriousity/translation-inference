@@ -1,0 +1,847 @@
+openapi: 3.1.0
+
+info:
+  title: Translation Inference API
+  version: 0.1.0
+  description: |
+    REST API for the Translation Inference service — an OpenAI-compatible
+    translation, transcription, and text-to-speech proxy with optional
+    Bitvault integration.
+
+    ## Authentication
+
+    Three operating modes depending on server configuration:
+
+    1. **Open / personal mode** — no `GATED_ACCESS_KEY` set, server credentials
+       configured via `API_BASE_URL` + `API_KEY`. All endpoints are accessible
+       without credentials.
+
+    2. **BYOK mode** — users supply their own endpoint and API key via
+       `POST /api/config/test`, which sets a session cookie (`sid`).
+
+    3. **Gated mode** — `GATED_ACCESS_KEY` is set. Users unlock access via
+       `POST /api/config/gated` (session cookie) or pass
+       `Authorization: Bearer <access_key>` on each request.
+
+  contact:
+    url: https://github.com/overcuriousity/translation-inference
+
+servers:
+  - url: "{scheme}://{host}"
+    description: Self-hosted instance
+    variables:
+      scheme:
+        default: http
+        enum: [http, https]
+      host:
+        default: "localhost:3000"
+
+tags:
+  - name: status
+    description: Server status and configuration
+  - name: translation
+    description: Text translation
+  - name: transcription
+    description: Audio/video transcription (Whisper)
+  - name: tts
+    description: Text-to-speech synthesis
+  - name: documents
+    description: Document translation (PDF, DOCX, ODT)
+  - name: languages
+    description: Supported languages and models
+  - name: bitvault
+    description: Bitvault paste integration
+
+paths:
+
+  /openapi.yaml:
+    get:
+      operationId: getOpenApiSpec
+      summary: OpenAPI specification (this document)
+      tags: [status]
+      security: []
+      responses:
+        "200":
+          description: OpenAPI 3.1 YAML document
+          content:
+            application/yaml:
+              schema:
+                type: string
+
+  /api/status:
+    get:
+      operationId: getStatus
+      summary: Server status
+      description: Returns server configuration flags and the active session tier.
+      tags: [status]
+      security: []
+      responses:
+        "200":
+          description: Status object
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusResponse"
+
+  /api/config/test:
+    post:
+      operationId: postConfigTest
+      summary: Test BYOK credentials and open a session
+      description: |
+        Validates the supplied endpoint and API key by calling `GET /v1/models`
+        on the remote backend. On success, sets a session cookie (`sid`) that
+        authenticates subsequent requests.
+      tags: [status]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConfigTestRequest"
+      responses:
+        "200":
+          description: Credentials valid — session cookie set
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+                example: "sid=<uuid>; Path=/; SameSite=Strict; HttpOnly"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConfigTestResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+
+  /api/config/gated:
+    post:
+      operationId: postGatedAccess
+      summary: Unlock gated tier with access key
+      description: |
+        Validates the `access_key` against `GATED_ACCESS_KEY`. On success,
+        sets a session cookie that grants access to the server-side gated
+        backend. Returns 404 when the gated tier is not configured.
+      tags: [status]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GatedAccessRequest"
+      responses:
+        "200":
+          description: Access granted — session cookie set
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConfigTestResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+
+  /api/languages:
+    get:
+      operationId: getLanguages
+      summary: List supported languages
+      tags: [languages]
+      security: []
+      responses:
+        "200":
+          description: Language list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LanguagesResponse"
+
+  /api/models:
+    get:
+      operationId: getModels
+      summary: List available translation and transcription models
+      description: |
+        Returns the models configured on the server.  When a session cookie is
+        present, the list is fetched live from the upstream endpoint; otherwise
+        the server's static model configuration is returned.
+      tags: [languages]
+      responses:
+        "200":
+          description: Model lists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelsResponse"
+
+  /api/translate:
+    post:
+      operationId: postTranslate
+      summary: Translate text (buffered)
+      description: |
+        Translates the supplied text and returns the full result in one
+        response. Long texts are split into chunks automatically.
+
+        Optionally supply `endpoint` and `api_key` to use BYOK credentials
+        for this request only (requires an active session or gated token).
+      tags: [translation]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TranslateRequest"
+      responses:
+        "200":
+          description: Translation result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TranslateResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+
+  /api/translate/stream:
+    post:
+      operationId: postTranslateStream
+      summary: Translate text (streaming)
+      description: |
+        Streams translated text as plain-text chunks. The response uses
+        `Transfer-Encoding: chunked` and `Content-Type: text/plain`.
+
+        Error during streaming is signalled by a `\x00ERR:<message>` sentinel
+        appended to the stream (the HTTP status is 200 once streaming starts).
+      tags: [translation]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TranslateRequest"
+      responses:
+        "200":
+          description: Streamed translation text
+          content:
+            text/plain:
+              schema:
+                type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/transcribe:
+    post:
+      operationId: postTranscribe
+      summary: Transcribe audio or video
+      description: |
+        Accepts an audio or video file (up to 100 MB) via multipart form.
+        Video files have their audio extracted with ffmpeg before
+        transcription. Returns the transcribed text.
+      tags: [transcription]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Audio or video file to transcribe.
+                model:
+                  type: string
+                  description: Whisper model ID (uses server default when omitted).
+                endpoint:
+                  type: string
+                  description: BYOK endpoint override.
+                api_key:
+                  type: string
+                  description: BYOK API key override.
+      responses:
+        "200":
+          description: Transcription result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TranscribeResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "413":
+          description: File exceeds 100 MB limit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/upload:
+    post:
+      operationId: postUpload
+      summary: Upload files for transcription or document translation
+      description: |
+        Accepts one or more audio/video/document files via multipart form and
+        returns their transcribed or translated content.
+
+        Supported file types:
+        - Audio/video (mp3, wav, m4a, ogg, flac, mp4, mkv, …) → transcription
+        - Documents (pdf, docx, odt) → translation, returned as base64-encoded files
+      tags: [transcription, documents]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: One or more files (repeat field for multiple).
+                source_lang:
+                  type: string
+                  default: auto
+                  description: Source language code (documents only).
+                target_lang:
+                  type: string
+                  default: English
+                  description: Target language name or code (documents only).
+                model:
+                  type: string
+                  description: Translation model override.
+                whisper_model:
+                  type: string
+                  description: Whisper model override.
+                endpoint:
+                  type: string
+                api_key:
+                  type: string
+                output_format:
+                  type: string
+                  enum: [odt, pdf]
+                  description: Output format for translated documents.
+      responses:
+        "200":
+          description: Upload results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "413":
+          description: File exceeds 100 MB limit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/translate-document:
+    post:
+      operationId: postTranslateDocument
+      summary: Translate a document file
+      description: |
+        Accepts a single document file (pdf, docx, odt) via multipart form
+        and returns the translated document(s) as base64-encoded data.
+      tags: [documents]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                source_lang:
+                  type: string
+                  default: auto
+                target_lang:
+                  type: string
+                  default: English
+                model:
+                  type: string
+                endpoint:
+                  type: string
+                api_key:
+                  type: string
+                output_format:
+                  type: string
+                  enum: [odt, pdf]
+      responses:
+        "200":
+          description: Translated document(s)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TranslateDocumentResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/detect-language:
+    post:
+      operationId: postDetectLanguage
+      summary: Detect the language of a text snippet
+      description: |
+        Uses the configured translation model to identify the language of the
+        first 500 characters of the supplied text.  Returns an ISO 639-1 code
+        (e.g. `"en"`, `"de"`, `"zh-TW"`).
+      tags: [translation]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DetectLanguageRequest"
+      responses:
+        "200":
+          description: Detected language code
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DetectLanguageResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+
+  /api/tts:
+    post:
+      operationId: postTts
+      summary: Synthesise speech from text
+      description: |
+        Converts text to MP3 audio using the configured TTS backend.
+        The `target_lang` field selects the voice from `TTS_VOICE_MAP`.
+
+        Long texts are split into sentence-level chunks and concatenated.
+        Authenticated callers (session cookie or Bearer token) may supply
+        `tts_endpoint` and `tts_api_key` to override the server backend.
+      tags: [tts]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TtsRequest"
+      responses:
+        "200":
+          description: MP3 audio data
+          content:
+            audio/mpeg:
+              schema:
+                type: string
+                format: binary
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          description: TTS backend not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/save-to-bitvault:
+    post:
+      operationId: postSaveToBitvault
+      summary: Save text to the configured Bitvault instance
+      description: |
+        Creates an unlisted paste on the Bitvault instance configured via
+        `BITVAULT_URL`. Returns 404 when Bitvault is not configured.
+      tags: [bitvault]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SaveToBitvaultRequest"
+      responses:
+        "200":
+          description: URL of the created paste
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SaveToBitvaultResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+
+  /api/proxy-text:
+    get:
+      operationId: getProxyText
+      summary: Proxy raw text from Bitvault (CORS bypass)
+      description: |
+        Fetches the raw text at the given Bitvault URL server-side to avoid
+        browser CORS restrictions. Only URLs on the configured Bitvault host
+        are allowed; requests to other hosts return 403.
+      tags: [bitvault]
+      parameters:
+        - name: url
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uri
+          description: Full URL of the Bitvault raw paste to fetch.
+      responses:
+        "200":
+          description: Raw paste text
+          content:
+            text/plain:
+              schema:
+                type: string
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+
+components:
+
+  schemas:
+
+    StatusResponse:
+      type: object
+      required:
+        - server_configured
+        - gated_configured
+        - session_active
+        - bitvault_configured
+        - tts_configured
+        - tts_languages
+        - git_commit
+      properties:
+        server_configured:
+          type: boolean
+          description: True when `API_BASE_URL` and `API_KEY` are set.
+        gated_configured:
+          type: boolean
+          description: True when the gated tier is fully configured.
+        session_active:
+          type: boolean
+          description: True when the request carries a valid `sid` session cookie.
+        session_tier:
+          type: string
+          nullable: true
+          enum: [byok, gated]
+          description: Tier of the active session, or null when no session.
+        bitvault_configured:
+          type: boolean
+          description: True when `BITVAULT_URL` is set.
+        tts_configured:
+          type: boolean
+          description: True when a server-side TTS backend is configured.
+        tts_languages:
+          type: array
+          items:
+            type: string
+          description: Language codes that have a TTS voice configured.
+        git_commit:
+          type: string
+          description: Short git commit hash baked in at compile time.
+
+    ConfigTestRequest:
+      type: object
+      required: [endpoint, api_key]
+      properties:
+        endpoint:
+          type: string
+          format: uri
+          description: OpenAI-compatible API base URL (e.g. `https://api.openai.com`).
+        api_key:
+          type: string
+          description: API key for the endpoint.
+
+    ConfigTestResponse:
+      type: object
+      required: [ok, message]
+      properties:
+        ok:
+          type: boolean
+        message:
+          type: string
+
+    GatedAccessRequest:
+      type: object
+      required: [access_key]
+      properties:
+        access_key:
+          type: string
+          description: The server's `GATED_ACCESS_KEY` value.
+
+    TranslateRequest:
+      type: object
+      required: [text, source_lang, target_lang]
+      properties:
+        text:
+          type: string
+          description: Text to translate.
+        source_lang:
+          type: string
+          description: Source language code or `"auto"` for auto-detection.
+          example: auto
+        target_lang:
+          type: string
+          description: Target language code or name.
+          example: German
+        model:
+          type: string
+          description: Model ID override (uses server default when omitted).
+        endpoint:
+          type: string
+          description: BYOK endpoint override (requires authenticated session).
+        api_key:
+          type: string
+          description: BYOK API key override (requires authenticated session).
+
+    TranslateResponse:
+      type: object
+      required: [translated_text, chunks_total, chunks_completed]
+      properties:
+        translated_text:
+          type: string
+        chunks_total:
+          type: integer
+          description: Total number of chunks the text was split into.
+        chunks_completed:
+          type: integer
+          description: Number of chunks successfully translated.
+
+    TranscribeResponse:
+      type: object
+      required: [text]
+      properties:
+        text:
+          type: string
+          description: Transcribed text.
+
+    DetectLanguageRequest:
+      type: object
+      required: [text]
+      properties:
+        text:
+          type: string
+          description: Text snippet to identify (first 500 characters are used).
+        endpoint:
+          type: string
+        api_key:
+          type: string
+
+    DetectLanguageResponse:
+      type: object
+      required: [language]
+      properties:
+        language:
+          type: string
+          description: ISO 639-1 language code (e.g. `"en"`, `"zh-TW"`).
+
+    TtsRequest:
+      type: object
+      required: [text, target_lang]
+      properties:
+        text:
+          type: string
+          description: Text to synthesise.
+        target_lang:
+          type: string
+          description: Language code used to look up the TTS voice (e.g. `"en"`, `"de"`).
+        tts_endpoint:
+          type: string
+          description: BYOK TTS endpoint override (authenticated callers only).
+        tts_api_key:
+          type: string
+          description: BYOK TTS API key override (authenticated callers only).
+
+    LanguagesResponse:
+      type: object
+      required: [languages]
+      properties:
+        languages:
+          type: array
+          items:
+            $ref: "#/components/schemas/Language"
+
+    Language:
+      type: object
+      required: [code, name]
+      properties:
+        code:
+          type: string
+          example: de
+        name:
+          type: string
+          example: German
+
+    ModelsResponse:
+      type: object
+      required: [translation_models, transcription_models]
+      properties:
+        translation_models:
+          type: array
+          items:
+            $ref: "#/components/schemas/ModelInfo"
+        transcription_models:
+          type: array
+          items:
+            $ref: "#/components/schemas/ModelInfo"
+
+    ModelInfo:
+      type: object
+      required: [id, name, context_size]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        context_size:
+          type: integer
+          description: Approximate context window in tokens.
+
+    UploadResponse:
+      type: object
+      required: [results]
+      properties:
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/UploadResult"
+
+    UploadResult:
+      oneOf:
+        - type: object
+          required: [type, filename, text]
+          properties:
+            type:
+              type: string
+              const: text
+            filename:
+              type: string
+            text:
+              type: string
+              description: Transcribed text content.
+        - type: object
+          required: [type, filename, data, mime]
+          properties:
+            type:
+              type: string
+              const: document
+            filename:
+              type: string
+            data:
+              type: string
+              description: Base64-encoded document content.
+            mime:
+              type: string
+              example: application/vnd.oasis.opendocument.text
+
+    TranslateDocumentResponse:
+      type: object
+      required: [files]
+      properties:
+        files:
+          type: array
+          items:
+            type: object
+            required: [filename, data, mime]
+            properties:
+              filename:
+                type: string
+              data:
+                type: string
+                description: Base64-encoded document content.
+              mime:
+                type: string
+
+    SaveToBitvaultRequest:
+      type: object
+      required: [text]
+      properties:
+        text:
+          type: string
+          description: Text content to save as an unlisted paste.
+
+    SaveToBitvaultResponse:
+      type: object
+      required: [url]
+      properties:
+        url:
+          type: string
+          format: uri
+          description: URL of the created Bitvault paste.
+
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+
+  responses:
+    BadRequest:
+      description: Invalid request parameters.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Unauthorized:
+      description: Missing or invalid credentials.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Forbidden:
+      description: Access denied.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: Resource not found or feature not configured.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    InternalError:
+      description: Server-side error.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    BadGateway:
+      description: Error communicating with upstream backend.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"

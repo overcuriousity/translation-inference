@@ -69,7 +69,16 @@ const srcTtsBtn            = document.getElementById('src-tts-btn');
 // ── Boot ─────────────────────────────────────────────────────────────────
 async function init() {
   const status = await fetch('/api/status').then(r => r.json())
-    .catch(() => ({ server_configured: false, gated_configured: false, session_active: false, bitvault_configured: false, tts_configured: false }));
+    .catch(() => ({ server_configured: false, gated_configured: false, session_active: false, bitvault_configured: false, tts_configured: false, git_commit: null }));
+
+  // Populate footer commit link
+  if (status.git_commit) {
+    const commitEl = document.getElementById('footer-commit');
+    if (commitEl) {
+      commitEl.textContent = status.git_commit;
+      commitEl.href = `https://github.com/overcuriousity/translation-inference/commit/${status.git_commit}`;
+    }
+  }
 
   if (status.bitvault_configured) {
     saveSrcBtn.classList.remove('hidden');
