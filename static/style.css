@@ -252,6 +252,10 @@ body {
   color: #000;
   border-color: var(--color-primary);
 }
+.swap-btn.inert {
+  visibility: hidden;
+  pointer-events: none;
+}
 
 /* ── Drop Overlay ──────────────────────────────────────────────────────── */
 .drop-overlay {
