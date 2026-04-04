@@ -1,10 +1,13 @@
 'use strict';
 
 // ── State ────────────────────────────────────────────────────────────────
-let availableLanguages = [];
-let availableModels    = [];
-let userEndpoint       = '';
-let userApiKey         = '';
+let availableLanguages      = [];
+let availableModels         = [];
+let selectedTargetLangCode  = 'en';
+let activeTab               = 'text';
+let langPickerOpen          = false;
+let userEndpoint            = '';
+let userApiKey              = '';
 let userTtsEndpoint    = '';
 let userTtsApiKey      = '';
 let lastTranslatedText = '';
@@ -25,8 +28,18 @@ let srcTtsAudio           = null;
 let srcTtsObjectUrl       = null;
 
 // ── DOM refs ─────────────────────────────────────────────────────────────
-const targetLangSel    = document.getElementById('target-lang');
-const outputFormatSel  = document.getElementById('output-format-select');
+const outputFormatSel    = document.getElementById('output-format-select');
+const langPickerBtn      = document.getElementById('lang-picker-btn');
+const langPickerLabel    = document.getElementById('lang-picker-label');
+const langPickerDropdown = document.getElementById('lang-picker-dropdown');
+const langSearchInput    = document.getElementById('lang-search');
+const langListEl         = document.getElementById('lang-list');
+const tabTextBtn         = document.getElementById('tab-text');
+const tabDocumentBtn     = document.getElementById('tab-document');
+const docUploadArea      = document.getElementById('doc-upload-area');
+const docFileInput       = document.getElementById('doc-file-input');
+const sourceLangInfo     = document.getElementById('source-lang-info');
+const outputPanel        = document.querySelector('.panel-output');
 const detectedBadge    = document.getElementById('detected-lang');
 const modelSel         = document.getElementById('model-select');
 const whisperModelSel  = document.getElementById('whisper-model-select');
@@ -65,6 +78,7 @@ const configTtsApikey      = document.getElementById('config-tts-apikey');
 const configTtsBtn         = document.getElementById('config-tts-btn');
 const ttsMsg               = document.getElementById('tts-msg');
 const srcTtsBtn            = document.getElementById('src-tts-btn');
+const incompleteBadge      = document.getElementById('incomplete-badge');
 
 // ── Boot ─────────────────────────────────────────────────────────────────
 async function init() {
@@ -137,6 +151,12 @@ function showConfigPanel(msg) {
     configMsg.textContent = msg;
     configMsg.className = 'config-msg';
   }
+}
+
+function promptReauth() {
+  sessionActive = false;
+  showConfigPanel('Session expired. Please re-authenticate.');
+  showNotification('Session expired \u2014 please re-authenticate', 'error');
 }
 
 settingsBtn.addEventListener('click', () => {
@@ -243,30 +263,16 @@ async function loadLanguages() {
     const data = await res.json();
     availableLanguages = data.languages;
 
-    targetLangSel.innerHTML = '';
-    for (const lang of availableLanguages.filter(l => l.code !== 'auto')) {
-      const opt = document.createElement('option');
-      opt.value = lang.code;
-      opt.textContent = serverTtsLanguages.includes(lang.code)
-        ? lang.name + ' 🔊'
-        : lang.name;
-      targetLangSel.appendChild(opt);
-    }
-
     // Auto-set target language from browser preferences, fallback to English
     const browserLangs = navigator.languages && navigator.languages.length
       ? navigator.languages : [navigator.language || 'en'];
-    let targetSet = false;
+    let targetCode = 'en';
     for (const bl of browserLangs) {
       const code = bl.split('-')[0].toLowerCase();
       const match = availableLanguages.find(l => l.code === code && l.code !== 'auto');
-      if (match) {
-        targetLangSel.value = match.code;
-        targetSet = true;
-        break;
-      }
+      if (match) { targetCode = match.code; break; }
     }
-    if (!targetSet) targetLangSel.value = 'en';
+    setTargetLang(targetCode);
   } catch (e) {
     showNotification('Language sync failed', 'error');
   }
@@ -317,7 +323,7 @@ async function translate(isAuto = false) {
     const body = {
       text,
       source_lang: 'auto',
-      target_lang: targetLangName(targetLangSel.value),
+      target_lang: targetLangName(selectedTargetLangCode),
       model: modelSel.value || undefined,
       ...apiCredentials(),
     };
@@ -329,7 +335,9 @@ async function translate(isAuto = false) {
     });
 
     if (!res.ok) {
-      if (!isAuto) {
+      if (res.status === 401) {
+        promptReauth();
+      } else if (!isAuto) {
         const errBody = await res.json().catch(() => null);
         showNotification((errBody && errBody.error) || 'Translation error', 'error');
       }
@@ -338,6 +346,7 @@ async function translate(isAuto = false) {
     }
 
     setOutput('');
+    incompleteBadge.classList.add('hidden');
     chunkProgress.textContent = 'Translating\u2026';
     chunkProgress.classList.remove('hidden');
 
@@ -365,6 +374,7 @@ async function translate(isAuto = false) {
       const errMsg  = textSoFar.slice(errIdx + ERR_SENTINEL.length).trim();
       setOutput(partial);
       lastOutputText = partial;
+      incompleteBadge.classList.remove('hidden');
       if (!isAuto) showNotification(errMsg || 'Translation error', 'error');
     } else {
       lastOutputText = textSoFar;
@@ -406,7 +416,9 @@ sourceText.addEventListener('paste', () => {
     if (text.trim()) {
       // Reset stale detection state before starting a fresh request.
       detectedSourceLang = null;
-      detectedBadge.classList.add('hidden');
+      detectedBadge.textContent = 'Detecting\u2026';
+      detectedBadge.classList.remove('hidden');
+      detectedBadge.classList.add('detecting');
       updateSrcTtsButtonVisibility();
       clearTimeout(detectionTimer);
       detectLanguage(text);
@@ -423,7 +435,7 @@ sourceText.addEventListener('keydown', e => {
   }
 });
 
-targetLangSel.addEventListener('change', () => { lastTranslatedText = ''; lastOutputText = ''; translate(true); });
+// target language changes are handled inside setTargetLang()
 modelSel.addEventListener('change', () => { lastTranslatedText = ''; lastOutputText = ''; translate(true); });
 
 // ── Transcription & Upload ────────────────────────────────────────────────
@@ -436,9 +448,11 @@ async function handleFiles(files) {
   if (!files || files.length === 0) return;
   prepareOutputFormatForFiles(files);
   const fileArray = Array.from(files);
-  sourceText.value = '';
-  resetDetectedLang();
-  sourceText.disabled = true;
+  if (activeTab === 'text') {
+    sourceText.value = '';
+    resetDetectedLang();
+    sourceText.disabled = true;
+  }
   setTranscribeBusy(true);
   showPendingQueue(fileArray);
 
@@ -451,7 +465,7 @@ async function handleFiles(files) {
         const form = new FormData();
         form.append('file', file, file.name);
         form.append('source_lang', 'auto');
-        form.append('target_lang', targetLangName(targetLangSel.value));
+        form.append('target_lang', targetLangName(selectedTargetLangCode));
         form.append('model', modelSel.value || '');
         form.append('whisper_model', whisperModelSel.value || '');
         const fileExt = file.name.split('.').pop().toLowerCase();
@@ -466,6 +480,7 @@ async function handleFiles(files) {
         removePendingEntry(i);
 
         if (!res.ok) {
+          if (res.status === 401) { promptReauth(); break; }
           showNotification(data.error || 'Processing failed', 'error');
           continue;
         }
@@ -485,10 +500,10 @@ async function handleFiles(files) {
     }
   } finally {
     setTranscribeBusy(false);
-    sourceText.disabled = false;
+    if (activeTab === 'text') sourceText.disabled = false;
   }
 
-  if (hasText) {
+  if (hasText && activeTab === 'text') {
     updateCharCount();
     translate(true);
   }
@@ -498,6 +513,13 @@ async function handleFiles(files) {
 translateBtn.addEventListener('click', () => translate());
 
 clearBtn.addEventListener('click', () => {
+  if (activeTab === 'document') {
+    resultsDocList.innerHTML = '<div class="doc-list-placeholder">Translated documents will appear here\u2026</div>';
+    resultsDocList.classList.remove('hidden');
+    transcribeStatus.innerHTML = '';
+    transcribeStatus.classList.add('hidden');
+    return;
+  }
   sourceText.value = '';
   lastTranslatedText = '';
   lastOutputText = '';
@@ -533,6 +555,7 @@ swapBtn.addEventListener('click', () => {
 });
 
 function prepareOutputFormatForFiles(files) {
+  if (activeTab === 'document') return; // always visible in doc mode
   if (!files || files.length === 0) return;
   const allowedExts = ['pdf', 'docx', 'odt'];
   const exts = Array.from(files).map(f => {
@@ -547,30 +570,64 @@ function prepareOutputFormatForFiles(files) {
   if (uniqueExts.length === 1) {
     outputFormatSel.value = uniqueExts[0] === 'pdf' ? 'pdf' : 'odt';
   }
-  // mixed supported types: keep current selector value, still show it
   outputFormatSel.classList.remove('hidden');
 }
 
 fileInput.addEventListener('change', () => {
-  if (fileInput.files.length > 0) {
-    handleFiles(fileInput.files);
-  }
+  if (fileInput.files.length > 0) handleFiles(fileInput.files);
   fileInput.value = '';
 });
 
+docFileInput.addEventListener('change', () => {
+  if (docFileInput.files.length > 0) handleFiles(docFileInput.files);
+  docFileInput.value = '';
+});
+
 // Drag and drop
+function clearDragState() {
+  dropOverlay.classList.add('hidden');
+  docUploadArea.classList.remove('drag-over');
+}
+
 window.addEventListener('dragover', e => {
   e.preventDefault();
-  dropOverlay.classList.remove('hidden');
+  if (activeTab === 'document') {
+    docUploadArea.classList.add('drag-over');
+  } else {
+    dropOverlay.classList.remove('hidden');
+  }
 });
+// Safety net: prevent browser navigating to file and clean up state when
+// dragging leaves the window or drops on an unhandled area.
+window.addEventListener('dragleave', e => { if (!e.relatedTarget) clearDragState(); });
+window.addEventListener('drop', e => { e.preventDefault(); clearDragState(); });
+
 dropOverlay.addEventListener('dragleave', () => dropOverlay.classList.add('hidden'));
 dropOverlay.addEventListener('drop', e => {
   e.preventDefault();
   dropOverlay.classList.add('hidden');
   const files = e.dataTransfer?.files;
-  if (files && files.length > 0) {
-    handleFiles(files);
-  }
+  if (!files || files.length === 0) return;
+  // Text mode only handles audio/video; documents belong in the Document tab.
+  const avFiles = Array.from(files).filter(f =>
+    f.type.startsWith('audio/') || f.type.startsWith('video/') ||
+    /\.(mp3|mp4|m4a|wav|ogg|webm|flac|aac|mkv|avi|mov|wmv)$/i.test(f.name)
+  );
+  if (avFiles.length > 0) handleFiles(avFiles);
+  else showNotification('Switch to Document tab to translate documents', 'error');
+});
+
+docUploadArea.addEventListener('dragleave', e => {
+  if (!docUploadArea.contains(e.relatedTarget)) docUploadArea.classList.remove('drag-over');
+});
+docUploadArea.addEventListener('drop', e => {
+  e.preventDefault();
+  docUploadArea.classList.remove('drag-over');
+  const files = e.dataTransfer?.files;
+  if (!files || files.length === 0) return;
+  const docFiles = Array.from(files).filter(f => /\.(pdf|docx|odt)$/i.test(f.name));
+  if (docFiles.length > 0) handleFiles(docFiles);
+  else showNotification('Please drop PDF, DOCX, or ODT files', 'error');
 });
 
 // ── Voice input ───────────────────────────────────────────────────────────
@@ -602,12 +659,15 @@ voiceBtn.addEventListener('click', async () => {
       stream.getTracks().forEach(t => t.stop());
       voiceBtn.classList.remove('recording');
       voiceBtn.setAttribute('aria-pressed', 'false');
-      voiceBtn.title = 'Record voice input';
+      voiceBtn.classList.add('transcribing');
+      voiceBtn.title = 'Transcribing\u2026';
 
       const mimeType = recorder.mimeType || 'audio/webm';
       const ext = mimeType.includes('ogg') ? 'ogg' : mimeType.includes('mp4') ? 'mp4' : 'webm';
       const blob = new Blob(chunks, { type: mimeType });
       if (blob.size === 0) {
+        voiceBtn.classList.remove('transcribing');
+        voiceBtn.title = 'Record voice input';
         showNotification('Recording was empty — please try again', 'error');
         return;
       }
@@ -678,6 +738,7 @@ function setOutput(text) {
   if (!text) {
     outputDiv.innerHTML = '<span class="placeholder">Translation will appear here…</span>';
     copyBtn.classList.add('hidden');
+    incompleteBadge.classList.add('hidden');
     stopTts();
     updateTtsButtonVisibility();
   } else {
@@ -785,13 +846,19 @@ saveOutBtn.addEventListener('click', () => {
 // ── TTS ───────────────────────────────────────────────────────────────────
 function updateTtsButtonVisibility() {
   const hasTts = (sessionActive && !!userTtsEndpoint)
-    || (serverTtsConfigured && serverTtsLanguages.includes(targetLangSel.value));
-  // Only show the button when there is translated text available.
+    || (serverTtsConfigured && serverTtsLanguages.includes(selectedTargetLangCode));
   const hasText = lastOutputText.trim().length > 0;
-  if (hasTts && hasText) {
-    ttsBtn.classList.remove('hidden');
-  } else {
+  if (!hasTts) {
     ttsBtn.classList.add('hidden');
+    stopTts();
+  } else if (hasText) {
+    ttsBtn.classList.remove('hidden');
+    ttsBtn.removeAttribute('aria-disabled');
+    ttsBtn.title = 'Read aloud';
+  } else {
+    ttsBtn.classList.remove('hidden');
+    ttsBtn.setAttribute('aria-disabled', 'true');
+    ttsBtn.title = 'Translate text first';
     stopTts();
   }
 }
@@ -808,11 +875,11 @@ function stopTts() {
   }
   ttsBtn.classList.remove('playing', 'loading');
   ttsBtn.setAttribute('aria-pressed', 'false');
-  ttsBtn.title = 'Read aloud';
+  if (ttsBtn.getAttribute('aria-disabled') !== 'true') ttsBtn.title = 'Read aloud';
 }
 
 ttsBtn.addEventListener('click', async () => {
-  // Ignore clicks while a TTS request is already in flight.
+  if (ttsBtn.getAttribute('aria-disabled') === 'true') return;
   if (ttsBtn.classList.contains('loading')) return;
   // Second click stops playback.
   if (ttsAudio && !ttsAudio.paused) {
@@ -829,7 +896,7 @@ ttsBtn.addEventListener('click', async () => {
   ttsBtn.title = 'Loading audio\u2026';
 
   try {
-    const body = { text, target_lang: targetLangSel.value };
+    const body = { text, target_lang: selectedTargetLangCode };
     if (userTtsEndpoint && userTtsApiKey) {
       body.tts_endpoint = userTtsEndpoint;
       body.tts_api_key  = userTtsApiKey;
@@ -842,9 +909,13 @@ ttsBtn.addEventListener('click', async () => {
     });
 
     if (!res.ok) {
-      let msg = 'TTS failed';
-      try { const d = await res.json(); msg = d.error || msg; } catch (_) {}
-      showNotification(msg, 'error');
+      if (res.status === 401) {
+        promptReauth();
+      } else {
+        let msg = 'TTS failed';
+        try { const d = await res.json(); msg = d.error || msg; } catch (_) {}
+        showNotification(msg, 'error');
+      }
       ttsBtn.classList.remove('loading');
       ttsBtn.setAttribute('aria-pressed', 'false');
       ttsBtn.title = 'Read aloud';
@@ -917,6 +988,7 @@ function resetDetectedLang() {
   clearTimeout(detectionTimer);
   detectionTimer = null;
   detectedBadge.classList.add('hidden');
+  detectedBadge.classList.remove('detecting');
   updateSrcTtsButtonVisibility();
 }
 
@@ -943,7 +1015,13 @@ async function detectLanguage(text) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
-    if (!res.ok) return;
+    if (!res.ok) {
+      if (reqId === detectionRequestId) {
+        detectedBadge.classList.add('hidden');
+        detectedBadge.classList.remove('detecting');
+      }
+      return;
+    }
 
     // Discard response if a newer request has since been issued.
     if (reqId !== detectionRequestId) return;
@@ -956,11 +1034,17 @@ async function detectLanguage(text) {
       lastDetectedTextLength = text.length;
       lastDetectedTextSnippet = text.slice(0, 500);
       detectedBadge.textContent = lang.name;
-      detectedBadge.classList.remove('hidden');
+      detectedBadge.classList.remove('hidden', 'detecting');
       updateSrcTtsButtonVisibility();
+    } else {
+      detectedBadge.classList.add('hidden');
+      detectedBadge.classList.remove('detecting');
     }
   } catch (_) {
-    // Silently ignore detection errors
+    if (reqId === detectionRequestId) {
+      detectedBadge.classList.add('hidden');
+      detectedBadge.classList.remove('detecting');
+    }
   }
 }
 
@@ -974,7 +1058,9 @@ function scheduleDetection(text) {
   // Significant change: reset displayed detection and invalidate any
   // in-flight request before scheduling the new one.
   detectedSourceLang = null;
-  detectedBadge.classList.add('hidden');
+  detectedBadge.textContent = 'Detecting\u2026';
+  detectedBadge.classList.remove('hidden');
+  detectedBadge.classList.add('detecting');
   updateSrcTtsButtonVisibility();
   detectionRequestId++;
 
@@ -984,15 +1070,28 @@ function scheduleDetection(text) {
 
 // ── Source TTS ────────────────────────────────────────────────────────────
 function updateSrcTtsButtonVisibility() {
+  const anyTts = (sessionActive && !!userTtsEndpoint) || serverTtsConfigured;
   const hasTts = (sessionActive && !!userTtsEndpoint)
     || (serverTtsConfigured && detectedSourceLang !== null && serverTtsLanguages.includes(detectedSourceLang));
   const hasText = sourceText.value.trim().length > 0;
   const hasLang = detectedSourceLang !== null;
-  if (hasTts && hasText && hasLang) {
-    srcTtsBtn.classList.remove('hidden');
-  } else {
+  if (!anyTts || !hasText) {
     srcTtsBtn.classList.add('hidden');
     stopSrcTts();
+  } else if (!hasLang) {
+    srcTtsBtn.classList.remove('hidden');
+    srcTtsBtn.setAttribute('aria-disabled', 'true');
+    srcTtsBtn.title = 'Detecting language\u2026';
+    stopSrcTts();
+  } else if (!hasTts) {
+    srcTtsBtn.classList.remove('hidden');
+    srcTtsBtn.setAttribute('aria-disabled', 'true');
+    srcTtsBtn.title = 'TTS not available for this language';
+    stopSrcTts();
+  } else {
+    srcTtsBtn.classList.remove('hidden');
+    srcTtsBtn.removeAttribute('aria-disabled');
+    srcTtsBtn.title = 'Read source aloud';
   }
 }
 
@@ -1008,10 +1107,11 @@ function stopSrcTts() {
   }
   srcTtsBtn.classList.remove('playing', 'loading');
   srcTtsBtn.setAttribute('aria-pressed', 'false');
-  srcTtsBtn.title = 'Read source aloud';
+  if (srcTtsBtn.getAttribute('aria-disabled') !== 'true') srcTtsBtn.title = 'Read source aloud';
 }
 
 srcTtsBtn.addEventListener('click', async () => {
+  if (srcTtsBtn.getAttribute('aria-disabled') === 'true') return;
   if (srcTtsBtn.classList.contains('loading')) return;
   if (srcTtsAudio && !srcTtsAudio.paused) {
     stopSrcTts();
@@ -1040,9 +1140,13 @@ srcTtsBtn.addEventListener('click', async () => {
     });
 
     if (!res.ok) {
-      let msg = 'TTS failed';
-      try { const d = await res.json(); msg = d.error || msg; } catch (_) {}
-      showNotification(msg, 'error');
+      if (res.status === 401) {
+        promptReauth();
+      } else {
+        let msg = 'TTS failed';
+        try { const d = await res.json(); msg = d.error || msg; } catch (_) {}
+        showNotification(msg, 'error');
+      }
       srcTtsBtn.classList.remove('loading');
       srcTtsBtn.setAttribute('aria-pressed', 'false');
       srcTtsBtn.title = 'Read source aloud';
@@ -1075,6 +1179,170 @@ srcTtsBtn.addEventListener('click', async () => {
     srcTtsBtn.classList.remove('loading');
     srcTtsBtn.setAttribute('aria-pressed', 'false');
     srcTtsBtn.title = 'Read source aloud';
+  }
+});
+
+// ── Mode Tabs ─────────────────────────────────────────────────────────────
+function switchTab(tab) {
+  activeTab = tab;
+  const isDoc = tab === 'document';
+
+  tabTextBtn.classList.toggle('active', !isDoc);
+  tabDocumentBtn.classList.toggle('active', isDoc);
+
+  // Source panel visibility — hide the whole container so doc-upload-area fills the panel
+  sourceText.closest('.textarea-container').classList.toggle('hidden', isDoc);
+  docUploadArea.classList.toggle('hidden', !isDoc);
+  sourceLangInfo.classList.toggle('hidden', isDoc);
+  voiceBtn.classList.toggle('hidden', isDoc);
+  uploadLabel.classList.toggle('hidden', isDoc);
+  srcTtsBtn.classList.add('hidden');
+  translateBtn.classList.toggle('hidden', isDoc);
+  swapBtn.classList.toggle('hidden', isDoc);
+  charCount.classList.toggle('hidden', isDoc);
+
+  // Output panel mode
+  outputPanel.classList.toggle('doc-mode', isDoc);
+  outputDiv.classList.toggle('hidden', isDoc);
+  outputFormatSel.classList.toggle('hidden', !isDoc);
+  copyBtn.classList.add('hidden');
+  incompleteBadge.classList.add('hidden');
+  chunkProgress.classList.add('hidden');
+  stopTts();
+
+  if (isDoc) {
+    ttsBtn.classList.add('hidden');
+    resultsDocList.classList.remove('hidden');
+    if (!resultsDocList.querySelector('.doc-file-list')) {
+      resultsDocList.innerHTML = '<div class="doc-list-placeholder">Translated documents will appear here\u2026</div>';
+    }
+  } else {
+    if (!resultsDocList.querySelector('.doc-file-list')) {
+      resultsDocList.classList.add('hidden');
+      resultsDocList.innerHTML = '';
+    }
+    updateTtsButtonVisibility();
+  }
+}
+
+tabTextBtn.addEventListener('click', () => switchTab('text'));
+tabDocumentBtn.addEventListener('click', () => switchTab('document'));
+
+// ── Language Picker ───────────────────────────────────────────────────────
+function setTargetLang(code, triggerTranslate = false) {
+  selectedTargetLangCode = code;
+  const lang = availableLanguages.find(l => l.code === code);
+  langPickerLabel.textContent = lang ? lang.name : code;
+  // refresh checkmarks if dropdown is open
+  if (langPickerOpen) renderLangList(langSearchInput.value);
+  if (triggerTranslate && activeTab === 'text') {
+    lastTranslatedText = '';
+    lastOutputText = '';
+    translate(true);
+  }
+  updateTtsButtonVisibility();
+}
+
+function renderLangList(filter) {
+  const q = filter.trim().toLowerCase();
+  const filtered = availableLanguages
+    .filter(l => l.code !== 'auto')
+    .filter(l => !q || l.name.toLowerCase().includes(q) || l.code.toLowerCase().includes(q));
+
+  langListEl.innerHTML = '';
+  if (filtered.length === 0) {
+    const li = document.createElement('li');
+    li.className = 'lang-no-results';
+    li.textContent = 'No languages found';
+    langListEl.appendChild(li);
+    return;
+  }
+  for (const lang of filtered) {
+    const li = document.createElement('li');
+    li.className = 'lang-list-item' + (lang.code === selectedTargetLangCode ? ' selected' : '');
+    li.dataset.code = lang.code;
+    li.setAttribute('role', 'option');
+    li.setAttribute('aria-selected', lang.code === selectedTargetLangCode ? 'true' : 'false');
+    li.tabIndex = -1;
+    const nameSpan = document.createElement('span');
+    nameSpan.textContent = lang.name;
+    li.appendChild(nameSpan);
+    if (serverTtsLanguages.includes(lang.code)) {
+      const icon = document.createElement('span');
+      icon.className = 'lang-tts-icon';
+      icon.title = 'TTS available';
+      icon.textContent = '\uD83D\uDD0A';
+      li.appendChild(icon);
+    }
+    li.addEventListener('click', () => {
+      setTargetLang(lang.code, true);
+      closeLangPicker();
+      langPickerBtn.focus();
+    });
+    li.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        setTargetLang(lang.code, true);
+        closeLangPicker();
+        langPickerBtn.focus();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        closeLangPicker();
+        langPickerBtn.focus();
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        const next = li.nextElementSibling;
+        if (next) next.focus();
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        const prev = li.previousElementSibling;
+        if (prev) prev.focus(); else langSearchInput.focus();
+      }
+    });
+    langListEl.appendChild(li);
+  }
+}
+
+function openLangPicker() {
+  langPickerDropdown.classList.remove('hidden');
+  langPickerBtn.setAttribute('aria-expanded', 'true');
+  langSearchInput.value = '';
+  renderLangList('');
+  langPickerOpen = true;
+  langSearchInput.focus();
+  requestAnimationFrame(() => {
+    const selected = langListEl.querySelector('.selected');
+    if (selected) selected.scrollIntoView({ block: 'nearest' });
+  });
+}
+
+function closeLangPicker() {
+  langPickerDropdown.classList.add('hidden');
+  langPickerBtn.setAttribute('aria-expanded', 'false');
+  langPickerOpen = false;
+}
+
+langPickerBtn.addEventListener('click', () => {
+  if (langPickerOpen) closeLangPicker(); else openLangPicker();
+});
+
+langSearchInput.addEventListener('input', () => renderLangList(langSearchInput.value));
+
+langSearchInput.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    closeLangPicker();
+    langPickerBtn.focus();
+  } else if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    const first = langListEl.querySelector('.lang-list-item');
+    if (first) first.focus();
+  }
+});
+
+document.addEventListener('click', e => {
+  if (langPickerOpen && !document.getElementById('lang-picker').contains(e.target)) {
+    closeLangPicker();
   }
 });
 
