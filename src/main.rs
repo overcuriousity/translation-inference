@@ -109,6 +109,9 @@ async fn main() -> Result<()> {
         // Static files
         .route("/", get(static_files::serve_static))
         .route("/static/*path", get(static_files::serve_static))
+        // API docs
+        .route("/openapi.yaml", get(static_files::get_openapi_spec))
+        .route("/docs", get(static_files::get_swagger_docs))
         // API
         .route("/api/status", get(routes::config::get_status))
         .route("/api/config/test", post(routes::config::post_config_test))

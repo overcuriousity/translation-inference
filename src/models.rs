@@ -78,6 +78,8 @@ pub struct StatusResponse {
     pub tts_configured: bool,
     /// Language codes that have a TTS voice configured (keys of TTS_VOICE_MAP).
     pub tts_languages: Vec<String>,
+    /// Short git commit hash baked in at compile time.
+    pub git_commit: &'static str,
 }
 
 #[derive(Debug, Deserialize)]

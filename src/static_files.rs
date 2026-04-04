@@ -35,3 +35,25 @@ pub async fn serve_static(uri: Uri) -> Response {
             .unwrap(),
     }
 }
+
+pub async fn get_openapi_spec() -> Response {
+    match Assets::get("openapi.yaml") {
+        Some(content) => Response::builder()
+            .status(StatusCode::OK)
+            .header(header::CONTENT_TYPE, "application/yaml")
+            .body(Body::from(content.data.into_owned()))
+            .unwrap(),
+        None => Response::builder()
+            .status(StatusCode::NOT_FOUND)
+            .body(Body::from("openapi.yaml not found"))
+            .unwrap(),
+    }
+}
+
+pub async fn get_swagger_docs() -> Response {
+    Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
+        .body(Body::from(include_str!("../static/swagger.html")))
+        .unwrap()
+}

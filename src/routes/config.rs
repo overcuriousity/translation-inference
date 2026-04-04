@@ -25,6 +25,7 @@ pub async fn get_status(
         bitvault_configured: state.config.is_bitvault_configured(),
         tts_configured: state.config.is_tts_configured(),
         tts_languages: { let mut v: Vec<String> = state.config.tts_voice_map.keys().cloned().collect(); v.sort(); v },
+        git_commit: env!("GIT_COMMIT_SHORT"),
     })
 }
 

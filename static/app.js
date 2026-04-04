@@ -69,7 +69,21 @@ const srcTtsBtn            = document.getElementById('src-tts-btn');
 // ── Boot ─────────────────────────────────────────────────────────────────
 async function init() {
   const status = await fetch('/api/status').then(r => r.json())
-    .catch(() => ({ server_configured: false, gated_configured: false, session_active: false, bitvault_configured: false, tts_configured: false }));
+    .catch(() => ({ server_configured: false, gated_configured: false, session_active: false, bitvault_configured: false, tts_configured: false, git_commit: null }));
+
+  // Populate footer commit link — only link when the value is a real short SHA.
+  const commitEl = document.getElementById('footer-commit');
+  const gitCommit = typeof status.git_commit === 'string' ? status.git_commit.trim() : '';
+  const isRealCommit = /^[0-9a-f]{7,40}$/i.test(gitCommit);
+  if (commitEl) {
+    if (isRealCommit) {
+      commitEl.textContent = gitCommit;
+      commitEl.href = `https://github.com/overcuriousity/translation-inference/commit/${gitCommit}`;
+    } else {
+      commitEl.textContent = gitCommit || '—';
+      commitEl.removeAttribute('href');
+    }
+  }
 
   if (status.bitvault_configured) {
     saveSrcBtn.classList.remove('hidden');
