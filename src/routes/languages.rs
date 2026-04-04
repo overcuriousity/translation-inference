@@ -31,6 +31,8 @@ pub async fn get_languages() -> Json<LanguagesResponse> {
         Language { code: "bg".into(), name: "Bulgarian".into() },
         Language { code: "el".into(), name: "Greek".into() },
         Language { code: "hi".into(), name: "Hindi".into() },
+        Language { code: "vi".into(), name: "Vietnamese".into() },
+        Language { code: "id".into(), name: "Indonesian".into() },
     ];
 
     Json(LanguagesResponse { languages })
