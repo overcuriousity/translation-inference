@@ -1198,7 +1198,8 @@ function switchTab(tab) {
   uploadLabel.classList.toggle('hidden', isDoc);
   srcTtsBtn.classList.add('hidden');
   translateBtn.classList.toggle('hidden', isDoc);
-  swapBtn.classList.toggle('hidden', isDoc);
+  swapBtn.style.visibility = isDoc ? 'hidden' : '';
+  swapBtn.style.pointerEvents = isDoc ? 'none' : '';
   charCount.classList.toggle('hidden', isDoc);
 
   // Output panel mode
