@@ -377,10 +377,11 @@ paths:
   /api/translate-document:
     post:
       operationId: postTranslateDocument
-      summary: Translate a document file
+      summary: Translate one or more document files
       description: |
-        Accepts a single document file (pdf, docx, odt) via multipart form
-        and returns the translated document(s) as base64-encoded data.
+        Accepts one or more document files (pdf, docx, odt) via multipart
+        form and returns the translated document(s) as base64-encoded data.
+        Repeat the `file` field for multiple documents.
       tags: [documents]
       requestBody:
         required: true
@@ -393,6 +394,7 @@ paths:
                 file:
                   type: string
                   format: binary
+                  description: One or more document files (repeat field for multiple).
                 source_lang:
                   type: string
                   default: auto
