@@ -514,8 +514,8 @@ translateBtn.addEventListener('click', () => translate());
 
 clearBtn.addEventListener('click', () => {
   if (activeTab === 'document') {
-    renderResultsDocList([]);
     resultsDocList.innerHTML = '<div class="doc-list-placeholder">Translated documents will appear here\u2026</div>';
+    resultsDocList.classList.remove('hidden');
     transcribeStatus.innerHTML = '';
     transcribeStatus.classList.add('hidden');
     return;
@@ -1172,8 +1172,8 @@ function switchTab(tab) {
   tabTextBtn.classList.toggle('active', !isDoc);
   tabDocumentBtn.classList.toggle('active', isDoc);
 
-  // Source panel visibility
-  sourceText.classList.toggle('hidden', isDoc);
+  // Source panel visibility — hide the whole container so doc-upload-area fills the panel
+  sourceText.closest('.textarea-container').classList.toggle('hidden', isDoc);
   docUploadArea.classList.toggle('hidden', !isDoc);
   sourceLangInfo.classList.toggle('hidden', isDoc);
   voiceBtn.classList.toggle('hidden', isDoc);
@@ -1245,6 +1245,7 @@ function renderLangList(filter) {
     li.dataset.code = lang.code;
     li.setAttribute('role', 'option');
     li.setAttribute('aria-selected', lang.code === selectedTargetLangCode ? 'true' : 'false');
+    li.tabIndex = -1;
     const nameSpan = document.createElement('span');
     nameSpan.textContent = lang.name;
     li.appendChild(nameSpan);
@@ -1289,8 +1290,12 @@ langPickerBtn.addEventListener('click', () => {
 langSearchInput.addEventListener('input', () => renderLangList(langSearchInput.value));
 
 langSearchInput.addEventListener('keydown', e => {
-  if (e.key === 'Escape') { closeLangPicker(); langPickerBtn.focus(); }
-  if (e.key === 'ArrowDown') {
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    closeLangPicker();
+    langPickerBtn.focus();
+  } else if (e.key === 'ArrowDown') {
+    e.preventDefault();
     const first = langListEl.querySelector('.lang-list-item');
     if (first) first.focus();
   }
