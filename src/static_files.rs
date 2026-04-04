@@ -7,7 +7,7 @@ use rust_embed::Embed;
 
 #[derive(Embed)]
 #[folder = "static/"]
-pub struct Assets;
+struct Assets;
 
 pub async fn serve_static(uri: Uri) -> Response {
     let path = uri.path().trim_start_matches('/');

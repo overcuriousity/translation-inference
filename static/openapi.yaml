@@ -36,6 +36,11 @@ servers:
       host:
         default: "localhost:3000"
 
+security:
+  - sessionCookie: []
+  - bearerAuth: []
+  - {}
+
 tags:
   - name: status
     description: Server status and configuration
@@ -65,6 +70,20 @@ paths:
           description: OpenAPI 3.1 YAML document
           content:
             application/yaml:
+              schema:
+                type: string
+
+  /docs:
+    get:
+      operationId: getSwaggerDocs
+      summary: Swagger UI (interactive API explorer)
+      tags: [status]
+      security: []
+      responses:
+        "200":
+          description: Swagger UI HTML page
+          content:
+            text/html:
               schema:
                 type: string
 
@@ -530,6 +549,23 @@ paths:
 
 components:
 
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: sid
+      description: |
+        Session cookie set by `POST /api/config/test` (BYOK) or
+        `POST /api/config/gated` (gated tier). Expires when the browser
+        session ends (no Max-Age).
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: |
+        Pass the server's `GATED_ACCESS_KEY` as a Bearer token.
+        Grants access to the gated tier in gated mode, or is ignored in
+        personal/BYOK mode.
+
   schemas:
 
     StatusResponse:
@@ -553,9 +589,8 @@ components:
           type: boolean
           description: True when the request carries a valid `sid` session cookie.
         session_tier:
-          type: string
-          nullable: true
-          enum: [byok, gated]
+          type: [string, 'null']
+          enum: [byok, gated, null]
           description: Tier of the active session, or null when no session.
         bitvault_configured:
           type: boolean
