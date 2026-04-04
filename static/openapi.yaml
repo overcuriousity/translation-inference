@@ -331,9 +331,11 @@ paths:
               required: [file]
               properties:
                 file:
-                  type: string
-                  format: binary
-                  description: One or more files (repeat field for multiple).
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                  description: One or more files uploaded using the `file` field.
                 source_lang:
                   type: string
                   default: auto
