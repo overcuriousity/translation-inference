@@ -584,6 +584,11 @@ docFileInput.addEventListener('change', () => {
 });
 
 // Drag and drop
+function clearDragState() {
+  dropOverlay.classList.add('hidden');
+  docUploadArea.classList.remove('drag-over');
+}
+
 window.addEventListener('dragover', e => {
   e.preventDefault();
   if (activeTab === 'document') {
@@ -592,12 +597,24 @@ window.addEventListener('dragover', e => {
     dropOverlay.classList.remove('hidden');
   }
 });
+// Safety net: prevent browser navigating to file and clean up state when
+// dragging leaves the window or drops on an unhandled area.
+window.addEventListener('dragleave', e => { if (!e.relatedTarget) clearDragState(); });
+window.addEventListener('drop', e => { e.preventDefault(); clearDragState(); });
+
 dropOverlay.addEventListener('dragleave', () => dropOverlay.classList.add('hidden'));
 dropOverlay.addEventListener('drop', e => {
   e.preventDefault();
   dropOverlay.classList.add('hidden');
   const files = e.dataTransfer?.files;
-  if (files && files.length > 0) handleFiles(files);
+  if (!files || files.length === 0) return;
+  // Text mode only handles audio/video; documents belong in the Document tab.
+  const avFiles = Array.from(files).filter(f =>
+    f.type.startsWith('audio/') || f.type.startsWith('video/') ||
+    /\.(mp3|mp4|m4a|wav|ogg|webm|flac|aac|mkv|avi|mov|wmv)$/i.test(f.name)
+  );
+  if (avFiles.length > 0) handleFiles(avFiles);
+  else showNotification('Switch to Document tab to translate documents', 'error');
 });
 
 docUploadArea.addEventListener('dragleave', e => {
@@ -836,11 +853,11 @@ function updateTtsButtonVisibility() {
     stopTts();
   } else if (hasText) {
     ttsBtn.classList.remove('hidden');
-    ttsBtn.disabled = false;
+    ttsBtn.removeAttribute('aria-disabled');
     ttsBtn.title = 'Read aloud';
   } else {
     ttsBtn.classList.remove('hidden');
-    ttsBtn.disabled = true;
+    ttsBtn.setAttribute('aria-disabled', 'true');
     ttsBtn.title = 'Translate text first';
     stopTts();
   }
@@ -858,11 +875,11 @@ function stopTts() {
   }
   ttsBtn.classList.remove('playing', 'loading');
   ttsBtn.setAttribute('aria-pressed', 'false');
-  if (!ttsBtn.disabled) ttsBtn.title = 'Read aloud';
+  if (ttsBtn.getAttribute('aria-disabled') !== 'true') ttsBtn.title = 'Read aloud';
 }
 
 ttsBtn.addEventListener('click', async () => {
-  // Ignore clicks while a TTS request is already in flight.
+  if (ttsBtn.getAttribute('aria-disabled') === 'true') return;
   if (ttsBtn.classList.contains('loading')) return;
   // Second click stops playback.
   if (ttsAudio && !ttsAudio.paused) {
@@ -1063,17 +1080,17 @@ function updateSrcTtsButtonVisibility() {
     stopSrcTts();
   } else if (!hasLang) {
     srcTtsBtn.classList.remove('hidden');
-    srcTtsBtn.disabled = true;
+    srcTtsBtn.setAttribute('aria-disabled', 'true');
     srcTtsBtn.title = 'Detecting language\u2026';
     stopSrcTts();
   } else if (!hasTts) {
     srcTtsBtn.classList.remove('hidden');
-    srcTtsBtn.disabled = true;
+    srcTtsBtn.setAttribute('aria-disabled', 'true');
     srcTtsBtn.title = 'TTS not available for this language';
     stopSrcTts();
   } else {
     srcTtsBtn.classList.remove('hidden');
-    srcTtsBtn.disabled = false;
+    srcTtsBtn.removeAttribute('aria-disabled');
     srcTtsBtn.title = 'Read source aloud';
   }
 }
@@ -1090,10 +1107,11 @@ function stopSrcTts() {
   }
   srcTtsBtn.classList.remove('playing', 'loading');
   srcTtsBtn.setAttribute('aria-pressed', 'false');
-  if (!srcTtsBtn.disabled) srcTtsBtn.title = 'Read source aloud';
+  if (srcTtsBtn.getAttribute('aria-disabled') !== 'true') srcTtsBtn.title = 'Read source aloud';
 }
 
 srcTtsBtn.addEventListener('click', async () => {
+  if (srcTtsBtn.getAttribute('aria-disabled') === 'true') return;
   if (srcTtsBtn.classList.contains('loading')) return;
   if (srcTtsAudio && !srcTtsAudio.paused) {
     stopSrcTts();
@@ -1259,6 +1277,27 @@ function renderLangList(filter) {
     li.addEventListener('click', () => {
       setTargetLang(lang.code, true);
       closeLangPicker();
+      langPickerBtn.focus();
+    });
+    li.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        setTargetLang(lang.code, true);
+        closeLangPicker();
+        langPickerBtn.focus();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        closeLangPicker();
+        langPickerBtn.focus();
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        const next = li.nextElementSibling;
+        if (next) next.focus();
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        const prev = li.previousElementSibling;
+        if (prev) prev.focus(); else langSearchInput.focus();
+      }
     });
     langListEl.appendChild(li);
   }

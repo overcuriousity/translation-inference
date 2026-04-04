@@ -307,11 +307,11 @@ body {
   background: var(--color-surface-2);
   color: var(--color-text);
 }
-.icon-btn:disabled {
+.icon-btn[aria-disabled="true"] {
   opacity: 0.35;
   cursor: not-allowed;
 }
-.icon-btn:disabled:hover {
+.icon-btn[aria-disabled="true"]:hover {
   background: transparent;
   color: var(--color-text-muted);
 }
