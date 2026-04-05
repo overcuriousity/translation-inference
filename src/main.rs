@@ -12,7 +12,6 @@ use tower_http::{
 
 mod api;
 mod config;
-mod document;
 mod models;
 mod routes;
 mod static_files;
@@ -62,7 +61,6 @@ async fn main() -> Result<()> {
         .init();
 
     check_ffmpeg()?;
-    check_pdftotext();
 
     let config = AppConfig::from_env()?;
     let listen_addr = config.listen_addr.clone();
@@ -119,7 +117,6 @@ async fn main() -> Result<()> {
         .route("/api/translate", post(routes::translate::post_translate))
         .route("/api/translate/stream", post(routes::translate::post_translate_stream))
         .route("/api/transcribe", post(routes::transcribe::post_transcribe))
-        .route("/api/translate-document", post(routes::document::post_translate_document))
         .route("/api/upload", post(routes::upload::post_upload))
         .route("/api/save-to-bitvault", post(routes::bitvault::post_save_to_bitvault))
         .route("/api/proxy-text", get(routes::bitvault::get_proxy_text))
@@ -153,10 +150,3 @@ fn check_ffmpeg() -> Result<()> {
     }
 }
 
-fn check_pdftotext() {
-    if document::pdf::is_available() {
-        tracing::info!("pdftotext found — PDF translation enabled");
-    } else {
-        tracing::warn!("pdftotext not found — PDF translation disabled (install poppler-utils to enable)");
-    }
-}

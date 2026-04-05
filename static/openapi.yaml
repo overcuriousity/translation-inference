@@ -50,8 +50,6 @@ tags:
     description: Audio/video transcription (Whisper)
   - name: tts
     description: Text-to-speech synthesis
-  - name: documents
-    description: Document translation (PDF, DOCX, ODT)
   - name: languages
     description: Supported languages and models
   - name: bitvault
@@ -313,15 +311,14 @@ paths:
   /api/upload:
     post:
       operationId: postUpload
-      summary: Upload files for transcription or document translation
+      summary: Upload audio/video files for transcription
       description: |
-        Accepts one or more audio/video/document files via multipart form and
-        returns their transcribed or translated content.
+        Accepts one or more audio/video files via multipart form and returns
+        their transcribed text content.
 
-        Supported file types:
-        - Audio/video (mp3, wav, m4a, ogg, flac, mp4, mkv, …) → transcription
-        - Documents (pdf, docx, odt) → translation, returned as base64-encoded files
-      tags: [transcription, documents]
+        Supported file types: mp3, wav, m4a, ogg, flac, aac, opus, mp4, mkv,
+        avi, mov, webm, and other common audio/video formats.
+      tags: [transcription]
       requestBody:
         required: true
         content:
@@ -335,18 +332,7 @@ paths:
                   items:
                     type: string
                     format: binary
-                  description: One or more files uploaded using the `file` field.
-                source_lang:
-                  type: string
-                  default: auto
-                  description: Source language code (documents only).
-                target_lang:
-                  type: string
-                  default: English
-                  description: Target language name or code (documents only).
-                model:
-                  type: string
-                  description: Translation model override.
+                  description: One or more audio/video files uploaded using the `file` field.
                 whisper_model:
                   type: string
                   description: Whisper model override.
@@ -354,10 +340,6 @@ paths:
                   type: string
                 api_key:
                   type: string
-                output_format:
-                  type: string
-                  enum: [odt, pdf]
-                  description: Output format for translated documents.
       responses:
         "200":
           description: Upload results
@@ -375,59 +357,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-
-  /api/translate-document:
-    post:
-      operationId: postTranslateDocument
-      summary: Translate one or more document files
-      description: |
-        Accepts one or more document files (pdf, docx, odt) via multipart
-        form and returns the translated document(s) as base64-encoded data.
-        Repeat the `file` field for multiple documents.
-      tags: [documents]
-      requestBody:
-        required: true
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              required: [file]
-              properties:
-                file:
-                  type: array
-                  minItems: 1
-                  items:
-                    type: string
-                    format: binary
-                  description: One or more document files.
-                source_lang:
-                  type: string
-                  default: auto
-                target_lang:
-                  type: string
-                  default: English
-                model:
-                  type: string
-                endpoint:
-                  type: string
-                api_key:
-                  type: string
-                output_format:
-                  type: string
-                  enum: [odt, pdf]
-      responses:
-        "200":
-          description: Translated document(s)
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/TranslateDocumentResponse"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "500":
-          $ref: "#/components/responses/InternalError"
 
   /api/detect-language:
     post:
@@ -781,50 +710,17 @@ components:
             $ref: "#/components/schemas/UploadResult"
 
     UploadResult:
-      oneOf:
-        - type: object
-          required: [type, filename, text]
-          properties:
-            type:
-              type: string
-              const: text
-            filename:
-              type: string
-            text:
-              type: string
-              description: Transcribed text content.
-        - type: object
-          required: [type, filename, data, mime]
-          properties:
-            type:
-              type: string
-              const: document
-            filename:
-              type: string
-            data:
-              type: string
-              description: Base64-encoded document content.
-            mime:
-              type: string
-              example: application/vnd.oasis.opendocument.text
-
-    TranslateDocumentResponse:
       type: object
-      required: [files]
+      required: [type, filename, text]
       properties:
-        files:
-          type: array
-          items:
-            type: object
-            required: [filename, data, mime]
-            properties:
-              filename:
-                type: string
-              data:
-                type: string
-                description: Base64-encoded document content.
-              mime:
-                type: string
+        type:
+          type: string
+          const: text
+        filename:
+          type: string
+        text:
+          type: string
+          description: Transcribed text content.
 
     SaveToBitvaultRequest:
       type: object

@@ -4,7 +4,6 @@
 let availableLanguages      = [];
 let availableModels         = [];
 let selectedTargetLangCode  = 'en';
-let activeTab               = 'text';
 let langPickerOpen          = false;
 let userEndpoint            = '';
 let userApiKey              = '';
@@ -28,16 +27,12 @@ let srcTtsAudio           = null;
 let srcTtsObjectUrl       = null;
 
 // ── DOM refs ─────────────────────────────────────────────────────────────
-const outputFormatSel    = document.getElementById('output-format-select');
 const langPickerBtn      = document.getElementById('lang-picker-btn');
 const langPickerLabel    = document.getElementById('lang-picker-label');
 const langPickerDropdown = document.getElementById('lang-picker-dropdown');
 const langSearchInput    = document.getElementById('lang-search');
 const langListEl         = document.getElementById('lang-list');
 const tabTextBtn         = document.getElementById('tab-text');
-const tabDocumentBtn     = document.getElementById('tab-document');
-const docUploadArea      = document.getElementById('doc-upload-area');
-const docFileInput       = document.getElementById('doc-file-input');
 const sourceLangInfo     = document.getElementById('source-lang-info');
 const outputPanel        = document.querySelector('.panel-output');
 const detectedBadge    = document.getElementById('detected-lang');
@@ -52,7 +47,6 @@ const copyBtn          = document.getElementById('copy-btn');
 const swapBtn          = document.getElementById('swap-btn');
 const fileInput        = document.getElementById('file-input');
 const uploadLabel      = document.getElementById('upload-label');
-const resultsDocList    = document.getElementById('results-doc-list');
 const transcribeStatus = document.getElementById('transcribe-status');
 const chunkProgress    = document.getElementById('chunk-progress');
 const notification     = document.getElementById('notification');
@@ -446,13 +440,10 @@ function setTranscribeBusy(busy) {
 
 async function handleFiles(files) {
   if (!files || files.length === 0) return;
-  prepareOutputFormatForFiles(files);
   const fileArray = Array.from(files);
-  if (activeTab === 'text') {
-    sourceText.value = '';
-    resetDetectedLang();
-    sourceText.disabled = true;
-  }
+  sourceText.value = '';
+  resetDetectedLang();
+  sourceText.disabled = true;
   setTranscribeBusy(true);
   showPendingQueue(fileArray);
 
@@ -464,14 +455,7 @@ async function handleFiles(files) {
       try {
         const form = new FormData();
         form.append('file', file, file.name);
-        form.append('source_lang', 'auto');
-        form.append('target_lang', targetLangName(selectedTargetLangCode));
-        form.append('model', modelSel.value || '');
         form.append('whisper_model', whisperModelSel.value || '');
-        const fileExt = file.name.split('.').pop().toLowerCase();
-        if (['pdf', 'docx', 'odt'].includes(fileExt) && !outputFormatSel.classList.contains('hidden')) {
-          form.append('output_format', outputFormatSel.value);
-        }
         appendCredentialsToForm(form);
 
         const res  = await fetch('/api/upload', { method: 'POST', body: form });
@@ -489,8 +473,6 @@ async function handleFiles(files) {
           if (item.type === 'text') {
             sourceText.value += (sourceText.value ? '\n\n' : '') + item.text;
             hasText = true;
-          } else if (item.type === 'document') {
-            appendDocResult(item);
           }
         }
       } catch (e) {
@@ -500,10 +482,10 @@ async function handleFiles(files) {
     }
   } finally {
     setTranscribeBusy(false);
-    if (activeTab === 'text') sourceText.disabled = false;
+    sourceText.disabled = false;
   }
 
-  if (hasText && activeTab === 'text') {
+  if (hasText) {
     updateCharCount();
     translate(true);
   }
@@ -513,13 +495,6 @@ async function handleFiles(files) {
 translateBtn.addEventListener('click', () => translate());
 
 clearBtn.addEventListener('click', () => {
-  if (activeTab === 'document') {
-    resultsDocList.innerHTML = '<div class="doc-list-placeholder">Translated documents will appear here\u2026</div>';
-    resultsDocList.classList.remove('hidden');
-    transcribeStatus.innerHTML = '';
-    transcribeStatus.classList.add('hidden');
-    return;
-  }
   sourceText.value = '';
   lastTranslatedText = '';
   lastOutputText = '';
@@ -530,8 +505,6 @@ clearBtn.addEventListener('click', () => {
   copyBtn.classList.add('hidden');
   ttsBtn.classList.add('hidden');
   stopTts();
-  outputFormatSel.classList.add('hidden');
-  renderResultsDocList([]);
   transcribeStatus.innerHTML = '';
   transcribeStatus.classList.add('hidden');
 });
@@ -554,48 +527,19 @@ swapBtn.addEventListener('click', () => {
   }
 });
 
-function prepareOutputFormatForFiles(files) {
-  if (activeTab === 'document') return; // always visible in doc mode
-  if (!files || files.length === 0) return;
-  const allowedExts = ['pdf', 'docx', 'odt'];
-  const exts = Array.from(files).map(f => {
-    const parts = f.name.split('.');
-    return parts.length < 2 ? '' : parts.pop().toLowerCase();
-  });
-  if (!exts.every(e => allowedExts.includes(e))) {
-    outputFormatSel.classList.add('hidden');
-    return;
-  }
-  const uniqueExts = [...new Set(exts)];
-  if (uniqueExts.length === 1) {
-    outputFormatSel.value = uniqueExts[0] === 'pdf' ? 'pdf' : 'odt';
-  }
-  outputFormatSel.classList.remove('hidden');
-}
-
 fileInput.addEventListener('change', () => {
   if (fileInput.files.length > 0) handleFiles(fileInput.files);
   fileInput.value = '';
 });
 
-docFileInput.addEventListener('change', () => {
-  if (docFileInput.files.length > 0) handleFiles(docFileInput.files);
-  docFileInput.value = '';
-});
-
 // Drag and drop
 function clearDragState() {
   dropOverlay.classList.add('hidden');
-  docUploadArea.classList.remove('drag-over');
 }
 
 window.addEventListener('dragover', e => {
   e.preventDefault();
-  if (activeTab === 'document') {
-    docUploadArea.classList.add('drag-over');
-  } else {
-    dropOverlay.classList.remove('hidden');
-  }
+  dropOverlay.classList.remove('hidden');
 });
 // Safety net: prevent browser navigating to file and clean up state when
 // dragging leaves the window or drops on an unhandled area.
@@ -608,26 +552,12 @@ dropOverlay.addEventListener('drop', e => {
   dropOverlay.classList.add('hidden');
   const files = e.dataTransfer?.files;
   if (!files || files.length === 0) return;
-  // Text mode only handles audio/video; documents belong in the Document tab.
   const avFiles = Array.from(files).filter(f =>
     f.type.startsWith('audio/') || f.type.startsWith('video/') ||
     /\.(mp3|mp4|m4a|wav|ogg|webm|flac|aac|mkv|avi|mov|wmv)$/i.test(f.name)
   );
   if (avFiles.length > 0) handleFiles(avFiles);
-  else showNotification('Switch to Document tab to translate documents', 'error');
-});
-
-docUploadArea.addEventListener('dragleave', e => {
-  if (!docUploadArea.contains(e.relatedTarget)) docUploadArea.classList.remove('drag-over');
-});
-docUploadArea.addEventListener('drop', e => {
-  e.preventDefault();
-  docUploadArea.classList.remove('drag-over');
-  const files = e.dataTransfer?.files;
-  if (!files || files.length === 0) return;
-  const docFiles = Array.from(files).filter(f => /\.(pdf|docx|odt)$/i.test(f.name));
-  if (docFiles.length > 0) handleFiles(docFiles);
-  else showNotification('Please drop PDF, DOCX, or ODT files', 'error');
+  else showNotification('Only audio and video files are supported', 'error');
 });
 
 // ── Voice input ───────────────────────────────────────────────────────────
@@ -689,46 +619,6 @@ voiceBtn.addEventListener('click', async () => {
 });
 
 // ── Helpers ───────────────────────────────────────────────────────────────
-function renderResultsDocList(files) {
-  if (!files || files.length === 0) {
-    resultsDocList.classList.add('hidden');
-    resultsDocList.innerHTML = '';
-    return;
-  }
-
-  resultsDocList.classList.remove('hidden');
-  resultsDocList.innerHTML = '<div class="doc-list-title">Translated Documents</div>';
-
-  const ul = document.createElement('ul');
-  ul.className = 'doc-file-list';
-  files.forEach(f => {
-    const li = document.createElement('li');
-    li.textContent = f.filename;
-    const dl = document.createElement('button');
-    dl.className = 'btn-primary doc-dl-btn';
-    dl.style.fontSize = '0.75rem';
-    dl.style.padding = '4px 8px';
-    dl.textContent = 'Download';
-    dl.onclick = () => downloadBase64File(f.data, f.filename, f.mime);
-    li.appendChild(dl);
-    ul.appendChild(li);
-  });
-  resultsDocList.appendChild(ul);
-}
-
-function downloadBase64File(b64, filename, mime) {
-  const binary = atob(b64);
-  const arr    = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) arr[i] = binary.charCodeAt(i);
-  const blob = new Blob([arr], { type: mime });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  a.href     = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
 function updateCharCount() {
   charCount.textContent = sourceText.value.length.toLocaleString();
 }
@@ -773,22 +663,6 @@ function removePendingEntry(index) {
   if (!transcribeStatus.querySelector('.pending-file')) {
     transcribeStatus.classList.add('hidden');
   }
-}
-
-function appendDocResult(item) {
-  if (resultsDocList.classList.contains('hidden') || !resultsDocList.querySelector('.doc-file-list')) {
-    resultsDocList.innerHTML = '<div class="doc-list-title">Translated Documents</div><ul class="doc-file-list"></ul>';
-    resultsDocList.classList.remove('hidden');
-  }
-  const ul = resultsDocList.querySelector('.doc-file-list');
-  const li = document.createElement('li');
-  li.textContent = item.filename;
-  const btn = document.createElement('button');
-  btn.className = 'btn-primary doc-dl-btn';
-  btn.textContent = 'Download';
-  btn.onclick = () => downloadBase64File(item.data, item.filename, item.mime);
-  li.appendChild(btn);
-  ul.appendChild(li);
 }
 
 // ── Bitvault integration ──────────────────────────────────────────────────
@@ -1182,52 +1056,6 @@ srcTtsBtn.addEventListener('click', async () => {
   }
 });
 
-// ── Mode Tabs ─────────────────────────────────────────────────────────────
-function switchTab(tab) {
-  activeTab = tab;
-  const isDoc = tab === 'document';
-
-  tabTextBtn.classList.toggle('active', !isDoc);
-  tabDocumentBtn.classList.toggle('active', isDoc);
-
-  // Source panel visibility — hide the whole container so doc-upload-area fills the panel
-  sourceText.closest('.textarea-container').classList.toggle('hidden', isDoc);
-  docUploadArea.classList.toggle('hidden', !isDoc);
-  sourceLangInfo.classList.toggle('hidden', isDoc);
-  voiceBtn.classList.toggle('hidden', isDoc);
-  uploadLabel.classList.toggle('hidden', isDoc);
-  srcTtsBtn.classList.add('hidden');
-  translateBtn.classList.toggle('hidden', isDoc);
-  swapBtn.classList.toggle('inert', isDoc);
-  charCount.classList.toggle('hidden', isDoc);
-
-  // Output panel mode
-  outputPanel.classList.toggle('doc-mode', isDoc);
-  outputDiv.classList.toggle('hidden', isDoc);
-  outputFormatSel.classList.toggle('hidden', !isDoc);
-  copyBtn.classList.add('hidden');
-  incompleteBadge.classList.add('hidden');
-  chunkProgress.classList.add('hidden');
-  stopTts();
-
-  if (isDoc) {
-    ttsBtn.classList.add('hidden');
-    resultsDocList.classList.remove('hidden');
-    if (!resultsDocList.querySelector('.doc-file-list')) {
-      resultsDocList.innerHTML = '<div class="doc-list-placeholder">Translated documents will appear here\u2026</div>';
-    }
-  } else {
-    if (!resultsDocList.querySelector('.doc-file-list')) {
-      resultsDocList.classList.add('hidden');
-      resultsDocList.innerHTML = '';
-    }
-    updateTtsButtonVisibility();
-  }
-}
-
-tabTextBtn.addEventListener('click', () => switchTab('text'));
-tabDocumentBtn.addEventListener('click', () => switchTab('document'));
-
 // ── Language Picker ───────────────────────────────────────────────────────
 function setTargetLang(code, triggerTranslate = false) {
   selectedTargetLangCode = code;
@@ -1235,7 +1063,7 @@ function setTargetLang(code, triggerTranslate = false) {
   langPickerLabel.textContent = lang ? lang.name : code;
   // refresh checkmarks if dropdown is open
   if (langPickerOpen) renderLangList(langSearchInput.value);
-  if (triggerTranslate && activeTab === 'text') {
+  if (triggerTranslate) {
     lastTranslatedText = '';
     lastOutputText = '';
     translate(true);

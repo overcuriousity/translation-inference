@@ -1,12 +1,9 @@
 use axum::{extract::{Multipart, State}, http::{HeaderMap, StatusCode}, Json};
-use base64::{Engine as _, engine::general_purpose::STANDARD as B64};
-use std::path::Path;
 use std::sync::Arc;
 use tempfile::NamedTempFile;
 use tokio::io::AsyncWriteExt;
 
-use crate::api::{chunker::TranslationConfig, whisper};
-use crate::document::{self, OutputFormat};
+use crate::api::whisper;
 use crate::models::{ErrorResponse, UploadResponse, UploadResult};
 use crate::routes::translate::resolve_client;
 use crate::AppState;
@@ -24,13 +21,9 @@ pub async fn post_upload(
     mut multipart: Multipart,
 ) -> Result<Json<UploadResponse>, (StatusCode, Json<ErrorResponse>)> {
     let mut uploaded_files: Vec<UploadedFile> = Vec::new();
-    let mut source_lang = String::from("auto");
-    let mut target_lang = String::from("English");
-    let mut model: Option<String> = None;
     let mut whisper_model: Option<String> = None;
     let mut endpoint: Option<String> = None;
     let mut api_key: Option<String> = None;
-    let mut output_format: Option<String> = None;
 
     while let Some(mut field) = multipart
         .next_field()
@@ -40,20 +33,28 @@ pub async fn post_upload(
         match field.name() {
             Some("file") => {
                 let filename = field.file_name().unwrap_or("upload").to_string();
-                let ext = Path::new(&filename)
+                let ext = std::path::Path::new(&filename)
                     .extension()
                     .and_then(|e| e.to_str())
-                    .unwrap_or("bin");
-                
+                    .unwrap_or("")
+                    .to_lowercase();
+
+                if !is_audio_video(&ext) {
+                    return Err(err(
+                        StatusCode::BAD_REQUEST,
+                        format!("Unsupported file type: .{ext}"),
+                    ));
+                }
+
                 let tmp = tempfile::Builder::new()
                     .suffix(&format!(".{ext}"))
                     .tempfile()
                     .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-                
+
                 let mut tmp_file = tokio::fs::File::from(
-                    tmp.reopen().map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+                    tmp.reopen().map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?,
                 );
-                
+
                 let mut size = 0;
                 while let Some(chunk) = field.chunk().await.map_err(|e| err(StatusCode::BAD_REQUEST, e.to_string()))? {
                     size += chunk.len();
@@ -63,18 +64,8 @@ pub async fn post_upload(
                     tmp_file.write_all(&chunk).await.map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
                 }
                 tmp_file.flush().await.map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-                
+
                 uploaded_files.push(UploadedFile { filename, tmp });
-            }
-            Some("source_lang") => {
-                source_lang = field.text().await.map_err(|e| err(StatusCode::BAD_REQUEST, e.to_string()))?;
-            }
-            Some("target_lang") => {
-                target_lang = field.text().await.map_err(|e| err(StatusCode::BAD_REQUEST, e.to_string()))?;
-            }
-            Some("model") => {
-                let v = field.text().await.map_err(|e| err(StatusCode::BAD_REQUEST, e.to_string()))?;
-                if !v.is_empty() { model = Some(v); }
             }
             Some("whisper_model") => {
                 let v = field.text().await.map_err(|e| err(StatusCode::BAD_REQUEST, e.to_string()))?;
@@ -88,10 +79,6 @@ pub async fn post_upload(
                 let v = field.text().await.map_err(|e| err(StatusCode::BAD_REQUEST, e.to_string()))?;
                 if !v.is_empty() { api_key = Some(v); }
             }
-            Some("output_format") => {
-                let v = field.text().await.map_err(|e| err(StatusCode::BAD_REQUEST, e.to_string()))?;
-                if !v.is_empty() { output_format = Some(v); }
-            }
             _ => {}
         }
     }
@@ -101,72 +88,20 @@ pub async fn post_upload(
     }
 
     let client = resolve_client(&state, endpoint.as_deref(), api_key.as_deref(), &headers)?;
-    let model_str = model.as_deref().unwrap_or(&state.config.translation_model);
     let whisper_model_str = whisper_model.as_deref().unwrap_or(&state.config.whisper_model);
 
     let mut results: Vec<UploadResult> = Vec::new();
 
     for file in uploaded_files {
-        let filename = file.filename;
-        let ext = Path::new(&filename)
-            .extension()
-            .and_then(|e| e.to_str())
-            .unwrap_or("")
-            .to_lowercase();
+        let wav_tmp = whisper::extract_audio_from_video(file.tmp.path())
+            .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, format!("{}: {e:#}", file.filename)))?;
+        let final_path = wav_tmp.path().to_path_buf();
+        let _wav_tmp = wav_tmp;
 
-        let stem = Path::new(&filename)
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .unwrap_or("document");
-
-        if is_audio_video(&ext) {
-            let wav_tmp = whisper::extract_audio_from_video(file.tmp.path())
-                .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, format!("{filename}: {e:#}")))?;
-            let final_path = wav_tmp.path().to_path_buf();
-            let final_filename = "extracted.wav".to_string();
-            let _wav_tmp = wav_tmp;
-
-            let text = whisper::transcribe(&client, whisper_model_str, &final_path, &final_filename)
-                .await
-                .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, format!("{filename}: {e:#}")))?;
-            results.push(UploadResult::Text { filename, text });
-        } else if matches!(ext.as_str(), "pdf" | "odt" | "docx") {
-            let bytes = std::fs::read(file.tmp.path())
-                .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, format!("{filename}: {e:#}")))?;
-
-            let output_fmt = match output_format.as_deref() {
-                Some(fmt_str) => match OutputFormat::from_str(fmt_str) {
-                    Some(fmt) => fmt,
-                    None => return Err(err(
-                        StatusCode::BAD_REQUEST,
-                        format!("Invalid output_format: {fmt_str}. Allowed values: pdf, odt"),
-                    )),
-                },
-                None => OutputFormat::default_for(&ext),
-            };
-
-            let translation_config = TranslationConfig::from(&state.config);
-            let (out, out_ext, mime) = document::translate_document(
-                &bytes,
-                &ext,
-                output_fmt,
-                &client,
-                model_str,
-                &source_lang,
-                &target_lang,
-                &translation_config,
-            )
+        let text = whisper::transcribe(&client, whisper_model_str, &final_path, "extracted.wav")
             .await
-            .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, format!("{filename}: {e:#}")))?;
-
-            results.push(UploadResult::Document {
-                filename: format!("{stem}_translated.{out_ext}"),
-                data: B64.encode(&out),
-                mime: mime.into(),
-            });
-        } else {
-            return Err(err(StatusCode::BAD_REQUEST, format!("Unsupported file type: .{ext}")));
-        }
+            .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, format!("{}: {e:#}", file.filename)))?;
+        results.push(UploadResult::Text { filename: file.filename, text });
     }
 
     Ok(Json(UploadResponse { results }))
@@ -175,34 +110,9 @@ pub async fn post_upload(
 fn is_audio_video(ext: &str) -> bool {
     matches!(
         ext,
-        "mp3"
-            | "wav"
-            | "m4a"
-            | "ogg"
-            | "flac"
-            | "aac"
-            | "wma"
-            | "alac"
-            | "aiff"
-            | "opus"
-            | "mp4"
-            | "mkv"
-            | "avi"
-            | "mov"
-            | "webm"
-            | "flv"
-            | "wmv"
-            | "m4v"
-            | "3gp"
-            | "ts"
-            | "mpeg"
-            | "mpg"
-            | "rm"
-            | "rmvb"
-            | "vob"
-            | "mts"
-            | "m2ts"
-            | "divx"
+        "mp3" | "wav" | "m4a" | "ogg" | "flac" | "aac" | "wma" | "alac" | "aiff" | "opus"
+            | "mp4" | "mkv" | "avi" | "mov" | "webm" | "flv" | "wmv" | "m4v" | "3gp" | "ts"
+            | "mpeg" | "mpg" | "rm" | "rmvb" | "vob" | "mts" | "m2ts" | "divx"
     )
 }
 
