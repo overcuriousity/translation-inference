@@ -33,6 +33,12 @@ let convLangA             = 'de';
 let convLangB             = 'en';
 let convRecording         = null;  // 'a' | 'b' | null
 let convAutoTts           = true;
+let convVadEnabled        = true;
+
+// VAD tuning
+const VAD_SILENCE_THRESHOLD = 0.015; // RMS below this counts as silence
+const VAD_SILENCE_GRACE_MS  = 1500;  // continuous silence before auto-stop
+const VAD_MIN_SPEECH_MS     = 400;   // must detect speech this long before VAD arms
 let convTtsAudio          = null;
 let convTtsObjUrl         = null;
 let convMediaRecorder     = null;
@@ -100,9 +106,9 @@ const convMicA             = document.getElementById('conv-mic-a');
 const convMicB             = document.getElementById('conv-mic-b');
 const convLangAsel         = document.getElementById('conv-lang-a');
 const convLangBsel         = document.getElementById('conv-lang-b');
-const convTranscriptA      = document.getElementById('conv-transcript-a');
-const convTranscriptB      = document.getElementById('conv-transcript-b');
+const convTimeline         = document.getElementById('conv-timeline');
 const convAutoTtsInput     = document.getElementById('conv-auto-tts');
+const convVadInput         = document.getElementById('conv-vad');
 const convClearBtn         = document.getElementById('conv-clear-btn');
 const convExportBtn        = document.getElementById('conv-export-btn');
 const sourcePanelFooter    = document.querySelector('.panel-source .panel-footer');
@@ -174,6 +180,10 @@ async function init() {
   if (localStorage.getItem('convAutoTts') === 'false') {
     convAutoTts = false;
     convAutoTtsInput.checked = false;
+  }
+  if (localStorage.getItem('convVadEnabled') === 'false') {
+    convVadEnabled = false;
+    convVadInput.checked = false;
   }
   // Re-sync language selects now that persisted codes are loaded
   if (convLangAsel.options.length > 0) {
@@ -1420,6 +1430,7 @@ convLangAsel.addEventListener('change', () => {
   localStorage.setItem('convLangA', convLangA);
 });
 
+
 convLangBsel.addEventListener('change', () => {
   convLangB = convLangBsel.value;
   localStorage.setItem('convLangB', convLangB);
@@ -1428,6 +1439,11 @@ convLangBsel.addEventListener('change', () => {
 convAutoTtsInput.addEventListener('change', () => {
   convAutoTts = convAutoTtsInput.checked;
   localStorage.setItem('convAutoTts', String(convAutoTts));
+});
+
+convVadInput.addEventListener('change', () => {
+  convVadEnabled = convVadInput.checked;
+  localStorage.setItem('convVadEnabled', String(convVadEnabled));
 });
 
 async function startConvRecording(speaker) {
@@ -1447,6 +1463,8 @@ async function startConvRecording(speaker) {
     convRecording = speaker;
     micBtn.classList.add('recording');
     micBtn.setAttribute('aria-pressed', 'true');
+    const otherMicBtn = speaker === 'a' ? convMicB : convMicA;
+    otherMicBtn.disabled = true;
 
     recorder.addEventListener('dataavailable', e => {
       if (e.data.size > 0) chunks.push(e.data);
@@ -1465,6 +1483,7 @@ async function startConvRecording(speaker) {
         micBtn.classList.remove('transcribing');
         micBtn.setAttribute('aria-pressed', 'false');
         convRecording = null;
+        otherMicBtn.disabled = false;
         showNotification('Recording was empty \u2014 please try again', 'error');
         return;
       }
@@ -1472,30 +1491,25 @@ async function startConvRecording(speaker) {
 
       // Transcribe
       try {
+        const srcLang = speaker === 'a' ? convLangA : convLangB;
         const form = new FormData();
         form.append('file', file, file.name);
         form.append('whisper_model', whisperModelSel.value || '');
+        form.append('language', srcLang);
         appendCredentialsToForm(form);
         const trRes = await fetch('/api/upload', { method: 'POST', body: form });
         if (!trRes.ok) {
           showNotification('Transcription failed', 'error');
-          micBtn.classList.remove('transcribing');
-          micBtn.setAttribute('aria-pressed', 'false');
-          convRecording = null;
           return;
         }
         const trData = await trRes.json();
         const transcribed = trData.results.filter(r => r.type === 'text').map(r => r.text).join('\n');
         if (!transcribed.trim()) {
           showNotification('No speech detected', 'error');
-          micBtn.classList.remove('transcribing');
-          micBtn.setAttribute('aria-pressed', 'false');
-          convRecording = null;
           return;
         }
 
         // Translate
-        const srcLang = speaker === 'a' ? convLangA : convLangB;
         const tgtLang = speaker === 'a' ? convLangB : convLangA;
         const tgtLangName = (availableLanguages.find(l => l.code === tgtLang) || {}).name || tgtLang;
 
@@ -1512,15 +1526,13 @@ async function startConvRecording(speaker) {
         });
         if (!trReq.ok) {
           showNotification('Translation failed', 'error');
-          micBtn.classList.remove('transcribing');
-          micBtn.setAttribute('aria-pressed', 'false');
-          convRecording = null;
           return;
         }
         const trReqData = await trReq.json();
         const translation = trReqData.translated_text;
 
-        convHistory.push({ speaker, source: transcribed, translation });
+        const srcLangName = (availableLanguages.find(l => l.code === srcLang) || {}).name || srcLang;
+        convHistory.push({ speaker, source: transcribed, translation, srcLangName, tgtLang });
         renderConvTranscript();
 
         // Auto-TTS
@@ -1530,10 +1542,63 @@ async function startConvRecording(speaker) {
         micBtn.classList.remove('transcribing');
         micBtn.setAttribute('aria-pressed', 'false');
         convRecording = null;
+        otherMicBtn.disabled = false;
       }
     });
 
     recorder.start();
+
+    // VAD: auto-stop after sustained silence following detected speech
+    if (convVadEnabled) {
+      let vadCtx = null, vadSource = null, vadAnalyser = null, vadRafId = null;
+      let speechStart = null, silenceStart = null;
+
+      function stopVad() {
+        if (vadRafId) { cancelAnimationFrame(vadRafId); vadRafId = null; }
+        try { vadSource && vadSource.disconnect(); } catch (_) {}
+        try { vadCtx && vadCtx.close(); } catch (_) {}
+        vadCtx = vadSource = vadAnalyser = null;
+      }
+
+      // Clean up VAD when the recorder stops (manual or auto)
+      recorder.addEventListener('stop', stopVad, { once: true });
+
+      try {
+        vadCtx = new AudioContext();
+        vadSource = vadCtx.createMediaStreamSource(stream);
+        vadAnalyser = vadCtx.createAnalyser();
+        vadAnalyser.fftSize = 512;
+        vadSource.connect(vadAnalyser);
+        const buf = new Float32Array(vadAnalyser.fftSize);
+
+        function vadTick() {
+          if (recorder.state !== 'recording') return;
+          vadAnalyser.getFloatTimeDomainData(buf);
+          const rms = Math.sqrt(buf.reduce((s, v) => s + v * v, 0) / buf.length);
+          const now = Date.now();
+
+          if (rms > VAD_SILENCE_THRESHOLD) {
+            if (!speechStart) speechStart = now;
+            silenceStart = null;
+          } else {
+            if (!silenceStart) silenceStart = now;
+            const speechDuration = speechStart ? now - speechStart : 0;
+            const silenceDuration = now - silenceStart;
+            if (speechDuration >= VAD_MIN_SPEECH_MS && silenceDuration >= VAD_SILENCE_GRACE_MS) {
+              stopVad();
+              if (recorder.state === 'recording') recorder.stop();
+              return;
+            }
+          }
+          vadRafId = requestAnimationFrame(vadTick);
+        }
+        vadRafId = requestAnimationFrame(vadTick);
+      } catch (_) {
+        // AudioContext unavailable — VAD silently disabled for this recording
+        stopVad();
+      }
+    }
+
   } catch (e) {
     if (stream) stream.getTracks().forEach(t => t.stop());
     convRecording = null;
@@ -1565,28 +1630,51 @@ convMicB.addEventListener('click', () => {
   startConvRecording('b');
 });
 
-function renderConvTranscript() {
-  convTranscriptA.innerHTML = '';
-  convTranscriptB.innerHTML = '';
-  for (const entry of convHistory) {
-    const bubble = document.createElement('div');
-    bubble.className = 'conv-bubble';
-    const srcP = document.createElement('p');
-    srcP.className = 'conv-source';
-    srcP.textContent = entry.source;
-    const tgtP = document.createElement('p');
-    tgtP.className = 'conv-translation';
-    tgtP.textContent = '\u2192 ' + entry.translation;
-    bubble.appendChild(srcP);
-    bubble.appendChild(tgtP);
-    if (entry.speaker === 'a') {
-      convTranscriptA.appendChild(bubble);
-    } else {
-      convTranscriptB.appendChild(bubble);
-    }
+function createConvBubble(entry) {
+  const bubble = document.createElement('div');
+  bubble.className = `conv-bubble conv-bubble-${entry.speaker}`;
+
+  if (entry.srcLangName) {
+    const label = document.createElement('p');
+    label.className = 'conv-lang-label';
+    label.textContent = entry.srcLangName;
+    bubble.appendChild(label);
   }
-  convTranscriptA.scrollTop = convTranscriptA.scrollHeight;
-  convTranscriptB.scrollTop = convTranscriptB.scrollHeight;
+
+  const srcP = document.createElement('p');
+  srcP.className = 'conv-source';
+  srcP.textContent = entry.source;
+
+  const tgtP = document.createElement('p');
+  tgtP.className = 'conv-translation';
+  tgtP.textContent = '\u2192 ' + entry.translation;
+
+  bubble.appendChild(srcP);
+  bubble.appendChild(tgtP);
+
+  const hasTts = (sessionActive && !!userTtsEndpoint)
+    || (serverTtsConfigured && entry.tgtLang && serverTtsLanguages.includes(entry.tgtLang));
+  if (hasTts && entry.translation) {
+    const btn = document.createElement('button');
+    btn.className = 'conv-bubble-tts-btn';
+    btn.title = 'Replay translation';
+    btn.setAttribute('aria-label', 'Replay translation');
+    btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>';
+    btn.addEventListener('click', () => playConvTts(entry.translation, entry.tgtLang));
+    bubble.appendChild(btn);
+  }
+
+  return bubble;
+}
+
+function renderConvTranscript() {
+  convTimeline.innerHTML = '';
+  for (const entry of convHistory) {
+    convTimeline.appendChild(createConvBubble(entry));
+  }
+  requestAnimationFrame(() => {
+    convTimeline.scrollTop = convTimeline.scrollHeight;
+  });
 }
 
 async function playConvTts(text, langCode) {
@@ -1638,9 +1726,9 @@ convClearBtn.addEventListener('click', () => {
 convExportBtn.addEventListener('click', () => {
   if (convHistory.length === 0) { showNotification('No conversation to export', 'error'); return; }
   const lines = convHistory.map(e => {
-    const label = e.speaker === 'a'
+    const label = e.srcLangName || (e.speaker === 'a'
       ? (convLangAsel.options[convLangAsel.selectedIndex]?.text || 'Speaker A')
-      : (convLangBsel.options[convLangBsel.selectedIndex]?.text || 'Speaker B');
+      : (convLangBsel.options[convLangBsel.selectedIndex]?.text || 'Speaker B'));
     return `${label}: ${e.source}\n\u2192 ${e.translation}`;
   });
   const blob = new Blob([lines.join('\n\n')], { type: 'text/plain' });
@@ -1658,6 +1746,11 @@ function switchTab(tab) {
   const isText = tab === 'text';
   const isFile = tab === 'file';
   const isConv = tab === 'conversation';
+
+  // Stop any active recording when leaving conversation mode
+  if (!isConv && convRecording !== null) {
+    if (convMediaRecorder && convMediaRecorder.state === 'recording') convMediaRecorder.stop();
+  }
 
   tabTextBtn.classList.toggle('active', isText);
   tabDocumentBtn.classList.toggle('active', isFile);

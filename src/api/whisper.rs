@@ -106,6 +106,7 @@ const LONG_AUDIO_BYTES: u64 = 25 * 1024 * 1024; // 25 MB
 pub async fn transcribe_file(
     client: &OpenAiClient,
     whisper_model: &str,
+    language: Option<&str>,
     file_path: &Path,
     filename: &str,
 ) -> Result<String> {
@@ -121,9 +122,13 @@ pub async fn transcribe_file(
         .mime_str(&mime)
         .context("failed to set MIME type")?;
 
-    let form = reqwest::multipart::Form::new()
+    let mut form = reqwest::multipart::Form::new()
         .text("model", whisper_model.to_string())
         .part("file", part);
+
+    if let Some(lang) = language {
+        form = form.text("language", lang.to_string());
+    }
 
     let response = client
         .http
@@ -145,13 +150,37 @@ pub async fn transcribe_file(
         .await
         .context("failed to parse whisper response")?;
 
-    Ok(result.text)
+    Ok(join_broken_words(&result.text))
+}
+
+/// Whisper sometimes inserts a newline mid-word at a segment boundary, e.g.
+/// "halb\nwegs" or "Bro\ncken". Rejoin any line pair where the first line ends
+/// with a letter and the next line starts with a lowercase letter.
+fn join_broken_words(text: &str) -> String {
+    let lines: Vec<&str> = text.split('\n').collect();
+    let mut out = String::with_capacity(text.len());
+    for (i, line) in lines.iter().enumerate() {
+        if i == 0 {
+            out.push_str(line);
+            continue;
+        }
+        let prev_ends_with_letter = out.chars().next_back().map_or(false, |c| c.is_alphabetic());
+        let next_starts_lowercase = line.chars().next().map_or(false, |c| c.is_lowercase());
+        if prev_ends_with_letter && next_starts_lowercase {
+            // mid-word break — join without separator
+        } else {
+            out.push('\n');
+        }
+        out.push_str(line);
+    }
+    out
 }
 
 /// Transcribe audio data, segmenting if necessary.
 pub async fn transcribe(
     client: &OpenAiClient,
     whisper_model: &str,
+    language: Option<&str>,
     file_path: &Path,
     filename: &str,
 ) -> Result<String> {
@@ -162,11 +191,11 @@ pub async fn transcribe(
         let segments = split_audio_into_segments(file_path)?;
         let mut parts: Vec<String> = Vec::new();
         for seg in segments {
-            let text = transcribe_file(client, whisper_model, seg.path(), "segment.wav").await?;
+            let text = transcribe_file(client, whisper_model, language, seg.path(), "segment.wav").await?;
             parts.push(text);
         }
         return Ok(parts.join(" "));
     }
 
-    transcribe_file(client, whisper_model, file_path, filename).await
+    transcribe_file(client, whisper_model, language, file_path, filename).await
 }

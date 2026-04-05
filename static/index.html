@@ -105,31 +105,33 @@
 
       <!-- Conversation panel (shown when Conversation tab is active) -->
       <div id="conv-panel" class="conv-panel hidden">
-        <div class="conv-speakers">
-          <div class="conv-speaker">
-            <div class="conv-speaker-header">
-              <select id="conv-lang-a" class="conv-lang-sel"></select>
-              <button id="conv-mic-a" class="conv-mic-btn" aria-label="Record speaker A" aria-pressed="false" title="Record speaker A">
-                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-              </button>
-            </div>
-            <div id="conv-transcript-a" class="conv-transcript"></div>
+        <!-- Unified chronological timeline -->
+        <div id="conv-timeline" class="conv-timeline"></div>
+
+        <!-- Speaker controls: two columns, each with language + mic -->
+        <div class="conv-controls">
+          <div class="conv-ctrl-a">
+            <select id="conv-lang-a" class="conv-lang-sel" aria-label="Speaker A language"></select>
+            <button id="conv-mic-a" class="conv-mic-btn" aria-label="Record speaker A" aria-pressed="false">
+              <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+            </button>
           </div>
-          <div class="conv-divider"></div>
-          <div class="conv-speaker">
-            <div class="conv-speaker-header">
-              <button id="conv-mic-b" class="conv-mic-btn conv-mic-btn-right" aria-label="Record speaker B" aria-pressed="false" title="Record speaker B">
-                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-              </button>
-              <select id="conv-lang-b" class="conv-lang-sel"></select>
-            </div>
-            <div id="conv-transcript-b" class="conv-transcript"></div>
+          <div class="conv-ctrl-b">
+            <select id="conv-lang-b" class="conv-lang-sel" aria-label="Speaker B language"></select>
+            <button id="conv-mic-b" class="conv-mic-btn" aria-label="Record speaker B" aria-pressed="false">
+              <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+            </button>
           </div>
         </div>
+
         <div class="conv-footer">
           <label class="conv-auto-tts-label">
             <input type="checkbox" id="conv-auto-tts" checked>
             Auto-speak
+          </label>
+          <label class="conv-auto-tts-label">
+            <input type="checkbox" id="conv-vad" checked>
+            Auto-stop on silence
           </label>
           <button id="conv-clear-btn" class="btn-ghost">Clear</button>
           <button id="conv-export-btn" class="btn-ghost">Export</button>
