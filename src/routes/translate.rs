@@ -37,6 +37,7 @@ pub async fn post_translate_stream(
         req.source_lang,
         req.target_lang,
         req.text,
+        req.context,
         TranslationConfig::from(&state.config),
     );
 
@@ -87,7 +88,7 @@ pub async fn post_translate(
         .unwrap_or(&state.config.translation_model);
 
     let translation_config = TranslationConfig::from(&state.config);
-    match chat::translate(&client, model, &req.source_lang, &req.target_lang, &req.text, &translation_config).await {
+    match chat::translate(&client, model, &req.source_lang, &req.target_lang, &req.text, req.context.as_deref(), &translation_config).await {
         Ok((translated_text, chunks_total, chunks_completed)) => Ok(Json(TranslateResponse {
             translated_text,
             chunks_total,

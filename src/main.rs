@@ -15,6 +15,7 @@ mod config;
 mod models;
 mod routes;
 mod static_files;
+mod subtitle;
 
 use api::client::OpenAiClient;
 use config::AppConfig;
@@ -116,6 +117,8 @@ async fn main() -> Result<()> {
         .route("/api/config/gated", post(routes::config::post_gated_access))
         .route("/api/translate", post(routes::translate::post_translate))
         .route("/api/translate/stream", post(routes::translate::post_translate_stream))
+        .route("/api/translate/paragraphs", post(routes::translate_paragraphs::post_translate_paragraphs))
+        .route("/api/translate-subtitle", post(routes::subtitle::post_translate_subtitle))
         .route("/api/transcribe", post(routes::transcribe::post_transcribe))
         .route("/api/upload", post(routes::upload::post_upload))
         .route("/api/save-to-bitvault", post(routes::bitvault::post_save_to_bitvault))
