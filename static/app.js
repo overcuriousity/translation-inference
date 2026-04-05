@@ -867,13 +867,14 @@ voiceBtn.addEventListener('click', async () => {
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 function updateCharCount() {
-  const len = Array.from(sourceText.value).length;
+  // Use the trimmed length for both display and enforcement to match translate(),
+  // which trims before sending — leading/trailing whitespace doesn't count toward the limit.
+  const submittedText = sourceText.value.trim();
+  const len = Array.from(submittedText).length;
   charCount.textContent = charLimit
     ? `${len.toLocaleString()} / ${charLimit.toLocaleString()}`
     : len.toLocaleString();
-  // Match translate() which trims before sending — don't block on whitespace-only padding.
-  const submittedLen = Array.from(sourceText.value.trim()).length;
-  const over = charLimit && submittedLen > charLimit;
+  const over = charLimit && len > charLimit;
   charCount.classList.toggle('over-limit', !!over);
   translateBtn.disabled = !!over;
 }

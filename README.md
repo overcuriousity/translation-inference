@@ -177,7 +177,7 @@ LISTEN_ADDR=0.0.0.0:3000
 ## 📡 API Endpoints
 
 All endpoints that perform inference require authentication:
-- **Session cookie** (`sid`) — set automatically on page load (free tier) or via `/api/config/test` / `/api/config/gated`.
+- **Session cookie** (`sid`) — set automatically on page load (free tier) or via `/api/config/test` / `/api/config/gated`. (`/api/config/check` validates credentials without modifying the session.)
 - **Bearer token** — `Authorization: Bearer <GATED_ACCESS_KEY>` (gated tier only).
 - **Personal/local mode** (no `GATED_ACCESS_KEY`): open access when the server has credentials.
 
@@ -187,6 +187,7 @@ All endpoints that perform inference require authentication:
 | `GET`  | `/api/models` | No | Available translation and transcription models |
 | `GET`  | `/api/languages` | No | Supported target languages |
 | `POST` | `/api/config/test` | No | Validate a BYOK endpoint+key and set a session cookie |
+| `POST` | `/api/config/check` | Yes | Validate an endpoint+key without touching the session (used to overlay BYOK translation on a gated session) |
 | `POST` | `/api/config/gated` | No | Authenticate with `GATED_ACCESS_KEY` and set a session cookie |
 | `POST` | `/api/translate` | Yes | Translate text (buffered) |
 | `POST` | `/api/translate/stream` | Yes | Translate text with SSE streaming |

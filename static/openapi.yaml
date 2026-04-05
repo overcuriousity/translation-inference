@@ -135,6 +135,38 @@ paths:
         "502":
           $ref: "#/components/responses/BadGateway"
 
+  /api/config/check:
+    post:
+      operationId: postConfigCheck
+      summary: Validate BYOK credentials without modifying the session
+      description: |
+        Validates an endpoint+key pair by calling `GET /v1/models` on the remote
+        backend. Unlike `/api/config/test`, this endpoint does **not** create or
+        replace the session cookie, so it is safe to call when a gated session is
+        already active (e.g., to overlay a per-request BYOK translation endpoint
+        on top of an existing gated session). Requires a valid session cookie or
+        Bearer token to prevent unauthenticated SSRF.
+      tags: [status]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConfigTestRequest"
+      responses:
+        "200":
+          description: Credentials valid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConfigTestResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+
   /api/config/gated:
     post:
       operationId: postGatedAccess

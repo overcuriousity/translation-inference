@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use crate::api::client::OpenAiClient;
 use crate::models::{ConfigTestRequest, ConfigTestResponse, ErrorResponse, GatedAccessRequest, StatusResponse};
-use crate::routes::translate::get_session_id;
+use crate::routes::translate::{check_authenticated, get_session_id};
 use crate::{AppState, SessionCredentials, SessionTier};
 
 pub async fn get_status(
@@ -57,9 +57,14 @@ pub fn make_session_cookie(sid: &str) -> String {
 
 /// Validate an endpoint+key pair without creating a session. Used when a gated user wants to
 /// overlay their own translation endpoint without replacing the gated session cookie.
+/// Requires an authenticated session or valid Bearer token to prevent unauthenticated SSRF.
 pub async fn post_config_check(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Json(req): Json<ConfigTestRequest>,
 ) -> Result<Json<ConfigTestResponse>, (StatusCode, Json<ErrorResponse>)> {
+    check_authenticated(&state, &headers)?;
+
     if req.endpoint.is_empty() || req.api_key.is_empty() {
         return Err((
             StatusCode::BAD_REQUEST,
