@@ -1490,6 +1490,7 @@ async function startConvRecording(speaker) {
 
       // Transcribe
       try {
+        const srcLang = speaker === 'a' ? convLangA : convLangB;
         const form = new FormData();
         form.append('file', file, file.name);
         form.append('whisper_model', whisperModelSel.value || '');
@@ -1508,7 +1509,6 @@ async function startConvRecording(speaker) {
         }
 
         // Translate
-        const srcLang = speaker === 'a' ? convLangA : convLangB;
         const tgtLang = speaker === 'a' ? convLangB : convLangA;
         const tgtLangName = (availableLanguages.find(l => l.code === tgtLang) || {}).name || tgtLang;
 

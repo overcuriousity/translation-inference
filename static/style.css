@@ -953,10 +953,17 @@ body {
   border-radius: 4px;
   line-height: 1;
   opacity: 0;
+  pointer-events: none;
   transition: opacity 0.15s, color 0.15s;
 }
-.conv-bubble:hover .conv-bubble-tts-btn { opacity: 1; }
-.conv-bubble-tts-btn:hover { color: var(--color-primary); }
+.conv-bubble:hover .conv-bubble-tts-btn,
+.conv-bubble:focus-within .conv-bubble-tts-btn,
+.conv-bubble-tts-btn:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+.conv-bubble-tts-btn:hover,
+.conv-bubble-tts-btn:focus-visible { color: var(--color-primary); }
 .conv-footer {
   display: flex;
   align-items: center;
