@@ -33,6 +33,12 @@ let convLangA             = 'de';
 let convLangB             = 'en';
 let convRecording         = null;  // 'a' | 'b' | null
 let convAutoTts           = true;
+let convVadEnabled        = true;
+
+// VAD tuning
+const VAD_SILENCE_THRESHOLD = 0.015; // RMS below this counts as silence
+const VAD_SILENCE_GRACE_MS  = 1500;  // continuous silence before auto-stop
+const VAD_MIN_SPEECH_MS     = 400;   // must detect speech this long before VAD arms
 let convTtsAudio          = null;
 let convTtsObjUrl         = null;
 let convMediaRecorder     = null;
@@ -103,6 +109,7 @@ const convLangBsel         = document.getElementById('conv-lang-b');
 const convTranscriptA      = document.getElementById('conv-transcript-a');
 const convTranscriptB      = document.getElementById('conv-transcript-b');
 const convAutoTtsInput     = document.getElementById('conv-auto-tts');
+const convVadInput         = document.getElementById('conv-vad');
 const convClearBtn         = document.getElementById('conv-clear-btn');
 const convExportBtn        = document.getElementById('conv-export-btn');
 const sourcePanelFooter    = document.querySelector('.panel-source .panel-footer');
@@ -174,6 +181,10 @@ async function init() {
   if (localStorage.getItem('convAutoTts') === 'false') {
     convAutoTts = false;
     convAutoTtsInput.checked = false;
+  }
+  if (localStorage.getItem('convVadEnabled') === 'false') {
+    convVadEnabled = false;
+    convVadInput.checked = false;
   }
   // Re-sync language selects now that persisted codes are loaded
   if (convLangAsel.options.length > 0) {
@@ -1445,6 +1456,11 @@ convAutoTtsInput.addEventListener('change', () => {
   localStorage.setItem('convAutoTts', String(convAutoTts));
 });
 
+convVadInput.addEventListener('change', () => {
+  convVadEnabled = convVadInput.checked;
+  localStorage.setItem('convVadEnabled', String(convVadEnabled));
+});
+
 async function startConvRecording(speaker) {
   if (convRecording !== null) return;
   if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
@@ -1546,6 +1562,58 @@ async function startConvRecording(speaker) {
     });
 
     recorder.start();
+
+    // VAD: auto-stop after sustained silence following detected speech
+    if (convVadEnabled) {
+      let vadCtx = null, vadSource = null, vadAnalyser = null, vadRafId = null;
+      let speechStart = null, silenceStart = null;
+
+      function stopVad() {
+        if (vadRafId) { cancelAnimationFrame(vadRafId); vadRafId = null; }
+        try { vadSource && vadSource.disconnect(); } catch (_) {}
+        try { vadCtx && vadCtx.close(); } catch (_) {}
+        vadCtx = vadSource = vadAnalyser = null;
+      }
+
+      // Clean up VAD when the recorder stops (manual or auto)
+      recorder.addEventListener('stop', stopVad, { once: true });
+
+      try {
+        vadCtx = new AudioContext();
+        vadSource = vadCtx.createMediaStreamSource(stream);
+        vadAnalyser = vadCtx.createAnalyser();
+        vadAnalyser.fftSize = 512;
+        vadSource.connect(vadAnalyser);
+        const buf = new Float32Array(vadAnalyser.fftSize);
+
+        function vadTick() {
+          if (recorder.state !== 'recording') return;
+          vadAnalyser.getFloatTimeDomainData(buf);
+          const rms = Math.sqrt(buf.reduce((s, v) => s + v * v, 0) / buf.length);
+          const now = Date.now();
+
+          if (rms > VAD_SILENCE_THRESHOLD) {
+            if (!speechStart) speechStart = now;
+            silenceStart = null;
+          } else {
+            if (!silenceStart) silenceStart = now;
+            const speechDuration = speechStart ? now - speechStart : 0;
+            const silenceDuration = now - silenceStart;
+            if (speechDuration >= VAD_MIN_SPEECH_MS && silenceDuration >= VAD_SILENCE_GRACE_MS) {
+              stopVad();
+              if (recorder.state === 'recording') recorder.stop();
+              return;
+            }
+          }
+          vadRafId = requestAnimationFrame(vadTick);
+        }
+        vadRafId = requestAnimationFrame(vadTick);
+      } catch (_) {
+        // AudioContext unavailable — VAD silently disabled for this recording
+        stopVad();
+      }
+    }
+
   } catch (e) {
     if (stream) stream.getTracks().forEach(t => t.stop());
     convRecording = null;
