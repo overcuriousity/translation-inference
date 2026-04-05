@@ -7,9 +7,34 @@ pub struct TranslateRequest {
     pub text: String,
     pub source_lang: String,
     pub target_lang: String,
+    pub context: Option<String>,
     pub model: Option<String>,
     pub endpoint: Option<String>,
     pub api_key: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TranslateParagraphsRequest {
+    pub text: String,
+    pub source_lang: String,
+    pub target_lang: String,
+    pub context: Option<String>,
+    pub model: Option<String>,
+    pub endpoint: Option<String>,
+    pub api_key: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ParagraphPair {
+    pub source: String,
+    pub translation: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct TranslateParagraphsResponse {
+    pub paragraphs: Vec<ParagraphPair>,
+    pub chunks_total: usize,
+    pub chunks_completed: usize,
 }
 
 #[derive(Debug, Deserialize)]

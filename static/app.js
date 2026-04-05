@@ -25,6 +25,17 @@ let detectionRequestId    = 0;    // incremented per request; guards stale async
 let isPasting             = false;
 let srcTtsAudio           = null;
 let srcTtsObjectUrl       = null;
+let activeTab             = 'text';
+let mdRenderActive        = false;
+let paraViewActive        = false;
+let convHistory           = [];  // [{speaker:'a'|'b', source, translation}]
+let convLangA             = 'de';
+let convLangB             = 'en';
+let convRecording         = null;  // 'a' | 'b' | null
+let convAutoTts           = true;
+let convTtsAudio          = null;
+let convTtsObjUrl         = null;
+let convMediaRecorder     = null;
 
 // ── DOM refs ─────────────────────────────────────────────────────────────
 const langPickerBtn      = document.getElementById('lang-picker-btn');
@@ -73,6 +84,28 @@ const configTtsBtn         = document.getElementById('config-tts-btn');
 const ttsMsg               = document.getElementById('tts-msg');
 const srcTtsBtn            = document.getElementById('src-tts-btn');
 const incompleteBadge      = document.getElementById('incomplete-badge');
+const mdToggleBtn          = document.getElementById('md-toggle-btn');
+const paraToggleBtn        = document.getElementById('para-toggle-btn');
+const paraOutput           = document.getElementById('para-output');
+const contextHintRow       = document.getElementById('context-hint-row');
+const contextHintInput     = document.getElementById('context-hint');
+const contextHintToggle    = document.getElementById('context-hint-toggle');
+const tabDocumentBtn       = document.getElementById('tab-document');
+const docUploadArea        = document.getElementById('doc-upload-area');
+const docFileInput         = document.getElementById('doc-file-input');
+const resultsDocList       = document.getElementById('results-doc-list');
+const tabConvBtn           = document.getElementById('tab-conversation');
+const convPanelEl          = document.getElementById('conv-panel');
+const convMicA             = document.getElementById('conv-mic-a');
+const convMicB             = document.getElementById('conv-mic-b');
+const convLangAsel         = document.getElementById('conv-lang-a');
+const convLangBsel         = document.getElementById('conv-lang-b');
+const convTranscriptA      = document.getElementById('conv-transcript-a');
+const convTranscriptB      = document.getElementById('conv-transcript-b');
+const convAutoTtsInput     = document.getElementById('conv-auto-tts');
+const convClearBtn         = document.getElementById('conv-clear-btn');
+const convExportBtn        = document.getElementById('conv-export-btn');
+const sourcePanelFooter    = document.querySelector('.panel-source .panel-footer');
 
 // ── Boot ─────────────────────────────────────────────────────────────────
 async function init() {
@@ -108,6 +141,9 @@ async function init() {
   sessionActive       = !!status.session_active;
   updateTtsButtonVisibility();
   updateSrcTtsButtonVisibility();
+  updateFileTabVisibility();
+  // Show context hint toggle in initial text mode
+  contextHintToggle.classList.remove('hidden');
 
   const hasAccess = status.server_configured || status.session_active;
   if (!hasAccess) {
@@ -117,6 +153,32 @@ async function init() {
     showConfigPanel(msg);
   } else {
     await Promise.all([loadLanguages(), loadModels()]);
+    initConvLangSelects();
+  }
+
+  // Restore persisted state
+  if (localStorage.getItem('mdRender') === 'true') {
+    mdRenderActive = true;
+    mdToggleBtn.setAttribute('aria-pressed', 'true');
+  }
+  if (localStorage.getItem('paraView') === 'true') {
+    paraViewActive = true;
+    paraToggleBtn.setAttribute('aria-pressed', 'true');
+    // Don't auto-load the view here — there's no translated output yet on boot.
+  }
+  if (localStorage.getItem('contextHint')) {
+    contextHintInput.value = localStorage.getItem('contextHint');
+  }
+  if (localStorage.getItem('convLangA')) convLangA = localStorage.getItem('convLangA');
+  if (localStorage.getItem('convLangB')) convLangB = localStorage.getItem('convLangB');
+  if (localStorage.getItem('convAutoTts') === 'false') {
+    convAutoTts = false;
+    convAutoTtsInput.checked = false;
+  }
+  // Re-sync language selects now that persisted codes are loaded
+  if (convLangAsel.options.length > 0) {
+    if (convLangA) convLangAsel.value = convLangA;
+    if (convLangB) convLangBsel.value = convLangB;
   }
 
   // Pre-fill source text from a Bitvault paste URL passed as ?from=
@@ -147,8 +209,18 @@ function showConfigPanel(msg) {
   }
 }
 
+function updateFileTabVisibility() {
+  if (sessionActive) {
+    tabDocumentBtn.classList.remove('hidden');
+  } else {
+    tabDocumentBtn.classList.add('hidden');
+    if (activeTab === 'file') switchTab('text');
+  }
+}
+
 function promptReauth() {
   sessionActive = false;
+  updateFileTabVisibility();
   showConfigPanel('Session expired. Please re-authenticate.');
   showNotification('Session expired \u2014 please re-authenticate', 'error');
 }
@@ -182,6 +254,7 @@ configGatedBtn.addEventListener('click', async () => {
       userEndpoint = '';
       userApiKey   = '';
       sessionActive = true;
+      updateFileTabVisibility();
       configAccesskey.value = '';
       gatedMsg.textContent = '\u2713 Access granted';
       gatedMsg.className = 'config-msg success';
@@ -224,6 +297,7 @@ configConnectBtn.addEventListener('click', async () => {
       userEndpoint = ep;
       userApiKey   = key;
       sessionActive = true;
+      updateFileTabVisibility();
       configMsg.textContent = '✓ Connected';
       configMsg.className = 'config-msg success';
       await Promise.all([loadLanguages(), loadModels()]);
@@ -267,6 +341,7 @@ async function loadLanguages() {
       if (match) { targetCode = match.code; break; }
     }
     setTargetLang(targetCode);
+    initConvLangSelects();
   } catch (e) {
     showNotification('Language sync failed', 'error');
   }
@@ -319,6 +394,7 @@ async function translate(isAuto = false) {
       source_lang: 'auto',
       target_lang: targetLangName(selectedTargetLangCode),
       model: modelSel.value || undefined,
+      context: contextHintInput.value.trim() || undefined,
       ...apiCredentials(),
     };
 
@@ -376,6 +452,9 @@ async function translate(isAuto = false) {
 
     chunkProgress.classList.add('hidden');
     updateTtsButtonVisibility();
+
+    // Apply markdown rendering if active (only after full translation)
+    if (mdRenderActive && lastOutputText) applyMdRender();
 
   } catch (e) {
     if (!isAuto) showNotification('Network error', 'error');
@@ -452,7 +531,39 @@ async function handleFiles(files) {
   try {
     for (let i = 0; i < fileArray.length; i++) {
       const file = fileArray[i];
+      const fileExt = file.name.split('.').pop().toLowerCase();
       try {
+        // Subtitle files go to the subtitle endpoint (SSE progress stream)
+        if (['srt', 'vtt'].includes(fileExt)) {
+          const form = new FormData();
+          form.append('file', file, file.name);
+          form.append('source_lang', 'auto');
+          form.append('target_lang', targetLangName(selectedTargetLangCode));
+          form.append('model', modelSel.value || '');
+          appendCredentialsToForm(form);
+
+          const res = await fetch('/api/translate-subtitle', { method: 'POST', body: form });
+
+          if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            removePendingEntry(i);
+            if (res.status === 401) { promptReauth(); break; }
+            showNotification(data.error || 'Subtitle translation failed', 'error');
+            continue;
+          }
+
+          // Stream SSE events: progress updates followed by a final done/error event.
+          const result = await readSubtitleSSE(res, i);
+          removePendingEntry(i);
+          if (result.error) {
+            showNotification(result.error, 'error');
+          } else if (result.data) {
+            appendDocResult(result);
+          }
+          continue;
+        }
+
+        // Audio/video files go to the upload/transcription endpoint
         const form = new FormData();
         form.append('file', file, file.name);
         form.append('whisper_model', whisperModelSel.value || '');
@@ -495,6 +606,13 @@ async function handleFiles(files) {
 translateBtn.addEventListener('click', () => translate());
 
 clearBtn.addEventListener('click', () => {
+  if (activeTab === 'file') {
+    resultsDocList.innerHTML = '<div class="doc-list-placeholder">Translated files will appear here\u2026</div>';
+    resultsDocList.classList.remove('hidden');
+    transcribeStatus.innerHTML = '';
+    transcribeStatus.classList.add('hidden');
+    return;
+  }
   sourceText.value = '';
   lastTranslatedText = '';
   lastOutputText = '';
@@ -503,6 +621,12 @@ clearBtn.addEventListener('click', () => {
   resetDetectedLang();
   chunkProgress.classList.add('hidden');
   copyBtn.classList.add('hidden');
+  mdToggleBtn.classList.add('hidden');
+  paraToggleBtn.classList.add('hidden');
+  paraOutput.classList.add('hidden');
+  outputDiv.classList.remove('hidden');
+  paraViewActive = false;
+  paraToggleBtn.setAttribute('aria-pressed', 'false');
   ttsBtn.classList.add('hidden');
   stopTts();
   transcribeStatus.innerHTML = '';
@@ -510,7 +634,13 @@ clearBtn.addEventListener('click', () => {
 });
 
 copyBtn.addEventListener('click', async () => {
-  const text = outputDiv.innerText;
+  let text;
+  if (paraViewActive) {
+    const cells = paraOutput.querySelectorAll('.para-cell-target');
+    text = Array.from(cells).map(c => c.textContent).filter(t => t.trim()).join('\n\n');
+  } else {
+    text = lastOutputText;
+  }
   if (!text) return;
   await navigator.clipboard.writeText(text);
   showNotification('Copied', 'success');
@@ -532,6 +662,11 @@ fileInput.addEventListener('change', () => {
   fileInput.value = '';
 });
 
+docFileInput.addEventListener('change', () => {
+  if (docFileInput.files.length > 0) handleFiles(docFileInput.files);
+  docFileInput.value = '';
+});
+
 // Drag and drop
 function clearDragState() {
   dropOverlay.classList.add('hidden');
@@ -539,7 +674,11 @@ function clearDragState() {
 
 window.addEventListener('dragover', e => {
   e.preventDefault();
-  dropOverlay.classList.remove('hidden');
+  if (activeTab === 'file') {
+    docUploadArea.classList.add('drag-over');
+  } else if (activeTab === 'text') {
+    dropOverlay.classList.remove('hidden');
+  }
 });
 // Safety net: prevent browser navigating to file and clean up state when
 // dragging leaves the window or drops on an unhandled area.
@@ -557,7 +696,20 @@ dropOverlay.addEventListener('drop', e => {
     /\.(mp3|mp4|m4a|wav|ogg|webm|flac|aac|mkv|avi|mov|wmv)$/i.test(f.name)
   );
   if (avFiles.length > 0) handleFiles(avFiles);
-  else showNotification('Only audio and video files are supported', 'error');
+  else showNotification('Switch to File tab to translate subtitle files', 'error');
+});
+
+docUploadArea.addEventListener('dragleave', e => {
+  if (!docUploadArea.contains(e.relatedTarget)) docUploadArea.classList.remove('drag-over');
+});
+docUploadArea.addEventListener('drop', e => {
+  e.preventDefault();
+  docUploadArea.classList.remove('drag-over');
+  const files = e.dataTransfer?.files;
+  if (!files || files.length === 0) return;
+  const docFiles = Array.from(files).filter(f => /\.(srt|vtt)$/i.test(f.name));
+  if (docFiles.length > 0) handleFiles(docFiles);
+  else showNotification('Please drop SRT or VTT subtitle files', 'error');
 });
 
 // ── Voice input ───────────────────────────────────────────────────────────
@@ -626,15 +778,27 @@ function updateCharCount() {
 function setOutput(text) {
   outputDiv.classList.remove('loading');
   if (!text) {
-    outputDiv.innerHTML = '<span class="placeholder">Translation will appear here…</span>';
+    outputDiv.innerHTML = '<span class="placeholder">Translation will appear here\u2026</span>';
     copyBtn.classList.add('hidden');
+    mdToggleBtn.classList.add('hidden');
+    paraToggleBtn.classList.add('hidden');
     incompleteBadge.classList.add('hidden');
     stopTts();
     updateTtsButtonVisibility();
   } else {
     outputDiv.textContent = text;
     copyBtn.classList.remove('hidden');
+    mdToggleBtn.classList.remove('hidden');
+    paraToggleBtn.classList.remove('hidden');
   }
+}
+
+function applyMdRender() {
+  outputDiv.innerHTML = DOMPurify.sanitize(marked.parse(lastOutputText));
+}
+
+function removeMdRender() {
+  outputDiv.textContent = lastOutputText;
 }
 
 function setOutputLoading(loading) {
@@ -651,7 +815,12 @@ function showPendingQueue(files) {
     const row = document.createElement('div');
     row.className = 'pending-file';
     row.dataset.pendingIndex = i;
-    row.innerHTML = `<span class="spinner"></span><span class="pending-file-name">${file.name}</span>`;
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'pending-file-name';
+    nameSpan.dataset.filename = file.name;
+    nameSpan.textContent = file.name;
+    row.appendChild(document.createElement('span')).className = 'spinner';
+    row.appendChild(nameSpan);
     transcribeStatus.appendChild(row);
   });
   transcribeStatus.classList.remove('hidden');
@@ -663,6 +832,77 @@ function removePendingEntry(index) {
   if (!transcribeStatus.querySelector('.pending-file')) {
     transcribeStatus.classList.add('hidden');
   }
+}
+
+// Read the SSE stream from /api/translate-subtitle, updating the pending row
+// with live cue progress. Returns {filename, data, mime} on success or
+// {error} on failure.
+async function readSubtitleSSE(res, pendingIndex) {
+  const row = transcribeStatus.querySelector(`[data-pending-index="${pendingIndex}"]`);
+  const progressLabel = row ? row.querySelector('.pending-file-name') : null;
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+
+    // SSE frames are separated by double newlines.
+    const frames = buf.split('\n\n');
+    buf = frames.pop(); // keep incomplete trailing frame
+
+    for (const frame of frames) {
+      if (!frame.trim()) continue;
+      let eventType = 'message';
+      let eventData = '';
+      for (const line of frame.split('\n')) {
+        if (line.startsWith('event:')) eventType = line.slice(6).trim();
+        else if (line.startsWith('data:')) eventData = line.slice(5).trim();
+      }
+      if (!eventData) continue;
+
+      let parsed;
+      try { parsed = JSON.parse(eventData); } catch { continue; }
+
+      if (eventType === 'progress' && progressLabel) {
+        progressLabel.textContent = `${progressLabel.dataset.filename || ''} — cue ${parsed.done}/${parsed.total}`;
+      } else if (eventType === 'done') {
+        return parsed;
+      } else if (eventType === 'error') {
+        return { error: parsed.error || 'Subtitle translation failed' };
+      }
+    }
+  }
+  return { error: 'Subtitle translation ended unexpectedly' };
+}
+
+function appendDocResult(item) {
+  if (resultsDocList.classList.contains('hidden') || !resultsDocList.querySelector('.doc-file-list')) {
+    resultsDocList.innerHTML = '<div class="doc-list-title">Translated Documents</div><ul class="doc-file-list"></ul>';
+    resultsDocList.classList.remove('hidden');
+  }
+  const ul = resultsDocList.querySelector('.doc-file-list');
+  const li = document.createElement('li');
+  li.textContent = item.filename;
+  const btn = document.createElement('button');
+  btn.className = 'btn-primary doc-dl-btn';
+  btn.textContent = 'Download';
+  btn.onclick = () => downloadBase64File(item.data, item.filename, item.mime);
+  li.appendChild(btn);
+  ul.appendChild(li);
+}
+
+function downloadBase64File(b64, filename, mime) {
+  const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+  const url = URL.createObjectURL(new Blob([bytes], { type: mime }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 // ── Bitvault integration ──────────────────────────────────────────────────
@@ -1055,6 +1295,450 @@ srcTtsBtn.addEventListener('click', async () => {
     srcTtsBtn.title = 'Read source aloud';
   }
 });
+
+// ── Markdown rendering ────────────────────────────────────────────────────
+mdToggleBtn.addEventListener('click', () => {
+  if (!lastOutputText) return;
+  mdRenderActive = !mdRenderActive;
+  mdToggleBtn.setAttribute('aria-pressed', String(mdRenderActive));
+  if (mdRenderActive) {
+    applyMdRender();
+  } else {
+    removeMdRender();
+  }
+  localStorage.setItem('mdRender', String(mdRenderActive));
+});
+
+// ── Paragraph view ────────────────────────────────────────────────────────
+paraToggleBtn.addEventListener('click', async () => {
+  if (paraToggleBtn.getAttribute('aria-disabled') === 'true') return;
+  paraViewActive = !paraViewActive;
+  paraToggleBtn.setAttribute('aria-pressed', String(paraViewActive));
+  localStorage.setItem('paraView', String(paraViewActive));
+
+  if (paraViewActive) {
+    await loadParaView();
+  } else {
+    paraOutput.classList.add('hidden');
+    outputDiv.classList.remove('hidden');
+    if (mdRenderActive && lastOutputText) applyMdRender();
+  }
+});
+
+async function loadParaView() {
+  const text = sourceText.value;
+  if (!text.trim()) {
+    paraViewActive = false;
+    paraToggleBtn.setAttribute('aria-pressed', 'false');
+    return;
+  }
+
+  const body = {
+    text,
+    source_lang: 'auto',
+    target_lang: targetLangName(selectedTargetLangCode),
+    model: modelSel.value || undefined,
+    context: contextHintInput.value.trim() || undefined,
+    ...apiCredentials(),
+  };
+
+  paraToggleBtn.setAttribute('aria-disabled', 'true');
+  try {
+    const res = await fetch('/api/translate/paragraphs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => null);
+      showNotification((err && err.error) || 'Paragraph view failed', 'error');
+      paraViewActive = false;
+      paraToggleBtn.setAttribute('aria-pressed', 'false');
+      return;
+    }
+    const data = await res.json();
+    renderParaView(data.paragraphs);
+    outputDiv.classList.add('hidden');
+    paraOutput.classList.remove('hidden');
+  } catch (e) {
+    showNotification('Network error', 'error');
+    paraViewActive = false;
+    paraToggleBtn.setAttribute('aria-pressed', 'false');
+  } finally {
+    paraToggleBtn.removeAttribute('aria-disabled');
+  }
+}
+
+function renderParaView(paragraphs) {
+  paraOutput.innerHTML = '';
+  for (const pair of paragraphs) {
+    if (!pair.source.trim() && !pair.translation.trim()) {
+      const spacer = document.createElement('div');
+      spacer.className = 'para-spacer';
+      paraOutput.appendChild(spacer);
+      continue;
+    }
+    const srcCell = document.createElement('div');
+    srcCell.className = 'para-cell para-cell-source';
+    srcCell.textContent = pair.source;
+    const tgtCell = document.createElement('div');
+    tgtCell.className = 'para-cell para-cell-target';
+    tgtCell.textContent = pair.translation;
+    paraOutput.appendChild(srcCell);
+    paraOutput.appendChild(tgtCell);
+  }
+}
+
+// ── Context hint ──────────────────────────────────────────────────────────
+contextHintToggle.addEventListener('click', () => {
+  const isOpen = !contextHintRow.classList.contains('hidden');
+  contextHintRow.classList.toggle('hidden', isOpen);
+  contextHintToggle.setAttribute('aria-pressed', String(!isOpen));
+  if (!isOpen) contextHintInput.focus();
+});
+
+contextHintInput.addEventListener('input', () => {
+  localStorage.setItem('contextHint', contextHintInput.value);
+});
+
+// ── Conversation mode ─────────────────────────────────────────────────────
+function initConvLangSelects() {
+  [convLangAsel, convLangBsel].forEach((sel, idx) => {
+    sel.innerHTML = '';
+    for (const lang of availableLanguages.filter(l => l.code !== 'auto')) {
+      const opt = document.createElement('option');
+      opt.value = lang.code;
+      opt.textContent = lang.name;
+      sel.appendChild(opt);
+    }
+    sel.value = idx === 0 ? convLangA : convLangB;
+  });
+}
+
+convLangAsel.addEventListener('change', () => {
+  convLangA = convLangAsel.value;
+  localStorage.setItem('convLangA', convLangA);
+});
+
+convLangBsel.addEventListener('change', () => {
+  convLangB = convLangBsel.value;
+  localStorage.setItem('convLangB', convLangB);
+});
+
+convAutoTtsInput.addEventListener('change', () => {
+  convAutoTts = convAutoTtsInput.checked;
+  localStorage.setItem('convAutoTts', String(convAutoTts));
+});
+
+async function startConvRecording(speaker) {
+  if (convRecording !== null) return;
+  if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+    showNotification('Audio recording not supported in this browser', 'error');
+    return;
+  }
+
+  const micBtn = speaker === 'a' ? convMicA : convMicB;
+  let stream = null;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const chunks = [];
+    const recorder = new MediaRecorder(stream);
+    convMediaRecorder = recorder;
+    convRecording = speaker;
+    micBtn.classList.add('recording');
+    micBtn.setAttribute('aria-pressed', 'true');
+
+    recorder.addEventListener('dataavailable', e => {
+      if (e.data.size > 0) chunks.push(e.data);
+    });
+
+    recorder.addEventListener('stop', async () => {
+      convMediaRecorder = null;
+      stream.getTracks().forEach(t => t.stop());
+      micBtn.classList.remove('recording');
+      micBtn.classList.add('transcribing');
+
+      const mimeType = recorder.mimeType || 'audio/webm';
+      const ext = mimeType.includes('ogg') ? 'ogg' : mimeType.includes('mp4') ? 'mp4' : 'webm';
+      const blob = new Blob(chunks, { type: mimeType });
+      if (blob.size === 0) {
+        micBtn.classList.remove('transcribing');
+        micBtn.setAttribute('aria-pressed', 'false');
+        convRecording = null;
+        showNotification('Recording was empty \u2014 please try again', 'error');
+        return;
+      }
+      const file = new File([blob], `recording.${ext}`, { type: mimeType });
+
+      // Transcribe
+      try {
+        const form = new FormData();
+        form.append('file', file, file.name);
+        form.append('whisper_model', whisperModelSel.value || '');
+        appendCredentialsToForm(form);
+        const trRes = await fetch('/api/upload', { method: 'POST', body: form });
+        if (!trRes.ok) {
+          showNotification('Transcription failed', 'error');
+          micBtn.classList.remove('transcribing');
+          micBtn.setAttribute('aria-pressed', 'false');
+          convRecording = null;
+          return;
+        }
+        const trData = await trRes.json();
+        const transcribed = trData.results.filter(r => r.type === 'text').map(r => r.text).join('\n');
+        if (!transcribed.trim()) {
+          showNotification('No speech detected', 'error');
+          micBtn.classList.remove('transcribing');
+          micBtn.setAttribute('aria-pressed', 'false');
+          convRecording = null;
+          return;
+        }
+
+        // Translate
+        const srcLang = speaker === 'a' ? convLangA : convLangB;
+        const tgtLang = speaker === 'a' ? convLangB : convLangA;
+        const tgtLangName = (availableLanguages.find(l => l.code === tgtLang) || {}).name || tgtLang;
+
+        const trReq = await fetch('/api/translate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text: transcribed,
+            source_lang: (availableLanguages.find(l => l.code === srcLang) || {}).name || srcLang,
+            target_lang: tgtLangName,
+            model: modelSel.value || undefined,
+            ...apiCredentials(),
+          }),
+        });
+        if (!trReq.ok) {
+          showNotification('Translation failed', 'error');
+          micBtn.classList.remove('transcribing');
+          micBtn.setAttribute('aria-pressed', 'false');
+          convRecording = null;
+          return;
+        }
+        const trReqData = await trReq.json();
+        const translation = trReqData.translated_text;
+
+        convHistory.push({ speaker, source: transcribed, translation });
+        renderConvTranscript();
+
+        // Auto-TTS
+        if (convAutoTts) playConvTts(translation, tgtLang);
+
+      } finally {
+        micBtn.classList.remove('transcribing');
+        micBtn.setAttribute('aria-pressed', 'false');
+        convRecording = null;
+      }
+    });
+
+    recorder.start();
+  } catch (e) {
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    convRecording = null;
+    convMediaRecorder = null;
+    micBtn.classList.remove('recording');
+    micBtn.setAttribute('aria-pressed', 'false');
+    const msg = e.name === 'NotAllowedError' ? 'Microphone access denied'
+              : e.name === 'NotFoundError'   ? 'No microphone found'
+              : 'Could not start recording';
+    showNotification(msg, 'error');
+  }
+}
+
+convMicA.addEventListener('click', () => {
+  if (convMicA.classList.contains('recording')) {
+    if (convMediaRecorder && convMediaRecorder.state === 'recording') convMediaRecorder.stop();
+    return;
+  }
+  if (convMicA.classList.contains('transcribing')) return;
+  startConvRecording('a');
+});
+
+convMicB.addEventListener('click', () => {
+  if (convMicB.classList.contains('recording')) {
+    if (convMediaRecorder && convMediaRecorder.state === 'recording') convMediaRecorder.stop();
+    return;
+  }
+  if (convMicB.classList.contains('transcribing')) return;
+  startConvRecording('b');
+});
+
+function renderConvTranscript() {
+  convTranscriptA.innerHTML = '';
+  convTranscriptB.innerHTML = '';
+  for (const entry of convHistory) {
+    const bubble = document.createElement('div');
+    bubble.className = 'conv-bubble';
+    const srcP = document.createElement('p');
+    srcP.className = 'conv-source';
+    srcP.textContent = entry.source;
+    const tgtP = document.createElement('p');
+    tgtP.className = 'conv-translation';
+    tgtP.textContent = '\u2192 ' + entry.translation;
+    bubble.appendChild(srcP);
+    bubble.appendChild(tgtP);
+    if (entry.speaker === 'a') {
+      convTranscriptA.appendChild(bubble);
+    } else {
+      convTranscriptB.appendChild(bubble);
+    }
+  }
+  convTranscriptA.scrollTop = convTranscriptA.scrollHeight;
+  convTranscriptB.scrollTop = convTranscriptB.scrollHeight;
+}
+
+async function playConvTts(text, langCode) {
+  if (!text.trim()) return;
+  const hasTts = (sessionActive && !!userTtsEndpoint)
+    || (serverTtsConfigured && serverTtsLanguages.includes(langCode));
+  if (!hasTts) return;
+
+  // Stop any existing conv TTS
+  if (convTtsAudio) {
+    convTtsAudio.pause();
+    convTtsAudio.src = '';
+    convTtsAudio = null;
+  }
+  if (convTtsObjUrl) {
+    URL.revokeObjectURL(convTtsObjUrl);
+    convTtsObjUrl = null;
+  }
+
+  try {
+    const body = { text, target_lang: langCode };
+    if (userTtsEndpoint && userTtsApiKey) {
+      body.tts_endpoint = userTtsEndpoint;
+      body.tts_api_key  = userTtsApiKey;
+    }
+    const res = await fetch('/api/tts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) return;
+    const blob = await res.blob();
+    convTtsObjUrl = URL.createObjectURL(blob);
+    convTtsAudio = new Audio(convTtsObjUrl);
+    convTtsAudio.addEventListener('ended', () => {
+      convTtsAudio = null;
+      URL.revokeObjectURL(convTtsObjUrl);
+      convTtsObjUrl = null;
+    });
+    convTtsAudio.play().catch(() => {});
+  } catch (_) {}
+}
+
+convClearBtn.addEventListener('click', () => {
+  convHistory = [];
+  renderConvTranscript();
+});
+
+convExportBtn.addEventListener('click', () => {
+  if (convHistory.length === 0) { showNotification('No conversation to export', 'error'); return; }
+  const lines = convHistory.map(e => {
+    const label = e.speaker === 'a'
+      ? (convLangAsel.options[convLangAsel.selectedIndex]?.text || 'Speaker A')
+      : (convLangBsel.options[convLangBsel.selectedIndex]?.text || 'Speaker B');
+    return `${label}: ${e.source}\n\u2192 ${e.translation}`;
+  });
+  const blob = new Blob([lines.join('\n\n')], { type: 'text/plain' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = 'conversation.txt';
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+// ── Mode Tabs ─────────────────────────────────────────────────────────────
+function switchTab(tab) {
+  activeTab = tab;
+  const isText = tab === 'text';
+  const isFile = tab === 'file';
+  const isConv = tab === 'conversation';
+
+  tabTextBtn.classList.toggle('active', isText);
+  tabDocumentBtn.classList.toggle('active', isFile);
+  tabConvBtn.classList.toggle('active', isConv);
+
+  // Source panel content areas
+  sourceText.closest('.textarea-container').classList.toggle('hidden', !isText);
+  docUploadArea.classList.toggle('hidden', !isFile);
+  convPanelEl.classList.toggle('hidden', !isConv);
+
+  // Source header / footer elements
+  sourceLangInfo.classList.toggle('hidden', !isText);
+  voiceBtn.classList.toggle('hidden', !isText);
+  uploadLabel.classList.toggle('hidden', !isText);
+  srcTtsBtn.classList.add('hidden');
+  translateBtn.classList.toggle('hidden', !isText);
+  charCount.classList.toggle('hidden', !isText);
+  contextHintToggle.classList.toggle('hidden', !isText);
+  // Hide context hint row when leaving text mode
+  if (!isText) contextHintRow.classList.add('hidden');
+  // Hide entire source footer in conversation mode (conv-panel has its own)
+  sourcePanelFooter.classList.toggle('hidden', isConv);
+
+  // Source panel full-width stretch in conversation mode
+  sourcePanel.classList.toggle('conv-mode', isConv);
+
+  // Swap button: hidden in conv, inert in file
+  if (isConv) {
+    swapBtn.classList.add('hidden');
+    swapBtn.classList.remove('inert');
+  } else if (isFile) {
+    swapBtn.classList.remove('hidden');
+    swapBtn.classList.add('inert');
+  } else {
+    swapBtn.classList.remove('hidden', 'inert');
+  }
+
+  // Output panel
+  outputPanel.classList.toggle('hidden', isConv);
+  outputPanel.classList.toggle('doc-mode', isFile);
+  outputDiv.classList.toggle('hidden', isFile);
+  // Reset output toolbar
+  copyBtn.classList.add('hidden');
+  mdToggleBtn.classList.add('hidden');
+  paraToggleBtn.classList.add('hidden');
+  incompleteBadge.classList.add('hidden');
+  chunkProgress.classList.add('hidden');
+  stopTts();
+
+  // Reset para/md view when leaving text mode
+  if (!isText) {
+    paraViewActive = false;
+    paraToggleBtn.setAttribute('aria-pressed', 'false');
+    paraOutput.classList.add('hidden');
+    outputDiv.classList.remove('hidden');
+  }
+
+  if (isFile) {
+    ttsBtn.classList.add('hidden');
+    resultsDocList.classList.remove('hidden');
+    if (!resultsDocList.querySelector('.doc-file-list')) {
+      resultsDocList.innerHTML = '<div class="doc-list-placeholder">Translated files will appear here\u2026</div>';
+    }
+  } else if (isConv) {
+    ttsBtn.classList.add('hidden');
+    resultsDocList.classList.add('hidden');
+  } else {
+    if (!resultsDocList.querySelector('.doc-file-list')) {
+      resultsDocList.classList.add('hidden');
+      resultsDocList.innerHTML = '';
+    }
+    updateTtsButtonVisibility();
+    // Restore MD render if it was active
+    if (mdRenderActive && lastOutputText) applyMdRender();
+  }
+}
+
+tabTextBtn.addEventListener('click', () => switchTab('text'));
+tabDocumentBtn.addEventListener('click', () => switchTab('file'));
+tabConvBtn.addEventListener('click', () => switchTab('conversation'));
+
 
 // ── Language Picker ───────────────────────────────────────────────────────
 function setTargetLang(code, triggerTranslate = false) {
