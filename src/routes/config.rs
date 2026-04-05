@@ -12,11 +12,19 @@ pub async fn get_status(
 ) -> Json<StatusResponse> {
     let session_tier_str = get_session_id(&headers).and_then(|sid| {
         state.sessions.read().unwrap().get(&sid).map(|creds| match creds.tier {
+            SessionTier::Free => "free".to_string(),
             SessionTier::Byok => "byok".to_string(),
             SessionTier::Gated => "gated".to_string(),
         })
     });
     let session_active = session_tier_str.is_some();
+
+    let char_limit = match session_tier_str.as_deref() {
+        Some("free") | None => state.config.free_tier_char_limit,
+        Some("gated")       => state.config.gated_char_limit,
+        _                   => None, // byok: unlimited
+    };
+
     Json(StatusResponse {
         server_configured: state.config.is_configured(),
         gated_configured: state.config.is_gated_configured(),
@@ -25,11 +33,13 @@ pub async fn get_status(
         bitvault_configured: state.config.is_bitvault_configured(),
         tts_configured: state.config.is_tts_configured(),
         tts_languages: { let mut v: Vec<String> = state.config.tts_voice_map.keys().cloned().collect(); v.sort(); v },
+        tts_hostname: state.config.tts_hostname(),
+        char_limit,
         git_commit: env!("GIT_COMMIT_SHORT"),
     })
 }
 
-fn make_session_cookie(sid: &str) -> String {
+pub fn make_session_cookie(sid: &str) -> String {
     let secure = std::env::var("COOKIE_SECURE")
         .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
         .unwrap_or(false);

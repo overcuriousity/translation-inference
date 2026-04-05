@@ -106,6 +106,16 @@ body {
   transition: var(--transition);
 }
 .select-compact:hover { border-color: var(--color-text-muted); }
+.select-compact:disabled { opacity: 0.6; cursor: default; }
+
+.backend-info {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 480px;
+}
 
 .settings-btn {
   width: 34px;
@@ -332,6 +342,10 @@ body {
   color: var(--color-text-muted);
   font-variant-numeric: tabular-nums;
 }
+.char-count.over-limit {
+  color: var(--color-error, #e05252);
+  font-weight: 600;
+}
 
 .chunk-progress {
   font-size: 0.75rem;
@@ -405,6 +419,9 @@ body {
 }
 .config-input:focus { border-color: var(--color-primary); }
 .config-row + .config-row { margin-top: 8px; }
+.config-models-row { flex-wrap: wrap; gap: 16px; }
+.model-select-group { display: flex; align-items: center; gap: 6px; }
+.config-separator-models { margin-top: 12px; }
 .config-separator {
   text-align: center;
   color: var(--color-text-muted);

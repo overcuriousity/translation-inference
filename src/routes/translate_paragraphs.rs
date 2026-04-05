@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use crate::api::{chat, chunker::{context_size_from_model_id, usable_input_chars, TranslationConfig}};
 use crate::models::{ErrorResponse, ParagraphPair, TranslateParagraphsRequest, TranslateParagraphsResponse};
-use crate::routes::translate::resolve_client;
+use crate::routes::translate::{get_char_limit, resolve_client};
 use crate::AppState;
 
 /// Separator injected between source paragraphs before sending to the LLM.
@@ -15,6 +15,18 @@ pub async fn post_translate_paragraphs(
     headers: HeaderMap,
     Json(req): Json<TranslateParagraphsRequest>,
 ) -> Result<Json<TranslateParagraphsResponse>, (StatusCode, Json<ErrorResponse>)> {
+    if let Some(limit) = get_char_limit(&state, &headers) {
+        let len = req.text.chars().count();
+        if len > limit {
+            return Err((
+                StatusCode::PAYLOAD_TOO_LARGE,
+                Json(ErrorResponse {
+                    error: format!("Input is {len} characters, which exceeds the {limit}-character limit for your access tier."),
+                }),
+            ));
+        }
+    }
+
     if req.text.trim().is_empty() {
         return Ok(Json(TranslateParagraphsResponse {
             paragraphs: vec![],
@@ -83,10 +95,11 @@ pub async fn post_translate_paragraphs(
         ));
     }
 
+    let source_lang = req.source_lang.as_deref().unwrap_or("auto");
     let translated = chat::translate_single(
         &client,
         model,
-        &req.source_lang,
+        source_lang,
         &req.target_lang,
         &joined,
         req.context.as_deref(),

@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Deserialize)]
 pub struct TranslateRequest {
     pub text: String,
-    pub source_lang: String,
+    pub source_lang: Option<String>,
     pub target_lang: String,
     pub context: Option<String>,
     pub model: Option<String>,
@@ -16,7 +16,7 @@ pub struct TranslateRequest {
 #[derive(Debug, Deserialize)]
 pub struct TranslateParagraphsRequest {
     pub text: String,
-    pub source_lang: String,
+    pub source_lang: Option<String>,
     pub target_lang: String,
     pub context: Option<String>,
     pub model: Option<String>,
@@ -103,6 +103,10 @@ pub struct StatusResponse {
     pub tts_configured: bool,
     /// Language codes that have a TTS voice configured (keys of TTS_VOICE_MAP).
     pub tts_languages: Vec<String>,
+    /// Hostname of the TTS endpoint for UI display (e.g. "tts.example.com"). None if not configured.
+    pub tts_hostname: Option<String>,
+    /// Input character limit applicable to this session. None = unlimited.
+    pub char_limit: Option<usize>,
     /// Short git commit hash baked in at compile time.
     pub git_commit: &'static str,
 }

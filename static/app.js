@@ -16,7 +16,10 @@ let mediaRecorder      = null;
 let ttsAudio           = null;   // active Audio instance
 let serverTtsConfigured = false;
 let serverTtsLanguages  = [];   // language codes with a configured TTS voice
-let sessionActive       = false; // true when a web-interface session cookie exists
+let serverTtsHostname   = null; // TTS endpoint hostname for backend-info display
+let sessionActive       = false; // true when a gated/byok session cookie exists
+let sessionTier         = null;  // 'free' | 'gated' | 'byok' | null
+let charLimit           = null;  // max input chars for this tier, null = unlimited
 let detectedSourceLang    = null;  // language code like 'en', null = not yet detected
 let lastDetectedTextLength = 0;
 let lastDetectedTextSnippet = '';
@@ -38,6 +41,7 @@ let convTtsObjUrl         = null;
 let convMediaRecorder     = null;
 
 // ── DOM refs ─────────────────────────────────────────────────────────────
+const backendInfoEl      = document.getElementById('backend-info');
 const langPickerBtn      = document.getElementById('lang-picker-btn');
 const langPickerLabel    = document.getElementById('lang-picker-label');
 const langPickerDropdown = document.getElementById('lang-picker-dropdown');
@@ -138,10 +142,14 @@ async function init() {
 
   serverTtsConfigured = !!status.tts_configured;
   serverTtsLanguages  = status.tts_languages || [];
-  sessionActive       = !!status.session_active;
+  serverTtsHostname   = status.tts_hostname || null;
+  sessionTier         = status.session_tier || null;
+  sessionActive       = sessionTier === 'gated' || sessionTier === 'byok';
+  charLimit           = status.char_limit || null;
   updateTtsButtonVisibility();
   updateSrcTtsButtonVisibility();
   updateFileTabVisibility();
+  updateCharCount();
   // Show context hint toggle in initial text mode
   contextHintToggle.classList.remove('hidden');
 
@@ -218,9 +226,43 @@ function updateFileTabVisibility() {
   }
 }
 
+function updateBackendInfo() {
+  if (!backendInfoEl) return;
+  const translModel = modelSel.value || null;
+  const sttModel    = whisperModelSel.value || null;
+
+  function serviceLabel(model, endpoint) {
+    if (!model) return null;
+    if (endpoint) {
+      try {
+        const host = new URL(endpoint).hostname;
+        return `${host} · ${model}`;
+      } catch (_) { /* fall through */ }
+    }
+    return model;
+  }
+
+  const parts = [];
+  const tl = serviceLabel(translModel, userEndpoint);
+  if (tl) parts.push(`Translation: ${tl}`);
+  const st = serviceLabel(sttModel, userEndpoint);
+  if (st) parts.push(`STT: ${st}`);
+
+  // TTS: prefer user-supplied endpoint, fall back to server hostname.
+  const ttsHost = userTtsEndpoint
+    ? (() => { try { return new URL(userTtsEndpoint).hostname; } catch (_) { return null; } })()
+    : serverTtsHostname;
+  if (ttsHost) parts.push(`TTS: ${ttsHost}`);
+
+  backendInfoEl.textContent = parts.join('  ·  ');
+}
+
 function promptReauth() {
   sessionActive = false;
+  sessionTier   = null;
+  charLimit     = null;
   updateFileTabVisibility();
+  updateCharCount();
   showConfigPanel('Session expired. Please re-authenticate.');
   showNotification('Session expired \u2014 please re-authenticate', 'error');
 }
@@ -253,8 +295,11 @@ configGatedBtn.addEventListener('click', async () => {
     if (res.ok) {
       userEndpoint = '';
       userApiKey   = '';
+      sessionTier   = 'gated';
       sessionActive = true;
+      charLimit     = (await fetch('/api/status').then(r => r.json()).catch(() => ({}))).char_limit || null;
       updateFileTabVisibility();
+      updateCharCount();
       configAccesskey.value = '';
       gatedMsg.textContent = '\u2713 Access granted';
       gatedMsg.className = 'config-msg success';
@@ -296,8 +341,11 @@ configConnectBtn.addEventListener('click', async () => {
     if (res.ok) {
       userEndpoint = ep;
       userApiKey   = key;
+      sessionTier   = 'byok';
       sessionActive = true;
+      charLimit     = null; // BYOK is always unlimited
       updateFileTabVisibility();
+      updateCharCount();
       configMsg.textContent = '✓ Connected';
       configMsg.className = 'config-msg success';
       await Promise.all([loadLanguages(), loadModels()]);
@@ -371,6 +419,12 @@ async function loadModels() {
         whisperModelSel.appendChild(opt);
       }
     }
+    // Free-tier users see what the server uses but cannot change it.
+    const isFree = sessionTier === 'free' || (!sessionTier && !sessionActive);
+    modelSel.disabled = isFree;
+    whisperModelSel.disabled = isFree;
+
+    updateBackendInfo();
   } catch (e) {
     console.error('loadModels error:', e);
     showNotification('Model sync failed', 'error');
@@ -509,7 +563,8 @@ sourceText.addEventListener('keydown', e => {
 });
 
 // target language changes are handled inside setTargetLang()
-modelSel.addEventListener('change', () => { lastTranslatedText = ''; lastOutputText = ''; translate(true); });
+modelSel.addEventListener('change', () => { lastTranslatedText = ''; lastOutputText = ''; updateBackendInfo(); translate(true); });
+whisperModelSel.addEventListener('change', () => updateBackendInfo());
 
 // ── Transcription & Upload ────────────────────────────────────────────────
 function setTranscribeBusy(busy) {
@@ -772,7 +827,13 @@ voiceBtn.addEventListener('click', async () => {
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 function updateCharCount() {
-  charCount.textContent = sourceText.value.length.toLocaleString();
+  const len = sourceText.value.length;
+  charCount.textContent = charLimit
+    ? `${len.toLocaleString()} / ${charLimit.toLocaleString()}`
+    : len.toLocaleString();
+  const over = charLimit && len > charLimit;
+  charCount.classList.toggle('over-limit', !!over);
+  translateBtn.disabled = !!over;
 }
 
 function setOutput(text) {
@@ -1079,6 +1140,7 @@ configTtsBtn.addEventListener('click', () => {
 
   userTtsEndpoint = ep;
   userTtsApiKey   = key;
+  updateBackendInfo();
 
   if (ep) {
     ttsMsg.textContent = '\u2713 TTS endpoint set';
