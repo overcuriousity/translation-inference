@@ -1430,20 +1430,6 @@ convLangAsel.addEventListener('change', () => {
   localStorage.setItem('convLangA', convLangA);
 });
 
-// Keep both transcript panels scrolled in sync so spacers stay aligned
-let convScrollSyncing = false;
-convTranscriptA.addEventListener('scroll', () => {
-  if (convScrollSyncing) return;
-  convScrollSyncing = true;
-  convTranscriptB.scrollTop = convTranscriptA.scrollTop;
-  convScrollSyncing = false;
-});
-convTranscriptB.addEventListener('scroll', () => {
-  if (convScrollSyncing) return;
-  convScrollSyncing = true;
-  convTranscriptA.scrollTop = convTranscriptB.scrollTop;
-  convScrollSyncing = false;
-});
 
 convLangBsel.addEventListener('change', () => {
   convLangB = convLangBsel.value;
