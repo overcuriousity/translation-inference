@@ -105,6 +105,8 @@ pub struct StatusResponse {
     pub tts_languages: Vec<String>,
     /// Hostname of the TTS endpoint for UI display (e.g. "tts.example.com"). None if not configured.
     pub tts_hostname: Option<String>,
+    /// Representative TTS model string for UI display (first alphabetical from TTS_VOICE_MAP). None if not configured.
+    pub tts_model: Option<String>,
     /// Input character limit applicable to this session. None = unlimited.
     pub char_limit: Option<usize>,
     /// Short git commit hash baked in at compile time.

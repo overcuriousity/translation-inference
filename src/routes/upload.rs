@@ -4,8 +4,9 @@ use tempfile::NamedTempFile;
 use tokio::io::AsyncWriteExt;
 
 use crate::api::whisper;
+use crate::api::client::OpenAiClient;
 use crate::models::{ErrorResponse, UploadResponse, UploadResult};
-use crate::routes::translate::resolve_client;
+use crate::routes::translate::{get_session_id, resolve_client};
 use crate::AppState;
 
 const MAX_FILE_BYTES: usize = 100 * 1024 * 1024; // 100 MB
@@ -24,6 +25,8 @@ pub async fn post_upload(
     let mut whisper_model: Option<String> = None;
     let mut endpoint: Option<String> = None;
     let mut api_key: Option<String> = None;
+    let mut stt_endpoint: Option<String> = None;
+    let mut stt_api_key: Option<String> = None;
 
     while let Some(mut field) = multipart
         .next_field()
@@ -79,6 +82,14 @@ pub async fn post_upload(
                 let v = field.text().await.map_err(|e| err(StatusCode::BAD_REQUEST, e.to_string()))?;
                 if !v.is_empty() { api_key = Some(v); }
             }
+            Some("stt_endpoint") => {
+                let v = field.text().await.map_err(|e| err(StatusCode::BAD_REQUEST, e.to_string()))?;
+                if !v.is_empty() { stt_endpoint = Some(v); }
+            }
+            Some("stt_api_key") => {
+                let v = field.text().await.map_err(|e| err(StatusCode::BAD_REQUEST, e.to_string()))?;
+                if !v.is_empty() { stt_api_key = Some(v); }
+            }
             _ => {}
         }
     }
@@ -87,7 +98,28 @@ pub async fn post_upload(
         return Err(err(StatusCode::BAD_REQUEST, "No files provided".into()));
     }
 
-    let client = resolve_client(&state, endpoint.as_deref(), api_key.as_deref(), &headers)?;
+    // STT-specific BYOK: only honour stt_endpoint/stt_api_key for authenticated callers.
+    let has_session = get_session_id(&headers)
+        .map(|sid| state.sessions.read().unwrap().contains_key(&sid))
+        .unwrap_or(false);
+    let has_bearer = headers
+        .get(axum::http::header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .map(|v| v.trim_start().starts_with("Bearer "))
+        .unwrap_or(false);
+    let client = if has_session || has_bearer {
+        if let (Some(ep), Some(key)) = (stt_endpoint.as_deref(), stt_api_key.as_deref()) {
+            if !ep.is_empty() && !key.is_empty() {
+                OpenAiClient::with_credentials(ep, key)
+            } else {
+                resolve_client(&state, endpoint.as_deref(), api_key.as_deref(), &headers)?
+            }
+        } else {
+            resolve_client(&state, endpoint.as_deref(), api_key.as_deref(), &headers)?
+        }
+    } else {
+        resolve_client(&state, endpoint.as_deref(), api_key.as_deref(), &headers)?
+    };
     let whisper_model_str = whisper_model.as_deref().unwrap_or(&state.config.whisper_model);
 
     let mut results: Vec<UploadResult> = Vec::new();

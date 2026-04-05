@@ -7,8 +7,11 @@ let selectedTargetLangCode  = 'en';
 let langPickerOpen          = false;
 let userEndpoint            = '';
 let userApiKey              = '';
+let userSttEndpoint    = '';
+let userSttApiKey      = '';
 let userTtsEndpoint    = '';
 let userTtsApiKey      = '';
+let serverTtsModel     = null; // representative TTS model string from server config
 let lastTranslatedText = '';
 let lastOutputText     = '';     // actual translated output (differs from source)
 let ttsObjectUrl       = null;   // current blob: URL for the active TTS audio
@@ -82,6 +85,10 @@ const sourcePanel      = document.querySelector('.panel-source');
 const saveSrcBtn           = document.getElementById('save-src-btn');
 const saveOutBtn           = document.getElementById('save-out-btn');
 const ttsBtn               = document.getElementById('tts-btn');
+const configSttEndpoint    = document.getElementById('config-stt-endpoint');
+const configSttApikey      = document.getElementById('config-stt-apikey');
+const configSttBtn         = document.getElementById('config-stt-btn');
+const sttEndpointMsg       = document.getElementById('stt-endpoint-msg');
 const configTtsEndpoint    = document.getElementById('config-tts-endpoint');
 const configTtsApikey      = document.getElementById('config-tts-apikey');
 const configTtsBtn         = document.getElementById('config-tts-btn');
@@ -143,6 +150,7 @@ async function init() {
   serverTtsConfigured = !!status.tts_configured;
   serverTtsLanguages  = status.tts_languages || [];
   serverTtsHostname   = status.tts_hostname || null;
+  serverTtsModel      = status.tts_model || null;
   sessionTier         = status.session_tier || null;
   sessionActive       = sessionTier === 'gated' || sessionTier === 'byok' || !status.gated_configured;
   charLimit           = status.char_limit || null;
@@ -245,10 +253,20 @@ function updateBackendInfo() {
   const parts = [];
   const tl = serviceLabel(translModel, userEndpoint);
   if (tl) parts.push(`Translation: ${tl}`);
-  const st = serviceLabel(sttModel, userEndpoint);
+
+  // For STT, prefer the dedicated STT endpoint; fall back to translation endpoint in BYOK mode.
+  const sttEp = userSttEndpoint || (sessionTier === 'byok' ? userEndpoint : '');
+  const st = serviceLabel(sttModel, sttEp);
   if (st) parts.push(`STT: ${st}`);
 
-  if (userTtsEndpoint || serverTtsHostname) parts.push('TTS: configured');
+  if (userTtsEndpoint) {
+    try {
+      const host = new URL(userTtsEndpoint).hostname;
+      parts.push(`TTS: ${host}`);
+    } catch (_) { parts.push('TTS: configured'); }
+  } else if (serverTtsConfigured) {
+    parts.push(`TTS: ${serverTtsModel || 'configured'}`);
+  }
 
   backendInfoEl.textContent = parts.join('  ·  ');
 }
@@ -366,6 +384,13 @@ function apiCredentials() {
 function appendCredentialsToForm(form) {
   if (userEndpoint) form.append('endpoint', userEndpoint);
   if (userApiKey) form.append('api_key', userApiKey);
+}
+
+function appendSttCredentialsToForm(form) {
+  if (userSttEndpoint && userSttApiKey) {
+    form.append('stt_endpoint', userSttEndpoint);
+    form.append('stt_api_key', userSttApiKey);
+  }
 }
 
 // ── Language / model loading ──────────────────────────────────────────────
@@ -619,6 +644,7 @@ async function handleFiles(files) {
         form.append('file', file, file.name);
         form.append('whisper_model', whisperModelSel.value || '');
         appendCredentialsToForm(form);
+        appendSttCredentialsToForm(form);
 
         const res  = await fetch('/api/upload', { method: 'POST', body: form });
         const data = await res.json();
@@ -1124,6 +1150,30 @@ ttsBtn.addEventListener('click', async () => {
   }
 });
 
+configSttBtn.addEventListener('click', () => {
+  const ep  = configSttEndpoint.value.trim();
+  const key = configSttApikey.value.trim();
+
+  if (ep && !key) {
+    sttEndpointMsg.textContent = 'STT API key required.';
+    sttEndpointMsg.className = 'config-msg error';
+    return;
+  }
+
+  userSttEndpoint = ep;
+  userSttApiKey   = key;
+  updateBackendInfo();
+
+  if (ep) {
+    sttEndpointMsg.textContent = '\u2713 STT endpoint set';
+    sttEndpointMsg.className = 'config-msg success';
+  } else {
+    sttEndpointMsg.textContent = 'STT endpoint cleared';
+    sttEndpointMsg.className = 'config-msg';
+  }
+  setTimeout(() => { sttEndpointMsg.textContent = ''; }, 2000);
+});
+
 configTtsBtn.addEventListener('click', () => {
   const ep  = configTtsEndpoint.value.trim();
   const key = configTtsApikey.value.trim();
@@ -1534,6 +1584,7 @@ async function startConvRecording(speaker) {
         form.append('file', file, file.name);
         form.append('whisper_model', whisperModelSel.value || '');
         appendCredentialsToForm(form);
+        appendSttCredentialsToForm(form);
         const trRes = await fetch('/api/upload', { method: 'POST', body: form });
         if (!trRes.ok) {
           showNotification('Transcription failed', 'error');

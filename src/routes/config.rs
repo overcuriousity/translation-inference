@@ -34,6 +34,11 @@ pub async fn get_status(
         tts_configured: state.config.is_tts_configured(),
         tts_languages: { let mut v: Vec<String> = state.config.tts_voice_map.keys().cloned().collect(); v.sort(); v },
         tts_hostname: state.config.tts_hostname(),
+        tts_model: {
+            let models: std::collections::BTreeSet<String> =
+                state.config.tts_voice_map.values().map(|e| e.model.clone()).collect();
+            models.into_iter().next()
+        },
         char_limit,
         git_commit: env!("GIT_COMMIT_SHORT"),
     })
