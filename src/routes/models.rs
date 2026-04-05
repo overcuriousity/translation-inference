@@ -44,15 +44,16 @@ pub async fn get_models(
         translation_ids = state.config.translation_models.clone();
         transcription_ids = state.config.whisper_models.clone();
 
-        if translation_ids.is_empty() && transcription_ids.is_empty() {
-            if state.config.is_configured() {
-                if let Ok(fetched) = state.client.fetch_models().await {
-                    for id in fetched {
-                        if id.to_lowercase().contains("whisper") {
-                            transcription_ids.push(id);
-                        } else {
-                            translation_ids.push(id);
-                        }
+        if translation_ids.is_empty()
+            && transcription_ids.is_empty()
+            && state.config.is_configured()
+        {
+            if let Ok(fetched) = state.client.fetch_models().await {
+                for id in fetched {
+                    if id.to_lowercase().contains("whisper") {
+                        transcription_ids.push(id);
+                    } else {
+                        translation_ids.push(id);
                     }
                 }
             }

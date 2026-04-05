@@ -170,7 +170,7 @@ pub async fn get_proxy_text(
 
     if resp
         .content_length()
-        .map_or(false, |n| n > MAX_PROXY_BYTES as u64)
+        .is_some_and(|n| n > MAX_PROXY_BYTES as u64)
     {
         return Err((
             StatusCode::BAD_GATEWAY,

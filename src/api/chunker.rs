@@ -81,7 +81,7 @@ pub fn context_size_from_model_id(model_id: &str, config: &TranslationConfig) ->
         .split(|c: char| !c.is_ascii_digit())
         .filter_map(|s| s.parse::<usize>().ok())
         .filter(|&n| n >= 1024)
-        .last()
+        .next_back()
         .unwrap_or(config.default_context_size)
 }
 

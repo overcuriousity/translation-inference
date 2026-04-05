@@ -169,8 +169,8 @@ pub async fn post_translate_subtitle(
     let stream = async_stream::stream! {
         let total = cues.len();
 
-        for i in 0..total {
-            let cue_text = cues[i].lines.join("\n");
+        for (i, cue) in cues.iter_mut().enumerate() {
+            let cue_text = cue.lines.join("\n");
 
             match translate_single(
                 &client,
@@ -186,7 +186,7 @@ pub async fn post_translate_subtitle(
                 Ok(translated) => {
                     let trimmed = translated.trim().to_string();
                     if !trimmed.is_empty() {
-                        cues[i].lines = trimmed.lines().map(str::to_string).collect();
+                        cue.lines = trimmed.lines().map(str::to_string).collect();
                     }
                     let data = format!(r#"{{"done":{},"total":{}}}"#, i + 1, total);
                     yield Ok::<_, Infallible>(Event::default().event("progress").data(data));

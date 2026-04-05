@@ -194,8 +194,8 @@ fn join_broken_words(text: &str) -> String {
             out.push_str(line);
             continue;
         }
-        let prev_ends_with_letter = out.chars().next_back().map_or(false, |c| c.is_alphabetic());
-        let next_starts_lowercase = line.chars().next().map_or(false, |c| c.is_lowercase());
+        let prev_ends_with_letter = out.chars().next_back().is_some_and(|c| c.is_alphabetic());
+        let next_starts_lowercase = line.chars().next().is_some_and(|c| c.is_lowercase());
         if prev_ends_with_letter && next_starts_lowercase {
             // mid-word break — join without separator
         } else {
