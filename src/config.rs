@@ -101,6 +101,7 @@ impl AppConfig {
             default_context_size: std::env::var("DEFAULT_CONTEXT_SIZE")
                 .ok()
                 .and_then(|s| s.parse::<usize>().ok())
+                .map(|n| n.max(1024))
                 .unwrap_or(4096),
             input_token_ratio: std::env::var("INPUT_TOKEN_RATIO")
                 .ok()
@@ -110,14 +111,17 @@ impl AppConfig {
             cjk_chars_per_token: std::env::var("CJK_CHARS_PER_TOKEN")
                 .ok()
                 .and_then(|s| s.parse::<f64>().ok())
+                .map(|v| v.max(0.1))
                 .unwrap_or(1.5),
             latin_chars_per_token: std::env::var("LATIN_CHARS_PER_TOKEN")
                 .ok()
                 .and_then(|s| s.parse::<f64>().ok())
+                .map(|v| v.max(0.1))
                 .unwrap_or(4.0),
             min_output_ratio: std::env::var("MIN_OUTPUT_RATIO")
                 .ok()
                 .and_then(|s| s.parse::<f64>().ok())
+                .map(|v| v.max(0.0))
                 .unwrap_or(0.3),
             tts_voice_map: std::env::var("TTS_VOICE_MAP")
                 .unwrap_or_default()

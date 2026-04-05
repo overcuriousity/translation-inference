@@ -169,10 +169,14 @@ pub async fn translate_paragraphs(
     }
 
     // max_chars for joined batch text (separators count toward budget).
-    // Use the joined text of all paragraphs for script detection so CJK docs
-    // get the correct (smaller) character budget.
-    let joined_sample = paragraphs.join(" ");
-    let max_chars = usable_input_chars(context_size_from_model_id(model, config), &joined_sample, config);
+    // Build a bounded sample (≤1000 chars) for script detection so we don't
+    // allocate a full copy of large documents just to feed chars_per_token.
+    let sample: String = paragraphs
+        .iter()
+        .flat_map(|p| p.chars())
+        .take(1000)
+        .collect();
+    let max_chars = usable_input_chars(context_size_from_model_id(model, config), &sample, config);
     // "\n\n" + SEP + "\n\n"
     let sep_full = format!("\n\n{PARA_SEP}\n\n");
     let sep_chars = sep_full.chars().count();
