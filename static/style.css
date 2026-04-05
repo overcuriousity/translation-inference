@@ -920,11 +920,15 @@ body {
   background: var(--color-border);
   flex-shrink: 0;
 }
+.conv-spacer {
+  flex-shrink: 0;
+}
 .conv-bubble {
   background: var(--color-surface-2);
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
   padding: 8px 12px;
+  position: relative;
 }
 .conv-source {
   margin: 0;
@@ -935,7 +939,24 @@ body {
   margin: 4px 0 0;
   font-size: 0.9rem;
   color: var(--color-primary);
+  padding-right: 22px; /* room for the TTS replay button */
 }
+.conv-bubble-tts-btn {
+  position: absolute;
+  bottom: 6px;
+  right: 8px;
+  background: none;
+  border: none;
+  padding: 3px 5px;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  border-radius: 4px;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+}
+.conv-bubble:hover .conv-bubble-tts-btn { opacity: 1; }
+.conv-bubble-tts-btn:hover { color: var(--color-primary); }
 .conv-footer {
   display: flex;
   align-items: center;

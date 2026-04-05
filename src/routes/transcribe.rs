@@ -97,7 +97,7 @@ pub async fn post_transcribe(
 
     let model_id = model.unwrap_or_else(|| state.config.whisper_model.clone());
 
-    match whisper::transcribe(&client, &model_id, final_tmp.path(), &final_filename).await {
+    match whisper::transcribe(&client, &model_id, None, final_tmp.path(), &final_filename).await {
         Ok(text) => Ok(Json(TranscribeResponse { text })),
         Err(e) => {
             tracing::error!("Transcription error: {e:#}");

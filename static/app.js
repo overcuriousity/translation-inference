@@ -1420,6 +1420,21 @@ convLangAsel.addEventListener('change', () => {
   localStorage.setItem('convLangA', convLangA);
 });
 
+// Keep both transcript panels scrolled in sync so spacers stay aligned
+let convScrollSyncing = false;
+convTranscriptA.addEventListener('scroll', () => {
+  if (convScrollSyncing) return;
+  convScrollSyncing = true;
+  convTranscriptB.scrollTop = convTranscriptA.scrollTop;
+  convScrollSyncing = false;
+});
+convTranscriptB.addEventListener('scroll', () => {
+  if (convScrollSyncing) return;
+  convScrollSyncing = true;
+  convTranscriptA.scrollTop = convTranscriptB.scrollTop;
+  convScrollSyncing = false;
+});
+
 convLangBsel.addEventListener('change', () => {
   convLangB = convLangBsel.value;
   localStorage.setItem('convLangB', convLangB);
@@ -1447,6 +1462,8 @@ async function startConvRecording(speaker) {
     convRecording = speaker;
     micBtn.classList.add('recording');
     micBtn.setAttribute('aria-pressed', 'true');
+    const otherMicBtn = speaker === 'a' ? convMicB : convMicA;
+    otherMicBtn.disabled = true;
 
     recorder.addEventListener('dataavailable', e => {
       if (e.data.size > 0) chunks.push(e.data);
@@ -1465,6 +1482,7 @@ async function startConvRecording(speaker) {
         micBtn.classList.remove('transcribing');
         micBtn.setAttribute('aria-pressed', 'false');
         convRecording = null;
+        otherMicBtn.disabled = false;
         showNotification('Recording was empty \u2014 please try again', 'error');
         return;
       }
@@ -1475,22 +1493,17 @@ async function startConvRecording(speaker) {
         const form = new FormData();
         form.append('file', file, file.name);
         form.append('whisper_model', whisperModelSel.value || '');
+        form.append('language', srcLang);
         appendCredentialsToForm(form);
         const trRes = await fetch('/api/upload', { method: 'POST', body: form });
         if (!trRes.ok) {
           showNotification('Transcription failed', 'error');
-          micBtn.classList.remove('transcribing');
-          micBtn.setAttribute('aria-pressed', 'false');
-          convRecording = null;
           return;
         }
         const trData = await trRes.json();
         const transcribed = trData.results.filter(r => r.type === 'text').map(r => r.text).join('\n');
         if (!transcribed.trim()) {
           showNotification('No speech detected', 'error');
-          micBtn.classList.remove('transcribing');
-          micBtn.setAttribute('aria-pressed', 'false');
-          convRecording = null;
           return;
         }
 
@@ -1512,15 +1525,13 @@ async function startConvRecording(speaker) {
         });
         if (!trReq.ok) {
           showNotification('Translation failed', 'error');
-          micBtn.classList.remove('transcribing');
-          micBtn.setAttribute('aria-pressed', 'false');
-          convRecording = null;
           return;
         }
         const trReqData = await trReq.json();
         const translation = trReqData.translated_text;
 
-        convHistory.push({ speaker, source: transcribed, translation });
+        const srcLangName = (availableLanguages.find(l => l.code === srcLang) || {}).name || srcLang;
+        convHistory.push({ speaker, source: transcribed, translation, srcLangName, tgtLang });
         renderConvTranscript();
 
         // Auto-TTS
@@ -1530,6 +1541,7 @@ async function startConvRecording(speaker) {
         micBtn.classList.remove('transcribing');
         micBtn.setAttribute('aria-pressed', 'false');
         convRecording = null;
+        otherMicBtn.disabled = false;
       }
     });
 
@@ -1565,28 +1577,74 @@ convMicB.addEventListener('click', () => {
   startConvRecording('b');
 });
 
+function createConvBubble(entry) {
+  const bubble = document.createElement('div');
+  bubble.className = 'conv-bubble';
+
+  const srcP = document.createElement('p');
+  srcP.className = 'conv-source';
+  srcP.textContent = entry.source;
+
+  const tgtP = document.createElement('p');
+  tgtP.className = 'conv-translation';
+  tgtP.textContent = '\u2192 ' + entry.translation;
+
+  bubble.appendChild(srcP);
+  bubble.appendChild(tgtP);
+
+  const hasTts = (sessionActive && !!userTtsEndpoint)
+    || (serverTtsConfigured && entry.tgtLang && serverTtsLanguages.includes(entry.tgtLang));
+  if (hasTts && entry.translation) {
+    const btn = document.createElement('button');
+    btn.className = 'conv-bubble-tts-btn';
+    btn.title = 'Replay translation';
+    btn.setAttribute('aria-label', 'Replay translation');
+    btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>';
+    btn.addEventListener('click', () => playConvTts(entry.translation, entry.tgtLang));
+    bubble.appendChild(btn);
+  }
+
+  return bubble;
+}
+
+function syncConvHeights() {
+  const itemsA = Array.from(convTranscriptA.children);
+  const itemsB = Array.from(convTranscriptB.children);
+  convHistory.forEach((entry, i) => {
+    const a = itemsA[i];
+    const b = itemsB[i];
+    if (!a || !b) return;
+    if (entry.speaker === 'a') {
+      b.style.height = a.offsetHeight + 'px';
+    } else {
+      a.style.height = b.offsetHeight + 'px';
+    }
+  });
+}
+
 function renderConvTranscript() {
   convTranscriptA.innerHTML = '';
   convTranscriptB.innerHTML = '';
+
   for (const entry of convHistory) {
-    const bubble = document.createElement('div');
-    bubble.className = 'conv-bubble';
-    const srcP = document.createElement('p');
-    srcP.className = 'conv-source';
-    srcP.textContent = entry.source;
-    const tgtP = document.createElement('p');
-    tgtP.className = 'conv-translation';
-    tgtP.textContent = '\u2192 ' + entry.translation;
-    bubble.appendChild(srcP);
-    bubble.appendChild(tgtP);
+    const bubble = createConvBubble(entry);
+    const spacer = document.createElement('div');
+    spacer.className = 'conv-spacer';
+
     if (entry.speaker === 'a') {
       convTranscriptA.appendChild(bubble);
+      convTranscriptB.appendChild(spacer);
     } else {
+      convTranscriptA.appendChild(spacer);
       convTranscriptB.appendChild(bubble);
     }
   }
-  convTranscriptA.scrollTop = convTranscriptA.scrollHeight;
-  convTranscriptB.scrollTop = convTranscriptB.scrollHeight;
+
+  requestAnimationFrame(() => {
+    syncConvHeights();
+    convTranscriptA.scrollTop = convTranscriptA.scrollHeight;
+    convTranscriptB.scrollTop = convTranscriptB.scrollHeight;
+  });
 }
 
 async function playConvTts(text, langCode) {
@@ -1638,9 +1696,9 @@ convClearBtn.addEventListener('click', () => {
 convExportBtn.addEventListener('click', () => {
   if (convHistory.length === 0) { showNotification('No conversation to export', 'error'); return; }
   const lines = convHistory.map(e => {
-    const label = e.speaker === 'a'
+    const label = e.srcLangName || (e.speaker === 'a'
       ? (convLangAsel.options[convLangAsel.selectedIndex]?.text || 'Speaker A')
-      : (convLangBsel.options[convLangBsel.selectedIndex]?.text || 'Speaker B');
+      : (convLangBsel.options[convLangBsel.selectedIndex]?.text || 'Speaker B'));
     return `${label}: ${e.source}\n\u2192 ${e.translation}`;
   });
   const blob = new Blob([lines.join('\n\n')], { type: 'text/plain' });
@@ -1658,6 +1716,11 @@ function switchTab(tab) {
   const isText = tab === 'text';
   const isFile = tab === 'file';
   const isConv = tab === 'conversation';
+
+  // Stop any active recording when leaving conversation mode
+  if (!isConv && convRecording !== null) {
+    if (convMediaRecorder && convMediaRecorder.state === 'recording') convMediaRecorder.stop();
+  }
 
   tabTextBtn.classList.toggle('active', isText);
   tabDocumentBtn.classList.toggle('active', isFile);

@@ -106,6 +106,7 @@ const LONG_AUDIO_BYTES: u64 = 25 * 1024 * 1024; // 25 MB
 pub async fn transcribe_file(
     client: &OpenAiClient,
     whisper_model: &str,
+    language: Option<&str>,
     file_path: &Path,
     filename: &str,
 ) -> Result<String> {
@@ -121,9 +122,13 @@ pub async fn transcribe_file(
         .mime_str(&mime)
         .context("failed to set MIME type")?;
 
-    let form = reqwest::multipart::Form::new()
+    let mut form = reqwest::multipart::Form::new()
         .text("model", whisper_model.to_string())
         .part("file", part);
+
+    if let Some(lang) = language {
+        form = form.text("language", lang.to_string());
+    }
 
     let response = client
         .http
@@ -152,6 +157,7 @@ pub async fn transcribe_file(
 pub async fn transcribe(
     client: &OpenAiClient,
     whisper_model: &str,
+    language: Option<&str>,
     file_path: &Path,
     filename: &str,
 ) -> Result<String> {
@@ -162,11 +168,11 @@ pub async fn transcribe(
         let segments = split_audio_into_segments(file_path)?;
         let mut parts: Vec<String> = Vec::new();
         for seg in segments {
-            let text = transcribe_file(client, whisper_model, seg.path(), "segment.wav").await?;
+            let text = transcribe_file(client, whisper_model, language, seg.path(), "segment.wav").await?;
             parts.push(text);
         }
         return Ok(parts.join(" "));
     }
 
-    transcribe_file(client, whisper_model, file_path, filename).await
+    transcribe_file(client, whisper_model, language, file_path, filename).await
 }
