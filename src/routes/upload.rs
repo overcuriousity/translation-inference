@@ -26,6 +26,7 @@ pub async fn post_upload(
 
     let mut uploaded_files: Vec<UploadedFile> = Vec::new();
     let mut whisper_model: Option<String> = None;
+    let mut language: Option<String> = None;
     let mut endpoint: Option<String> = None;
     let mut api_key: Option<String> = None;
     let mut stt_endpoint: Option<String> = None;
@@ -76,6 +77,10 @@ pub async fn post_upload(
             Some("whisper_model") => {
                 let v = field.text().await.map_err(|e| err(StatusCode::BAD_REQUEST, e.to_string()))?;
                 if !v.is_empty() { whisper_model = Some(v); }
+            }
+            Some("language") => {
+                let v = field.text().await.map_err(|e| err(StatusCode::BAD_REQUEST, e.to_string()))?;
+                if !v.is_empty() { language = Some(v); }
             }
             Some("endpoint") => {
                 let v = field.text().await.map_err(|e| err(StatusCode::BAD_REQUEST, e.to_string()))?;
@@ -130,7 +135,7 @@ pub async fn post_upload(
         let final_path = wav_tmp.path().to_path_buf();
         let _wav_tmp = wav_tmp;
 
-        let text = whisper::transcribe(&client, whisper_model_str, &final_path, "extracted.wav")
+        let text = whisper::transcribe(&client, whisper_model_str, language.as_deref(), &final_path, "extracted.wav")
             .await
             .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, format!("{}: {e:#}", file.filename)))?;
         results.push(UploadResult::Text { filename: file.filename, text });
