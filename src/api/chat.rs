@@ -64,14 +64,19 @@ fn build_system_prompt(source_lang: &str, target_lang: &str, context: Option<&st
 /// previous chunk — in the target language — so the model can maintain terminology
 /// and style continuity without re-translating it.
 fn build_user_content(translated_overlap: Option<&str>, text: &str) -> String {
+    // Escape the delimiter tags so content that literally contains them cannot
+    // break the prompt boundary (e.g. when translating XML/HTML/logs).
+    let safe = text
+        .replace("<source_text>", "<source\u{200b}_text>")
+        .replace("</source_text>", "</source\u{200b}_text>");
     match translated_overlap {
         Some(prev) => format!(
             "PREVIOUS TRANSLATION (already done — do not repeat it, use it only for \
              terminology and style continuity):\n{prev}\n\n\
              TRANSLATE THE FOLLOWING (output only the translation, continuing seamlessly):\n\
-             <source_text>\n{text}\n</source_text>"
+             <source_text>\n{safe}\n</source_text>"
         ),
-        None => format!("<source_text>\n{text}\n</source_text>"),
+        None => format!("<source_text>\n{safe}\n</source_text>"),
     }
 }
 
