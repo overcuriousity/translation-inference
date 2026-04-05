@@ -236,7 +236,7 @@ function showConfigPanel(msg) {
 }
 
 function updateFileTabVisibility() {
-  if (sessionActive) {
+  if (sessionActive && sessionTier !== 'free') {
     tabDocumentBtn.classList.remove('hidden');
   } else {
     tabDocumentBtn.classList.add('hidden');
