@@ -10,11 +10,12 @@ use std::sync::Arc;
 
 use crate::api::{chat::translate_single, chunker::TranslationConfig};
 use crate::models::ErrorResponse;
-use crate::routes::translate::resolve_client;
+use crate::routes::translate::{check_authenticated, resolve_client};
 use crate::subtitle::{parse_srt, parse_vtt, render_srt, render_vtt};
 use crate::AppState;
 
-const MAX_FILE_BYTES: usize = 50 * 1024 * 1024; // 50 MB
+// Subtitle files are plain text; 5 MB is a generous upper bound.
+const MAX_FILE_BYTES: usize = 5 * 1024 * 1024;
 
 pub async fn post_translate_subtitle(
     State(state): State<Arc<AppState>>,
@@ -24,6 +25,10 @@ pub async fn post_translate_subtitle(
     Sse<impl futures::Stream<Item = Result<Event, Infallible>>>,
     (StatusCode, Json<ErrorResponse>),
 > {
+    // Authenticate before touching the request body to prevent unauthenticated
+    // clients from forcing file I/O and memory allocation.
+    check_authenticated(&state, &headers)?;
+
     let mut file_bytes: Option<Vec<u8>> = None;
     let mut original_filename = String::from("subtitle");
     let mut source_lang = String::from("auto");

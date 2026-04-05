@@ -25,6 +25,7 @@ let detectionRequestId    = 0;    // incremented per request; guards stale async
 let isPasting             = false;
 let srcTtsAudio           = null;
 let srcTtsObjectUrl       = null;
+let activeTab             = 'text';
 let mdRenderActive        = false;
 let paraViewActive        = false;
 let convHistory           = [];  // [{speaker:'a'|'b', source, translation}]
@@ -89,6 +90,10 @@ const paraOutput           = document.getElementById('para-output');
 const contextHintRow       = document.getElementById('context-hint-row');
 const contextHintInput     = document.getElementById('context-hint');
 const contextHintToggle    = document.getElementById('context-hint-toggle');
+const tabDocumentBtn       = document.getElementById('tab-document');
+const docUploadArea        = document.getElementById('doc-upload-area');
+const docFileInput         = document.getElementById('doc-file-input');
+const resultsDocList       = document.getElementById('results-doc-list');
 const tabConvBtn           = document.getElementById('tab-conversation');
 const convPanelEl          = document.getElementById('conv-panel');
 const convMicA             = document.getElementById('conv-mic-a');
@@ -608,6 +613,7 @@ clearBtn.addEventListener('click', () => {
   paraOutput.classList.add('hidden');
   outputDiv.classList.remove('hidden');
   paraViewActive = false;
+  paraToggleBtn.setAttribute('aria-pressed', 'false');
   ttsBtn.classList.add('hidden');
   stopTts();
   transcribeStatus.innerHTML = '';
@@ -641,6 +647,11 @@ swapBtn.addEventListener('click', () => {
 fileInput.addEventListener('change', () => {
   if (fileInput.files.length > 0) handleFiles(fileInput.files);
   fileInput.value = '';
+});
+
+docFileInput.addEventListener('change', () => {
+  if (docFileInput.files.length > 0) handleFiles(docFileInput.files);
+  docFileInput.value = '';
 });
 
 // Drag and drop
@@ -869,6 +880,16 @@ function appendDocResult(item) {
   btn.onclick = () => downloadBase64File(item.data, item.filename, item.mime);
   li.appendChild(btn);
   ul.appendChild(li);
+}
+
+function downloadBase64File(b64, filename, mime) {
+  const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+  const url = URL.createObjectURL(new Blob([bytes], { type: mime }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 // ── Bitvault integration ──────────────────────────────────────────────────
