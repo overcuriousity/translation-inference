@@ -15,10 +15,14 @@ pub async fn get_models(
     let mut transcription_ids = Vec::new();
 
     let session_client: Option<OpenAiClient> = get_session_id(&headers).and_then(|sid| {
-        state.sessions.read().unwrap()
+        state
+            .sessions
+            .read()
+            .unwrap()
             .get(&sid)
             .map(|c| match c.tier {
-                crate::SessionTier::Gated => state.gated_client
+                crate::SessionTier::Gated => state
+                    .gated_client
                     .clone()
                     .unwrap_or_else(|| state.client.clone()),
                 crate::SessionTier::Free => state.client.clone(),

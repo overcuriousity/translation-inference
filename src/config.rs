@@ -140,7 +140,9 @@ impl AppConfig {
                         match s.parse::<usize>() {
                             Ok(n) if n > 0 => Some(n),
                             _ => {
-                                eprintln!("Invalid FREE_TIER_CHAR_LIMIT value {s:?}; using default 16000");
+                                eprintln!(
+                                    "Invalid FREE_TIER_CHAR_LIMIT value {s:?}; using default 16000"
+                                );
                                 Some(16_000)
                             }
                         }
@@ -157,7 +159,9 @@ impl AppConfig {
                         match s.parse::<usize>() {
                             Ok(n) if n > 0 => Some(n),
                             _ => {
-                                eprintln!("Invalid GATED_CHAR_LIMIT value {s:?}; using default 65536");
+                                eprintln!(
+                                    "Invalid GATED_CHAR_LIMIT value {s:?}; using default 65536"
+                                );
                                 Some(65_536)
                             }
                         }
@@ -172,17 +176,21 @@ impl AppConfig {
                     let mut it = pair.trim().splitn(2, ':');
                     let raw_lang = it.next()?.trim().to_string();
                     let value = it.next()?.trim().to_string();
-                    if raw_lang.is_empty() || value.is_empty() { return None; }
+                    if raw_lang.is_empty() || value.is_empty() {
+                        return None;
+                    }
                     // Require `voice@model` format; silently skip malformed entries.
                     let at = value.find('@')?;
                     let voice = value[..at].trim().to_string();
                     let model = value[at + 1..].trim().to_string();
-                    if voice.is_empty() || model.is_empty() { return None; }
+                    if voice.is_empty() || model.is_empty() {
+                        return None;
+                    }
                     // Normalise to canonical casing (e.g. zh-tw → zh-TW) so keys
                     // match what /api/languages and the frontend use.
                     let lang = match raw_lang.to_lowercase().as_str() {
                         "zh-tw" => "zh-TW".to_string(),
-                        other   => other.to_string(),
+                        other => other.to_string(),
                     };
                     Some((lang, TtsVoiceEntry { voice, model }))
                 })
@@ -210,7 +218,9 @@ impl AppConfig {
 
     /// Returns the hostname of the TTS endpoint for UI display, or `None` if not configured.
     pub fn tts_hostname(&self) -> Option<String> {
-        if !self.is_tts_configured() { return None; }
+        if !self.is_tts_configured() {
+            return None;
+        }
         url::Url::parse(&self.tts_api_base_url)
             .ok()
             .and_then(|u| u.host_str().map(|h| h.to_string()))

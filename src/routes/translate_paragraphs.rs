@@ -1,8 +1,17 @@
-use axum::{extract::State, http::{HeaderMap, StatusCode}, Json};
+use axum::{
+    extract::State,
+    http::{HeaderMap, StatusCode},
+    Json,
+};
 use std::sync::Arc;
 
-use crate::api::{chat, chunker::{context_size_from_model_id, usable_input_chars, TranslationConfig}};
-use crate::models::{ErrorResponse, ParagraphPair, TranslateParagraphsRequest, TranslateParagraphsResponse};
+use crate::api::{
+    chat,
+    chunker::{context_size_from_model_id, usable_input_chars, TranslationConfig},
+};
+use crate::models::{
+    ErrorResponse, ParagraphPair, TranslateParagraphsRequest, TranslateParagraphsResponse,
+};
 use crate::routes::translate::{get_char_limit, resolve_translation_client};
 use crate::AppState;
 
@@ -35,7 +44,12 @@ pub async fn post_translate_paragraphs(
         }));
     }
 
-    let client = resolve_translation_client(&state, req.endpoint.as_deref(), req.api_key.as_deref(), &headers)?;
+    let client = resolve_translation_client(
+        &state,
+        req.endpoint.as_deref(),
+        req.api_key.as_deref(),
+        &headers,
+    )?;
 
     let model = req
         .model
@@ -71,7 +85,11 @@ pub async fn post_translate_paragraphs(
     }
 
     // Join non-empty paragraphs with separator and translate as one request.
-    let joined: String = non_empty.iter().map(|(_, p)| *p).collect::<Vec<_>>().join(SEP);
+    let joined: String = non_empty
+        .iter()
+        .map(|(_, p)| *p)
+        .collect::<Vec<_>>()
+        .join(SEP);
 
     let config = TranslationConfig::from(&state.config);
 
@@ -79,7 +97,8 @@ pub async fn post_translate_paragraphs(
     // be split across chunks, misaligning paragraphs.  Reject inputs that exceed
     // the single-pass budget and let the caller reduce the text or use the plain
     // translation endpoint instead.
-    let max_chars = usable_input_chars(context_size_from_model_id(model, &config), &joined, &config);
+    let max_chars =
+        usable_input_chars(context_size_from_model_id(model, &config), &joined, &config);
     if joined.chars().count() > max_chars {
         return Err((
             StatusCode::PAYLOAD_TOO_LARGE,
@@ -110,17 +129,16 @@ pub async fn post_translate_paragraphs(
         tracing::error!("Paragraph translation error: {e:#}");
         (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse { error: e.to_string() }),
+            Json(ErrorResponse {
+                error: e.to_string(),
+            }),
         )
     })?;
     let (chunks_total, chunks_completed) = (1usize, 1usize);
 
     // Split translated text back on the separator; strip empty leading/trailing splits
     // that can arise when the model wraps the output in extra newlines.
-    let mut translated_parts: Vec<&str> = translated
-        .split("§§§")
-        .map(str::trim)
-        .collect();
+    let mut translated_parts: Vec<&str> = translated.split("§§§").map(str::trim).collect();
     while translated_parts.first().is_some_and(|p| p.is_empty()) {
         translated_parts.remove(0);
     }
@@ -136,7 +154,10 @@ pub async fn post_translate_paragraphs(
             translated_parts.len()
         );
         tracing::error!("{error}");
-        return Err((StatusCode::UNPROCESSABLE_ENTITY, Json(ErrorResponse { error })));
+        return Err((
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(ErrorResponse { error }),
+        ));
     }
 
     // Build result array preserving original paragraph positions.

@@ -1,10 +1,14 @@
-use axum::{extract::{Multipart, State}, http::{HeaderMap, StatusCode}, Json};
+use axum::{
+    extract::{Multipart, State},
+    http::{HeaderMap, StatusCode},
+    Json,
+};
 use std::sync::Arc;
 use tempfile::NamedTempFile;
 use tokio::io::AsyncWriteExt;
 
-use crate::api::whisper::{self, extract_audio_from_video, is_video_file};
 use crate::api::client::OpenAiClient;
+use crate::api::whisper::{self, extract_audio_from_video, is_video_file};
 use crate::models::{ErrorResponse, TranscribeResponse};
 use crate::routes::translate::{check_authenticated, resolve_client};
 use crate::AppState;
@@ -38,23 +42,28 @@ pub async fn post_transcribe(
                 if let Some(name) = field.file_name() {
                     filename = name.to_string();
                 }
-                
+
                 let ext = std::path::Path::new(&filename)
                     .extension()
                     .and_then(|e| e.to_str())
                     .unwrap_or("bin");
-                
+
                 let tmp = tempfile::Builder::new()
                     .suffix(&format!(".{ext}"))
                     .tempfile()
                     .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-                
+
                 let mut tmp_file = tokio::fs::File::from(
-                    tmp.reopen().map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+                    tmp.reopen()
+                        .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?,
                 );
                 let mut size = 0;
-                
-                while let Some(chunk) = field.chunk().await.map_err(|e| err(StatusCode::BAD_REQUEST, e.to_string()))? {
+
+                while let Some(chunk) = field
+                    .chunk()
+                    .await
+                    .map_err(|e| err(StatusCode::BAD_REQUEST, e.to_string()))?
+                {
                     size += chunk.len();
                     if size > MAX_UPLOAD_BYTES {
                         return Err(err(
@@ -62,40 +71,66 @@ pub async fn post_transcribe(
                             format!("File exceeds {MAX_UPLOAD_BYTES} byte limit"),
                         ));
                     }
-                    tmp_file.write_all(&chunk).await.map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+                    tmp_file
+                        .write_all(&chunk)
+                        .await
+                        .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
                 }
-                tmp_file.flush().await.map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-                
+                tmp_file
+                    .flush()
+                    .await
+                    .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
                 file_tmp = Some(tmp);
             }
             Some("model") => {
                 model = Some(
-                    field.text().await.map_err(|e| err(StatusCode::BAD_REQUEST, e.to_string()))?,
+                    field
+                        .text()
+                        .await
+                        .map_err(|e| err(StatusCode::BAD_REQUEST, e.to_string()))?,
                 );
             }
             Some("endpoint") => {
                 endpoint = Some(
-                    field.text().await.map_err(|e| err(StatusCode::BAD_REQUEST, e.to_string()))?,
+                    field
+                        .text()
+                        .await
+                        .map_err(|e| err(StatusCode::BAD_REQUEST, e.to_string()))?,
                 );
             }
             Some("api_key") => {
                 api_key = Some(
-                    field.text().await.map_err(|e| err(StatusCode::BAD_REQUEST, e.to_string()))?,
+                    field
+                        .text()
+                        .await
+                        .map_err(|e| err(StatusCode::BAD_REQUEST, e.to_string()))?,
                 );
             }
             Some("stt_endpoint") => {
-                let v = field.text().await.map_err(|e| err(StatusCode::BAD_REQUEST, e.to_string()))?;
-                if !v.is_empty() { stt_endpoint = Some(v); }
+                let v = field
+                    .text()
+                    .await
+                    .map_err(|e| err(StatusCode::BAD_REQUEST, e.to_string()))?;
+                if !v.is_empty() {
+                    stt_endpoint = Some(v);
+                }
             }
             Some("stt_api_key") => {
-                let v = field.text().await.map_err(|e| err(StatusCode::BAD_REQUEST, e.to_string()))?;
-                if !v.is_empty() { stt_api_key = Some(v); }
+                let v = field
+                    .text()
+                    .await
+                    .map_err(|e| err(StatusCode::BAD_REQUEST, e.to_string()))?;
+                if !v.is_empty() {
+                    stt_api_key = Some(v);
+                }
             }
             _ => {}
         }
     }
 
-    let file_tmp = file_tmp.ok_or_else(|| err(StatusCode::BAD_REQUEST, "No file field found".into()))?;
+    let file_tmp =
+        file_tmp.ok_or_else(|| err(StatusCode::BAD_REQUEST, "No file field found".into()))?;
 
     // Authentication was already enforced above; use stt_endpoint/stt_api_key directly
     // if provided, otherwise fall back to the standard client resolver.

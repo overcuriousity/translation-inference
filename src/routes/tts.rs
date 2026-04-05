@@ -33,14 +33,24 @@ pub async fn post_tts(
     let allow_byok = has_session || has_bearer;
     let client = resolve_tts_client(
         &state,
-        if allow_byok { req.tts_endpoint.as_deref() } else { None },
-        if allow_byok { req.tts_api_key.as_deref() } else { None },
+        if allow_byok {
+            req.tts_endpoint.as_deref()
+        } else {
+            None
+        },
+        if allow_byok {
+            req.tts_api_key.as_deref()
+        } else {
+            None
+        },
     )?;
 
     if req.text.trim().is_empty() {
         return Err((
             StatusCode::BAD_REQUEST,
-            Json(ErrorResponse { error: "text is required".into() }),
+            Json(ErrorResponse {
+                error: "text is required".into(),
+            }),
         ));
     }
 
@@ -57,17 +67,22 @@ pub async fn post_tts(
         ));
     }
     let mut audio_bytes: Vec<u8> = Vec::new();
-    let entry = state.config.tts_voice_map.get(req.target_lang.as_str())
-        .ok_or_else(|| (
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse {
-                error: format!(
-                    "No TTS voice configured for language '{}'. \
+    let entry = state
+        .config
+        .tts_voice_map
+        .get(req.target_lang.as_str())
+        .ok_or_else(|| {
+            (
+                StatusCode::BAD_REQUEST,
+                Json(ErrorResponse {
+                    error: format!(
+                        "No TTS voice configured for language '{}'. \
                      Add '{}:voice@model' to TTS_VOICE_MAP.",
-                    req.target_lang, req.target_lang,
-                ),
-            }),
-        ))?;
+                        req.target_lang, req.target_lang,
+                    ),
+                }),
+            )
+        })?;
     let tts_model = entry.model.clone();
     let tts_voice = entry.voice.clone();
 
@@ -92,7 +107,9 @@ pub async fn post_tts(
                 tracing::error!("TTS request failed: {e:#}");
                 (
                     StatusCode::BAD_GATEWAY,
-                    Json(ErrorResponse { error: format!("TTS request failed: {e}") }),
+                    Json(ErrorResponse {
+                        error: format!("TTS request failed: {e}"),
+                    }),
                 )
             })?;
 
@@ -111,7 +128,9 @@ pub async fn post_tts(
         let bytes = resp.bytes().await.map_err(|e| {
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse { error: format!("Failed to read TTS response: {e}") }),
+                Json(ErrorResponse {
+                    error: format!("Failed to read TTS response: {e}"),
+                }),
             )
         })?;
 
@@ -234,8 +253,10 @@ fn split_sentences(text: &str) -> Vec<String> {
     while i < len {
         let ch = chars[i];
         // ASCII sentence terminators + fullwidth equivalents used in Japanese, Chinese, Korean.
-        if matches!(ch, '.' | '!' | '?' | '。' | '！' | '？' | '…' | '\u{203C}' | '\u{2049}')
-            || ch == '\n'
+        if matches!(
+            ch,
+            '.' | '!' | '?' | '。' | '！' | '？' | '…' | '\u{203C}' | '\u{2049}'
+        ) || ch == '\n'
         {
             // Include the punctuation and any following whitespace in this span.
             let mut end = i + 1;

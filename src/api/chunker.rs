@@ -120,7 +120,9 @@ pub struct Chunk {
 /// the caller.
 pub fn split_into_chunks(text: &str, max_chars: usize) -> Vec<Chunk> {
     if text.chars().count() <= max_chars {
-        return vec![Chunk { text: text.to_string() }];
+        return vec![Chunk {
+            text: text.to_string(),
+        }];
     }
 
     // Reserve space for the overlap prefix injected at translation time (~10%)
@@ -249,8 +251,14 @@ mod tests {
 
     #[test]
     fn test_context_size_from_model_id() {
-        assert_eq!(context_size_from_model_id("gpgpu/qwen3:14b-q5_k_m-32768", &cfg()), 32768);
-        assert_eq!(context_size_from_model_id("gpgpu/qwen3-5:9b-q5_k_m-40960", &cfg()), 40960);
+        assert_eq!(
+            context_size_from_model_id("gpgpu/qwen3:14b-q5_k_m-32768", &cfg()),
+            32768
+        );
+        assert_eq!(
+            context_size_from_model_id("gpgpu/qwen3-5:9b-q5_k_m-40960", &cfg()),
+            40960
+        );
         assert_eq!(context_size_from_model_id("deepseek-chat", &cfg()), 4096);
     }
 
@@ -274,7 +282,8 @@ mod tests {
 
     #[test]
     fn test_chunking_splits_into_multiple() {
-        let long_text = "First sentence. Second sentence. Third sentence. Fourth sentence. Fifth sentence.";
+        let long_text =
+            "First sentence. Second sentence. Third sentence. Fourth sentence. Fifth sentence.";
         let chunks = split_into_chunks(long_text, 40);
         assert!(chunks.len() > 1);
     }

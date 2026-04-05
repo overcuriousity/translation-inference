@@ -70,21 +70,35 @@ async fn main() -> Result<()> {
     let listen_addr = config.listen_addr.clone();
 
     if config.is_configured() {
-        tracing::info!("Server configured with API endpoint: {}", config.api_base_url);
+        tracing::info!(
+            "Server configured with API endpoint: {}",
+            config.api_base_url
+        );
     } else {
-        tracing::info!("No API credentials in environment — users must supply endpoint/key via the web UI");
+        tracing::info!(
+            "No API credentials in environment — users must supply endpoint/key via the web UI"
+        );
     }
 
     let client = OpenAiClient::new(&config);
     let gated_client = if config.is_gated_configured() {
-        tracing::info!("Gated tier configured with endpoint: {}", config.gated_api_base_url);
-        Some(OpenAiClient::with_credentials(&config.gated_api_base_url, &config.gated_api_key))
+        tracing::info!(
+            "Gated tier configured with endpoint: {}",
+            config.gated_api_base_url
+        );
+        Some(OpenAiClient::with_credentials(
+            &config.gated_api_base_url,
+            &config.gated_api_key,
+        ))
     } else {
         None
     };
     let tts_client = if config.is_tts_configured() {
         tracing::info!("TTS configured with endpoint: {}", config.tts_api_base_url);
-        Some(OpenAiClient::with_credentials(&config.tts_api_base_url, &config.tts_api_key))
+        Some(OpenAiClient::with_credentials(
+            &config.tts_api_base_url,
+            &config.tts_api_key,
+        ))
     } else {
         None
     };
@@ -120,17 +134,32 @@ async fn main() -> Result<()> {
         .route("/api/config/check", post(routes::config::post_config_check))
         .route("/api/config/gated", post(routes::config::post_gated_access))
         .route("/api/translate", post(routes::translate::post_translate))
-        .route("/api/translate/stream", post(routes::translate::post_translate_stream))
-        .route("/api/translate/paragraphs", post(routes::translate_paragraphs::post_translate_paragraphs))
-        .route("/api/translate-subtitle", post(routes::subtitle::post_translate_subtitle))
+        .route(
+            "/api/translate/stream",
+            post(routes::translate::post_translate_stream),
+        )
+        .route(
+            "/api/translate/paragraphs",
+            post(routes::translate_paragraphs::post_translate_paragraphs),
+        )
+        .route(
+            "/api/translate-subtitle",
+            post(routes::subtitle::post_translate_subtitle),
+        )
         .route("/api/transcribe", post(routes::transcribe::post_transcribe))
         .route("/api/upload", post(routes::upload::post_upload))
-        .route("/api/save-to-bitvault", post(routes::bitvault::post_save_to_bitvault))
+        .route(
+            "/api/save-to-bitvault",
+            post(routes::bitvault::post_save_to_bitvault),
+        )
         .route("/api/proxy-text", get(routes::bitvault::get_proxy_text))
         .route("/api/languages", get(routes::languages::get_languages))
         .route("/api/models", get(routes::models::get_models))
         .route("/api/tts", post(routes::tts::post_tts))
-        .route("/api/detect-language", post(routes::detect_language::post_detect_language))
+        .route(
+            "/api/detect-language",
+            post(routes::detect_language::post_detect_language),
+        )
         .layer(DefaultBodyLimit::max(100 * 1024 * 1024))
         .layer(CompressionLayer::new())
         .layer(cors)
@@ -156,4 +185,3 @@ fn check_ffmpeg() -> Result<()> {
         ),
     }
 }
-

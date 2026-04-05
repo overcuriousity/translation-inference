@@ -35,7 +35,10 @@ pub fn parse_srt(input: &str) -> Vec<SubtitleCue> {
         if text_lines.is_empty() {
             continue;
         }
-        cues.push(SubtitleCue { header, lines: text_lines });
+        cues.push(SubtitleCue {
+            header,
+            lines: text_lines,
+        });
     }
     cues
 }
@@ -97,7 +100,10 @@ pub fn parse_vtt(input: &str) -> (Vec<String>, Vec<SubtitleCue>) {
         if text_lines.is_empty() {
             continue;
         }
-        cues.push(SubtitleCue { header, lines: text_lines });
+        cues.push(SubtitleCue {
+            header,
+            lines: text_lines,
+        });
     }
     (metadata, cues)
 }

@@ -16,10 +16,7 @@ struct Assets;
 
 /// Serve the main page, issuing an anonymous Free-tier session cookie when the
 /// server is in gated mode and the browser doesn't already have a valid session.
-pub async fn serve_index(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
-) -> Response {
+pub async fn serve_index(State(state): State<Arc<AppState>>, headers: HeaderMap) -> Response {
     // Only set up a free-tier session when:
     //  - the gated tier is configured (REST API requires auth), AND
     //  - the server has its own backend credentials to use as the free tier.
@@ -38,11 +35,14 @@ pub async fn serve_index(
                         sessions.remove(&old);
                     }
                 }
-                sessions.insert(sid.clone(), SessionCredentials {
-                    endpoint: String::new(),
-                    api_key: String::new(),
-                    tier: SessionTier::Free,
-                });
+                sessions.insert(
+                    sid.clone(),
+                    SessionCredentials {
+                        endpoint: String::new(),
+                        api_key: String::new(),
+                        tier: SessionTier::Free,
+                    },
+                );
             }
             Some(crate::routes::config::make_session_cookie(&sid))
         } else {
@@ -80,8 +80,8 @@ pub async fn serve_static(uri: Uri) -> Response {
 
     match Assets::get(path) {
         Some(content) => {
-            let mime = mime_guess::from_path(path)
-                .first_or(mime_guess::mime::APPLICATION_OCTET_STREAM);
+            let mime =
+                mime_guess::from_path(path).first_or(mime_guess::mime::APPLICATION_OCTET_STREAM);
 
             Response::builder()
                 .status(StatusCode::OK)

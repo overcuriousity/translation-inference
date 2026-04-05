@@ -19,13 +19,20 @@ pub async fn post_detect_language(
 ) -> Result<Json<DetectLanguageResponse>, (StatusCode, Json<ErrorResponse>)> {
     check_authenticated(&state, &headers)?;
 
-    let client = resolve_translation_client(&state, req.endpoint.as_deref(), req.api_key.as_deref(), &headers)?;
+    let client = resolve_translation_client(
+        &state,
+        req.endpoint.as_deref(),
+        req.api_key.as_deref(),
+        &headers,
+    )?;
 
     let snippet: String = req.text.chars().take(500).collect();
     if snippet.trim().is_empty() {
         return Err((
             StatusCode::BAD_REQUEST,
-            Json(ErrorResponse { error: "text is required".into() }),
+            Json(ErrorResponse {
+                error: "text is required".into(),
+            }),
         ));
     }
 
@@ -59,7 +66,9 @@ pub async fn post_detect_language(
             tracing::error!("Language detection request failed: {e:#}");
             (
                 StatusCode::BAD_GATEWAY,
-                Json(ErrorResponse { error: format!("Detection request failed: {e}") }),
+                Json(ErrorResponse {
+                    error: format!("Detection request failed: {e}"),
+                }),
             )
         })?;
 
@@ -69,14 +78,18 @@ pub async fn post_detect_language(
         tracing::error!("Language detection upstream error {status}: {body}");
         return Err((
             StatusCode::BAD_GATEWAY,
-            Json(ErrorResponse { error: format!("Detection upstream error: {status}") }),
+            Json(ErrorResponse {
+                error: format!("Detection upstream error: {status}"),
+            }),
         ));
     }
 
     let chat: ChatResponse = resp.json().await.map_err(|e| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse { error: format!("Failed to parse detection response: {e}") }),
+            Json(ErrorResponse {
+                error: format!("Failed to parse detection response: {e}"),
+            }),
         )
     })?;
 
@@ -89,32 +102,41 @@ pub async fn post_detect_language(
 
     // Normalise: keep only alphanumeric chars and '-', then validate the result
     // looks like a plausible ISO 639-1 code (2-3 letters, optional region subtag).
-    let cleaned: String = raw.chars()
+    let cleaned: String = raw
+        .chars()
         .filter(|c| c.is_ascii_alphanumeric() || *c == '-')
         .collect();
 
     // Restore canonical casing for known region subtags
     let normalised = match cleaned.to_lowercase().as_str() {
         "zh-tw" => "zh-TW".to_string(),
-        other   => other.to_string(),
+        other => other.to_string(),
     };
 
     // Reject responses that don't resemble a language code at all.
     let valid = {
         let p: Vec<&str> = normalised.splitn(2, '-').collect();
-        let base_ok = p[0].len() >= 2 && p[0].len() <= 3 && p[0].chars().all(|c| c.is_ascii_lowercase());
+        let base_ok =
+            p[0].len() >= 2 && p[0].len() <= 3 && p[0].chars().all(|c| c.is_ascii_lowercase());
         let region_ok = p.len() == 1
             || (p[1].len() >= 2 && p[1].len() <= 4 && p[1].chars().all(|c| c.is_ascii_uppercase()));
         base_ok && region_ok
     };
 
     if !valid {
-        tracing::warn!("Language detection returned unparseable code: {:?}", raw.trim());
+        tracing::warn!(
+            "Language detection returned unparseable code: {:?}",
+            raw.trim()
+        );
         return Err((
             StatusCode::BAD_GATEWAY,
-            Json(ErrorResponse { error: "Language detection returned an unrecognised code".into() }),
+            Json(ErrorResponse {
+                error: "Language detection returned an unrecognised code".into(),
+            }),
         ));
     }
 
-    Ok(Json(DetectLanguageResponse { language: normalised }))
+    Ok(Json(DetectLanguageResponse {
+        language: normalised,
+    }))
 }

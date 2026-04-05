@@ -1,8 +1,14 @@
-use axum::{extract::State, http::{header, HeaderMap, StatusCode}, Json};
+use axum::{
+    extract::State,
+    http::{header, HeaderMap, StatusCode},
+    Json,
+};
 use std::sync::Arc;
 
 use crate::api::client::OpenAiClient;
-use crate::models::{ConfigTestRequest, ConfigTestResponse, ErrorResponse, GatedAccessRequest, StatusResponse};
+use crate::models::{
+    ConfigTestRequest, ConfigTestResponse, ErrorResponse, GatedAccessRequest, StatusResponse,
+};
 use crate::routes::translate::{check_authenticated, get_session_id};
 use crate::{AppState, SessionCredentials, SessionTier};
 
@@ -11,18 +17,23 @@ pub async fn get_status(
     headers: HeaderMap,
 ) -> Json<StatusResponse> {
     let session_tier_str = get_session_id(&headers).and_then(|sid| {
-        state.sessions.read().unwrap().get(&sid).map(|creds| match creds.tier {
-            SessionTier::Free => "free".to_string(),
-            SessionTier::Byok => "byok".to_string(),
-            SessionTier::Gated => "gated".to_string(),
-        })
+        state
+            .sessions
+            .read()
+            .unwrap()
+            .get(&sid)
+            .map(|creds| match creds.tier {
+                SessionTier::Free => "free".to_string(),
+                SessionTier::Byok => "byok".to_string(),
+                SessionTier::Gated => "gated".to_string(),
+            })
     });
     let session_active = session_tier_str.is_some();
 
     let char_limit = match session_tier_str.as_deref() {
-        Some("free")  => state.config.free_tier_char_limit,
+        Some("free") => state.config.free_tier_char_limit,
         Some("gated") => state.config.gated_char_limit,
-        _             => None, // byok or no active session: unlimited
+        _ => None, // byok or no active session: unlimited
     };
 
     Json(StatusResponse {
@@ -32,11 +43,19 @@ pub async fn get_status(
         session_tier: session_tier_str,
         bitvault_configured: state.config.is_bitvault_configured(),
         tts_configured: state.config.is_tts_configured(),
-        tts_languages: { let mut v: Vec<String> = state.config.tts_voice_map.keys().cloned().collect(); v.sort(); v },
+        tts_languages: {
+            let mut v: Vec<String> = state.config.tts_voice_map.keys().cloned().collect();
+            v.sort();
+            v
+        },
         tts_hostname: state.config.tts_hostname(),
         tts_model: {
-            let models: std::collections::BTreeSet<String> =
-                state.config.tts_voice_map.values().map(|e| e.model.clone()).collect();
+            let models: std::collections::BTreeSet<String> = state
+                .config
+                .tts_voice_map
+                .values()
+                .map(|e| e.model.clone())
+                .collect();
             models.into_iter().next()
         },
         char_limit,
@@ -68,7 +87,9 @@ pub async fn post_config_check(
     if req.endpoint.is_empty() || req.api_key.is_empty() {
         return Err((
             StatusCode::BAD_REQUEST,
-            Json(ErrorResponse { error: "endpoint and api_key are required".into() }),
+            Json(ErrorResponse {
+                error: "endpoint and api_key are required".into(),
+            }),
         ));
     }
 
@@ -82,20 +103,33 @@ pub async fn post_config_check(
         .map_err(|e| {
             (
                 StatusCode::BAD_GATEWAY,
-                Json(ErrorResponse { error: format!("Cannot reach endpoint: {e}") }),
+                Json(ErrorResponse {
+                    error: format!("Cannot reach endpoint: {e}"),
+                }),
             )
         })?;
 
     let status = response.status();
     if status.is_success() {
-        Ok(Json(ConfigTestResponse { ok: true, message: "Connection successful".into() }))
+        Ok(Json(ConfigTestResponse {
+            ok: true,
+            message: "Connection successful".into(),
+        }))
     } else if status.as_u16() == 401 || status.as_u16() == 403 {
-        Err((StatusCode::UNAUTHORIZED, Json(ErrorResponse { error: "Invalid API key".into() })))
+        Err((
+            StatusCode::UNAUTHORIZED,
+            Json(ErrorResponse {
+                error: "Invalid API key".into(),
+            }),
+        ))
     } else {
         let body = response.text().await.unwrap_or_default();
-        Err((StatusCode::BAD_GATEWAY, Json(ErrorResponse {
-            error: format!("Endpoint returned {status}: {body}"),
-        })))
+        Err((
+            StatusCode::BAD_GATEWAY,
+            Json(ErrorResponse {
+                error: format!("Endpoint returned {status}: {body}"),
+            }),
+        ))
     }
 }
 
@@ -106,7 +140,9 @@ pub async fn post_config_test(
     if req.endpoint.is_empty() || req.api_key.is_empty() {
         return Err((
             StatusCode::BAD_REQUEST,
-            Json(ErrorResponse { error: "endpoint and api_key are required".into() }),
+            Json(ErrorResponse {
+                error: "endpoint and api_key are required".into(),
+            }),
         ));
     }
 
@@ -142,7 +178,11 @@ pub async fn post_config_test(
             }
             sessions.insert(
                 sid.clone(),
-                SessionCredentials { endpoint: req.endpoint.clone(), api_key: req.api_key.clone(), tier: SessionTier::Byok },
+                SessionCredentials {
+                    endpoint: req.endpoint.clone(),
+                    api_key: req.api_key.clone(),
+                    tier: SessionTier::Byok,
+                },
             );
         }
         let mut resp_headers = HeaderMap::new();
@@ -151,14 +191,19 @@ pub async fn post_config_test(
             header::SET_COOKIE,
             make_session_cookie(&sid).parse().unwrap(),
         );
-        Ok((resp_headers, Json(ConfigTestResponse {
-            ok: true,
-            message: "Connection successful".into(),
-        })))
+        Ok((
+            resp_headers,
+            Json(ConfigTestResponse {
+                ok: true,
+                message: "Connection successful".into(),
+            }),
+        ))
     } else if status.as_u16() == 401 || status.as_u16() == 403 {
         Err((
             StatusCode::UNAUTHORIZED,
-            Json(ErrorResponse { error: "Invalid API key".into() }),
+            Json(ErrorResponse {
+                error: "Invalid API key".into(),
+            }),
         ))
     } else {
         let body = response.text().await.unwrap_or_default();
@@ -178,15 +223,25 @@ pub async fn post_gated_access(
     if !state.config.is_gated_configured() {
         return Err((
             StatusCode::NOT_FOUND,
-            Json(ErrorResponse { error: "Gated tier is not configured on this server".into() }),
+            Json(ErrorResponse {
+                error: "Gated tier is not configured on this server".into(),
+            }),
         ));
     }
 
     use subtle::ConstantTimeEq;
-    if req.access_key.as_bytes().ct_eq(state.config.gated_access_key.as_bytes()).unwrap_u8() == 0 {
+    if req
+        .access_key
+        .as_bytes()
+        .ct_eq(state.config.gated_access_key.as_bytes())
+        .unwrap_u8()
+        == 0
+    {
         return Err((
             StatusCode::UNAUTHORIZED,
-            Json(ErrorResponse { error: "Invalid access key".into() }),
+            Json(ErrorResponse {
+                error: "Invalid access key".into(),
+            }),
         ));
     }
 
@@ -242,8 +297,11 @@ pub async fn post_gated_access(
         header::SET_COOKIE,
         make_session_cookie(&sid).parse().unwrap(),
     );
-    Ok((resp_headers, Json(ConfigTestResponse {
-        ok: true,
-        message: "Access granted".into(),
-    })))
+    Ok((
+        resp_headers,
+        Json(ConfigTestResponse {
+            ok: true,
+            message: "Access granted".into(),
+        }),
+    ))
 }

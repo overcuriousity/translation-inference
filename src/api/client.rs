@@ -40,11 +40,13 @@ impl OpenAiClient {
     }
 
     pub async fn fetch_models(&self) -> anyhow::Result<Vec<String>> {
-        let res = self.http.get(self.models_url())
+        let res = self
+            .http
+            .get(self.models_url())
             .header("Authorization", format!("Bearer {}", self.api_key))
             .send()
             .await?;
-        
+
         if !res.status().is_success() {
             anyhow::bail!("Failed to fetch models: {}", res.status());
         }

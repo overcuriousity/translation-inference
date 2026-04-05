@@ -1,4 +1,10 @@
-use axum::{body::Body, extract::State, http::{header, HeaderMap, StatusCode}, response::Response, Json};
+use axum::{
+    body::Body,
+    extract::State,
+    http::{header, HeaderMap, StatusCode},
+    response::Response,
+    Json,
+};
 use futures::StreamExt;
 use std::sync::Arc;
 
@@ -32,7 +38,12 @@ pub async fn post_translate_stream(
         }
     }
 
-    let client = resolve_translation_client(&state, req.endpoint.as_deref(), req.api_key.as_deref(), &headers)?;
+    let client = resolve_translation_client(
+        &state,
+        req.endpoint.as_deref(),
+        req.api_key.as_deref(),
+        &headers,
+    )?;
 
     let model = req
         .model
@@ -57,15 +68,13 @@ pub async fn post_translate_stream(
                 tracing::error!("Translation stream error: {e:#}");
                 // HTTP 200 is already committed; signal the error to the client via
                 // a null-byte sentinel that normal translation output can never contain.
-                Ok::<_, std::convert::Infallible>(axum::body::Bytes::from(
-                    format!("\x00ERR:{e:#}")
-                ))
+                Ok::<_, std::convert::Infallible>(axum::body::Bytes::from(format!("\x00ERR:{e:#}")))
             }
         }
     });
 
     let body = Body::from_stream(byte_stream);
-    
+
     let response = Response::builder()
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, "text/plain; charset=utf-8")
@@ -98,7 +107,12 @@ pub async fn post_translate(
         }));
     }
 
-    let client = resolve_translation_client(&state, req.endpoint.as_deref(), req.api_key.as_deref(), &headers)?;
+    let client = resolve_translation_client(
+        &state,
+        req.endpoint.as_deref(),
+        req.api_key.as_deref(),
+        &headers,
+    )?;
 
     let model = req
         .model
@@ -107,7 +121,17 @@ pub async fn post_translate(
 
     let translation_config = TranslationConfig::from(&state.config);
     let source_lang = req.source_lang.as_deref().unwrap_or("auto");
-    match chat::translate(&client, model, source_lang, &req.target_lang, &req.text, req.context.as_deref(), &translation_config).await {
+    match chat::translate(
+        &client,
+        model,
+        source_lang,
+        &req.target_lang,
+        &req.text,
+        req.context.as_deref(),
+        &translation_config,
+    )
+    .await
+    {
         Ok((translated_text, chunks_total, chunks_completed)) => Ok(Json(TranslateResponse {
             translated_text,
             chunks_total,
@@ -117,7 +141,9 @@ pub async fn post_translate(
             tracing::error!("Translation error: {e:#}");
             Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse { error: e.to_string() }),
+                Json(ErrorResponse {
+                    error: e.to_string(),
+                }),
             ))
         }
     }
@@ -139,7 +165,9 @@ fn verify_bearer(
     if provided.as_bytes().ct_eq(access_key.as_bytes()).unwrap_u8() == 0 {
         return Err((
             StatusCode::UNAUTHORIZED,
-            Json(ErrorResponse { error: "Invalid or missing access key.".into() }),
+            Json(ErrorResponse {
+                error: "Invalid or missing access key.".into(),
+            }),
         ));
     }
     Ok(())
@@ -181,9 +209,9 @@ pub fn get_char_limit(state: &AppState, headers: &HeaderMap) -> Option<usize> {
     if let Some(sid) = get_session_id(headers) {
         if let Some(creds) = state.sessions.read().unwrap().get(&sid) {
             return match creds.tier {
-                crate::SessionTier::Free  => state.config.free_tier_char_limit,
+                crate::SessionTier::Free => state.config.free_tier_char_limit,
                 crate::SessionTier::Gated => state.config.gated_char_limit,
-                crate::SessionTier::Byok  => None,
+                crate::SessionTier::Byok => None,
             };
         }
     }
@@ -215,9 +243,10 @@ pub fn resolve_client(
                         Ok(state.client.clone())
                     }
                 }
-                crate::SessionTier::Byok => {
-                    Ok(OpenAiClient::with_credentials(&creds.endpoint, &creds.api_key))
-                }
+                crate::SessionTier::Byok => Ok(OpenAiClient::with_credentials(
+                    &creds.endpoint,
+                    &creds.api_key,
+                )),
             };
         }
     }
@@ -248,7 +277,8 @@ pub fn resolve_client(
         return Err((
             StatusCode::UNAUTHORIZED,
             Json(ErrorResponse {
-                error: "Authentication required. Provide a Bearer token or use the web interface.".into(),
+                error: "Authentication required. Provide a Bearer token or use the web interface."
+                    .into(),
             }),
         ));
     }
@@ -258,7 +288,9 @@ pub fn resolve_client(
     if provided.as_bytes().ct_eq(access_key.as_bytes()).unwrap_u8() == 0 {
         return Err((
             StatusCode::UNAUTHORIZED,
-            Json(ErrorResponse { error: "Invalid access key.".into() }),
+            Json(ErrorResponse {
+                error: "Invalid access key.".into(),
+            }),
         ));
     }
 
@@ -278,7 +310,8 @@ pub fn resolve_client(
     Err((
         StatusCode::BAD_REQUEST,
         Json(ErrorResponse {
-            error: "No API credentials configured. Provide endpoint and api_key in the request.".into(),
+            error: "No API credentials configured. Provide endpoint and api_key in the request."
+                .into(),
         }),
     ))
 }

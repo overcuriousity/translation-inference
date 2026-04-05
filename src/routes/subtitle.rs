@@ -4,7 +4,7 @@ use axum::{
     response::sse::{Event, Sse},
     Json,
 };
-use base64::{Engine as _, engine::general_purpose::STANDARD as B64};
+use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
 use std::convert::Infallible;
 use std::sync::Arc;
 
@@ -101,8 +101,8 @@ pub async fn post_translate_subtitle(
         }
     }
 
-    let bytes = file_bytes
-        .ok_or_else(|| err(StatusCode::BAD_REQUEST, "No file provided".into()))?;
+    let bytes =
+        file_bytes.ok_or_else(|| err(StatusCode::BAD_REQUEST, "No file provided".into()))?;
 
     let ext = std::path::Path::new(&original_filename)
         .extension()
@@ -117,8 +117,12 @@ pub async fn post_translate_subtitle(
         ));
     }
 
-    let text = String::from_utf8(bytes)
-        .map_err(|_| err(StatusCode::UNPROCESSABLE_ENTITY, "File is not valid UTF-8".into()))?;
+    let text = String::from_utf8(bytes).map_err(|_| {
+        err(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "File is not valid UTF-8".into(),
+        )
+    })?;
 
     let (vtt_metadata, mut cues) = if ext == "srt" {
         (vec![], parse_srt(&text))
@@ -134,7 +138,8 @@ pub async fn post_translate_subtitle(
     }
 
     if let Some(limit) = get_char_limit(&state, &headers) {
-        let total_chars: usize = cues.iter()
+        let total_chars: usize = cues
+            .iter()
             .flat_map(|c| c.lines.iter())
             .map(|l| l.chars().count())
             .sum();
@@ -146,7 +151,8 @@ pub async fn post_translate_subtitle(
         }
     }
 
-    let client = resolve_translation_client(&state, endpoint.as_deref(), api_key.as_deref(), &headers)?;
+    let client =
+        resolve_translation_client(&state, endpoint.as_deref(), api_key.as_deref(), &headers)?;
     let model_str = model
         .as_deref()
         .unwrap_or(&state.config.translation_model)

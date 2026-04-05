@@ -225,13 +225,21 @@ pub async fn translate_single(
 ) -> Result<String> {
     let max_chars = usable_input_chars(context_size_from_model_id(model, config), text, config);
     if text.chars().count() > max_chars {
-        let (result, _, _) = translate(client, model, source_lang, target_lang, text, context, config).await?;
+        let (result, _, _) = translate(
+            client,
+            model,
+            source_lang,
+            target_lang,
+            text,
+            context,
+            config,
+        )
+        .await?;
         return Ok(result);
     }
     let system_prompt = build_system_prompt(source_lang, target_lang, context);
     translate_chunk(client, model, &system_prompt, None, text, config).await
 }
-
 
 pub fn translate_stream(
     client: OpenAiClient,

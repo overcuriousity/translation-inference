@@ -15,7 +15,24 @@ pub fn is_video_file(filename: &str) -> bool {
         .to_lowercase();
     matches!(
         ext.as_str(),
-        "mp4" | "mkv" | "avi" | "mov" | "webm" | "flv" | "wmv" | "m4v" | "3gp" | "ts" | "mpeg" | "mpg" | "rm" | "rmvb" | "vob" | "mts" | "m2ts" | "divx"
+        "mp4"
+            | "mkv"
+            | "avi"
+            | "mov"
+            | "webm"
+            | "flv"
+            | "wmv"
+            | "m4v"
+            | "3gp"
+            | "ts"
+            | "mpeg"
+            | "mpg"
+            | "rm"
+            | "rmvb"
+            | "vob"
+            | "mts"
+            | "m2ts"
+            | "divx"
     )
 }
 
@@ -29,12 +46,16 @@ pub fn extract_audio_from_video(input_path: &Path) -> Result<NamedTempFile> {
 
     let status = Command::new("ffmpeg")
         .args([
-            "-y",                          // overwrite output
-            "-i", input_path.to_str().context("invalid input path")?,
-            "-vn",                         // no video
-            "-acodec", "pcm_s16le",        // raw PCM
-            "-ar", "16000",                // 16 kHz (Whisper optimal)
-            "-ac", "1",                    // mono
+            "-y", // overwrite output
+            "-i",
+            input_path.to_str().context("invalid input path")?,
+            "-vn", // no video
+            "-acodec",
+            "pcm_s16le", // raw PCM
+            "-ar",
+            "16000", // 16 kHz (Whisper optimal)
+            "-ac",
+            "1", // mono
             tmp.path().to_str().context("invalid temp path")?,
         ])
         .output()
@@ -57,13 +78,20 @@ pub fn split_audio_into_segments(input_path: &Path) -> Result<Vec<NamedTempFile>
     let status = Command::new("ffmpeg")
         .args([
             "-y",
-            "-i", input_path.to_str().context("invalid input path")?,
-            "-f", "segment",
-            "-segment_time", "600",        // 10 minutes
-            "-acodec", "pcm_s16le",
-            "-ar", "16000",
-            "-ac", "1",
-            "-reset_timestamps", "1",
+            "-i",
+            input_path.to_str().context("invalid input path")?,
+            "-f",
+            "segment",
+            "-segment_time",
+            "600", // 10 minutes
+            "-acodec",
+            "pcm_s16le",
+            "-ar",
+            "16000",
+            "-ac",
+            "1",
+            "-reset_timestamps",
+            "1",
             pattern.to_str().context("invalid pattern path")?,
         ])
         .output()
@@ -114,7 +142,9 @@ pub async fn transcribe_file(
         .first_or(mime_guess::mime::APPLICATION_OCTET_STREAM)
         .to_string();
 
-    let file = tokio::fs::File::open(file_path).await.context("failed to open file for upload")?;
+    let file = tokio::fs::File::open(file_path)
+        .await
+        .context("failed to open file for upload")?;
     let stream = tokio_util::io::ReaderStream::new(file);
 
     let part = reqwest::multipart::Part::stream(reqwest::Body::wrap_stream(stream))
@@ -191,7 +221,8 @@ pub async fn transcribe(
         let segments = split_audio_into_segments(file_path)?;
         let mut parts: Vec<String> = Vec::new();
         for seg in segments {
-            let text = transcribe_file(client, whisper_model, language, seg.path(), "segment.wav").await?;
+            let text =
+                transcribe_file(client, whisper_model, language, seg.path(), "segment.wav").await?;
             parts.push(text);
         }
         return Ok(parts.join(" "));
