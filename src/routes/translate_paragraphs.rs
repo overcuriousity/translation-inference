@@ -1,7 +1,7 @@
 use axum::{extract::State, http::{HeaderMap, StatusCode}, Json};
 use std::sync::Arc;
 
-use crate::api::{chat, chunker::TranslationConfig};
+use crate::api::{chat, chunker::{context_size_from_model_id, usable_input_chars, TranslationConfig}};
 use crate::models::{ErrorResponse, ParagraphPair, TranslateParagraphsRequest, TranslateParagraphsResponse};
 use crate::routes::translate::resolve_client;
 use crate::AppState;
@@ -60,7 +60,28 @@ pub async fn post_translate_paragraphs(
     let joined: String = non_empty.iter().map(|(_, p)| *p).collect::<Vec<_>>().join(SEP);
 
     let config = TranslationConfig::from(&state.config);
-    let (translated, chunks_total, chunks_completed) = chat::translate(
+
+    // Guard: if the joined text would require chunking the §§§ separators could
+    // be split across chunks, misaligning paragraphs.  Reject inputs that exceed
+    // the single-pass budget and let the caller reduce the text or use the plain
+    // translation endpoint instead.
+    let max_chars = usable_input_chars(context_size_from_model_id(model, &config), &joined, &config);
+    if joined.chars().count() > max_chars {
+        return Err((
+            StatusCode::PAYLOAD_TOO_LARGE,
+            Json(ErrorResponse {
+                error: format!(
+                    "Input is too large for paragraph-aligned translation \
+                     ({} chars, limit ~{} chars). Please shorten the text or use \
+                     the regular translation endpoint.",
+                    joined.chars().count(),
+                    max_chars
+                ),
+            }),
+        ));
+    }
+
+    let translated = chat::translate_single(
         &client,
         model,
         &req.source_lang,
@@ -77,6 +98,7 @@ pub async fn post_translate_paragraphs(
             Json(ErrorResponse { error: e.to_string() }),
         )
     })?;
+    let (chunks_total, chunks_completed) = (1usize, 1usize);
 
     // Split translated text back on the separator.
     let translated_parts: Vec<&str> = translated.split("§§§").collect();

@@ -25,11 +25,19 @@ fn build_system_prompt(source_lang: &str, target_lang: &str, context: Option<&st
         format!("The source language is {source_lang}.")
     };
 
+    const MAX_CONTEXT_CHARS: usize = 300;
     let context_clause = match context {
-        Some(ctx) if !ctx.trim().is_empty() => format!(
-            "\nThe text belongs to the following domain or context: {}.\nAdapt terminology and register accordingly.",
-            ctx.trim()
-        ),
+        Some(ctx) if !ctx.trim().is_empty() => {
+            // Collapse all whitespace (including newlines) to single spaces so
+            // that multi-line or prompt-like strings cannot break the instruction
+            // block. Truncate to a hard server-side limit.
+            let normalized: String = ctx.split_whitespace().collect::<Vec<_>>().join(" ");
+            let truncated: String = normalized.chars().take(MAX_CONTEXT_CHARS).collect();
+            format!(
+                "\nThe text belongs to the following domain or context: {}.\nAdapt terminology and register accordingly.",
+                truncated
+            )
+        }
         _ => String::new(),
     };
 

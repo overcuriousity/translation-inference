@@ -510,7 +510,7 @@ async function handleFiles(files) {
       const file = fileArray[i];
       const fileExt = file.name.split('.').pop().toLowerCase();
       try {
-        // Subtitle files go to the subtitle endpoint
+        // Subtitle files go to the subtitle endpoint (SSE progress stream)
         if (['srt', 'vtt'].includes(fileExt)) {
           const form = new FormData();
           form.append('file', file, file.name);
@@ -519,18 +519,24 @@ async function handleFiles(files) {
           form.append('model', modelSel.value || '');
           appendCredentialsToForm(form);
 
-          const res  = await fetch('/api/translate-subtitle', { method: 'POST', body: form });
-          const data = await res.json();
-
-          removePendingEntry(i);
+          const res = await fetch('/api/translate-subtitle', { method: 'POST', body: form });
 
           if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            removePendingEntry(i);
             if (res.status === 401) { promptReauth(); break; }
             showNotification(data.error || 'Subtitle translation failed', 'error');
             continue;
           }
 
-          appendDocResult(data);
+          // Stream SSE events: progress updates followed by a final done/error event.
+          const result = await readSubtitleSSE(res, i);
+          removePendingEntry(i);
+          if (result.error) {
+            showNotification(result.error, 'error');
+          } else if (result.data) {
+            appendDocResult(result);
+          }
           continue;
         }
 
@@ -759,7 +765,7 @@ function setOutput(text) {
 }
 
 function applyMdRender() {
-  outputDiv.innerHTML = marked.parse(lastOutputText);
+  outputDiv.innerHTML = DOMPurify.sanitize(marked.parse(lastOutputText));
 }
 
 function removeMdRender() {
@@ -780,7 +786,12 @@ function showPendingQueue(files) {
     const row = document.createElement('div');
     row.className = 'pending-file';
     row.dataset.pendingIndex = i;
-    row.innerHTML = `<span class="spinner"></span><span class="pending-file-name">${file.name}</span>`;
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'pending-file-name';
+    nameSpan.dataset.filename = file.name;
+    nameSpan.textContent = file.name;
+    row.appendChild(document.createElement('span')).className = 'spinner';
+    row.appendChild(nameSpan);
     transcribeStatus.appendChild(row);
   });
   transcribeStatus.classList.remove('hidden');
@@ -792,6 +803,67 @@ function removePendingEntry(index) {
   if (!transcribeStatus.querySelector('.pending-file')) {
     transcribeStatus.classList.add('hidden');
   }
+}
+
+// Read the SSE stream from /api/translate-subtitle, updating the pending row
+// with live cue progress. Returns {filename, data, mime} on success or
+// {error} on failure.
+async function readSubtitleSSE(res, pendingIndex) {
+  const row = transcribeStatus.querySelector(`[data-pending-index="${pendingIndex}"]`);
+  const progressLabel = row ? row.querySelector('.pending-file-name') : null;
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+
+    // SSE frames are separated by double newlines.
+    const frames = buf.split('\n\n');
+    buf = frames.pop(); // keep incomplete trailing frame
+
+    for (const frame of frames) {
+      if (!frame.trim()) continue;
+      let eventType = 'message';
+      let eventData = '';
+      for (const line of frame.split('\n')) {
+        if (line.startsWith('event:')) eventType = line.slice(6).trim();
+        else if (line.startsWith('data:')) eventData = line.slice(5).trim();
+      }
+      if (!eventData) continue;
+
+      let parsed;
+      try { parsed = JSON.parse(eventData); } catch { continue; }
+
+      if (eventType === 'progress' && progressLabel) {
+        progressLabel.textContent = `${progressLabel.dataset.filename || ''} — cue ${parsed.done}/${parsed.total}`;
+      } else if (eventType === 'done') {
+        return parsed;
+      } else if (eventType === 'error') {
+        return { error: parsed.error || 'Subtitle translation failed' };
+      }
+    }
+  }
+  return { error: 'Subtitle translation ended unexpectedly' };
+}
+
+function appendDocResult(item) {
+  if (resultsDocList.classList.contains('hidden') || !resultsDocList.querySelector('.doc-file-list')) {
+    resultsDocList.innerHTML = '<div class="doc-list-title">Translated Documents</div><ul class="doc-file-list"></ul>';
+    resultsDocList.classList.remove('hidden');
+  }
+  const ul = resultsDocList.querySelector('.doc-file-list');
+  const li = document.createElement('li');
+  li.textContent = item.filename;
+  const btn = document.createElement('button');
+  btn.className = 'btn-primary doc-dl-btn';
+  btn.textContent = 'Download';
+  btn.onclick = () => downloadBase64File(item.data, item.filename, item.mime);
+  li.appendChild(btn);
+  ul.appendChild(li);
 }
 
 // ── Bitvault integration ──────────────────────────────────────────────────
@@ -1200,6 +1272,7 @@ mdToggleBtn.addEventListener('click', () => {
 
 // ── Paragraph view ────────────────────────────────────────────────────────
 paraToggleBtn.addEventListener('click', async () => {
+  if (paraToggleBtn.getAttribute('aria-disabled') === 'true') return;
   paraViewActive = !paraViewActive;
   paraToggleBtn.setAttribute('aria-pressed', String(paraViewActive));
   localStorage.setItem('paraView', String(paraViewActive));

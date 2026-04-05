@@ -1,5 +1,11 @@
-use axum::{extract::{Multipart, State}, http::{HeaderMap, StatusCode}, Json};
+use axum::{
+    extract::{Multipart, State},
+    http::{HeaderMap, StatusCode},
+    response::sse::{Event, Sse},
+    Json,
+};
 use base64::{Engine as _, engine::general_purpose::STANDARD as B64};
+use std::convert::Infallible;
 use std::sync::Arc;
 
 use crate::api::{chat::translate_single, chunker::TranslationConfig};
@@ -10,21 +16,14 @@ use crate::AppState;
 
 const MAX_FILE_BYTES: usize = 50 * 1024 * 1024; // 50 MB
 
-/// Separator used between cue texts when batching translation.
-const SEP: &str = "\n§§§\n";
-
-#[derive(serde::Serialize)]
-pub struct SubtitleResponse {
-    pub filename: String,
-    pub data: String,  // base64
-    pub mime: String,
-}
-
 pub async fn post_translate_subtitle(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     mut multipart: Multipart,
-) -> Result<Json<SubtitleResponse>, (StatusCode, Json<ErrorResponse>)> {
+) -> Result<
+    Sse<impl futures::Stream<Item = Result<Event, Infallible>>>,
+    (StatusCode, Json<ErrorResponse>),
+> {
     let mut file_bytes: Option<Vec<u8>> = None;
     let mut original_filename = String::from("subtitle");
     let mut source_lang = String::from("auto");
@@ -97,9 +96,9 @@ pub async fn post_translate_subtitle(
         }
     }
 
-    let bytes = file_bytes.ok_or_else(|| err(StatusCode::BAD_REQUEST, "No file provided".into()))?;
+    let bytes = file_bytes
+        .ok_or_else(|| err(StatusCode::BAD_REQUEST, "No file provided".into()))?;
 
-    // Detect format from filename extension.
     let ext = std::path::Path::new(&original_filename)
         .extension()
         .and_then(|e| e.to_str())
@@ -116,63 +115,86 @@ pub async fn post_translate_subtitle(
     let text = String::from_utf8(bytes)
         .map_err(|_| err(StatusCode::UNPROCESSABLE_ENTITY, "File is not valid UTF-8".into()))?;
 
-    let mut cues = if ext == "srt" {
-        parse_srt(&text)
+    let (vtt_metadata, mut cues) = if ext == "srt" {
+        (vec![], parse_srt(&text))
     } else {
         parse_vtt(&text)
     };
 
     if cues.is_empty() {
-        return Err(err(StatusCode::UNPROCESSABLE_ENTITY, "No subtitle cues found in file".into()));
+        return Err(err(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "No subtitle cues found in file".into(),
+        ));
     }
 
     let client = resolve_client(&state, endpoint.as_deref(), api_key.as_deref(), &headers)?;
-    let model_str = model.as_deref().unwrap_or(&state.config.translation_model);
+    let model_str = model
+        .as_deref()
+        .unwrap_or(&state.config.translation_model)
+        .to_string();
     let config = TranslationConfig::from(&state.config);
 
-    // Join all cue texts with separator and translate in one request.
-    let joined: String = cues.iter().map(|c| c.lines.join("\n")).collect::<Vec<_>>().join(SEP);
-
-    let translated = translate_single(&client, model_str, &source_lang, &target_lang, &joined, None, &config)
-        .await
-        .map_err(|e| {
-            tracing::error!("Subtitle translation error: {e:#}");
-            err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
-        })?;
-
-    // Split translated text back on the separator.
-    let translated_parts: Vec<&str> = translated.split("§§§").collect();
-
-    // Write translations back into cues.
-    for (i, cue) in cues.iter_mut().enumerate() {
-        if let Some(part) = translated_parts.get(i) {
-            let trimmed = part.trim();
-            if !trimmed.is_empty() {
-                cue.lines = trimmed.lines().map(str::to_string).collect();
-            }
-        }
-    }
-
-    // Render back to original format.
-    let output = if ext == "srt" {
-        render_srt(&cues)
-    } else {
-        render_vtt(&cues)
-    };
-
-    // Build output filename: insert "_translated" before extension.
     let stem = std::path::Path::new(&original_filename)
         .file_stem()
         .and_then(|s| s.to_str())
-        .unwrap_or("subtitle");
+        .unwrap_or("subtitle")
+        .to_string();
     let out_filename = format!("{stem}_translated.{ext}");
-    let data = B64.encode(output.as_bytes());
 
-    Ok(Json(SubtitleResponse {
-        filename: out_filename,
-        data,
-        mime: "text/plain".into(),
-    }))
+    let stream = async_stream::stream! {
+        let total = cues.len();
+
+        for i in 0..total {
+            let cue_text = cues[i].lines.join("\n");
+
+            match translate_single(
+                &client,
+                &model_str,
+                &source_lang,
+                &target_lang,
+                &cue_text,
+                None,
+                &config,
+            )
+            .await
+            {
+                Ok(translated) => {
+                    let trimmed = translated.trim().to_string();
+                    if !trimmed.is_empty() {
+                        cues[i].lines = trimmed.lines().map(str::to_string).collect();
+                    }
+                    let data = format!(r#"{{"done":{},"total":{}}}"#, i + 1, total);
+                    yield Ok::<_, Infallible>(Event::default().event("progress").data(data));
+                }
+                Err(e) => {
+                    tracing::error!("Subtitle cue translation error: {e:#}");
+                    let data = format!(
+                        r#"{{"error":{}}}"#,
+                        serde_json::Value::String(e.to_string())
+                    );
+                    yield Ok::<_, Infallible>(Event::default().event("error").data(data));
+                    return;
+                }
+            }
+        }
+
+        let output = if ext == "srt" {
+            render_srt(&cues)
+        } else {
+            render_vtt(&vtt_metadata, &cues)
+        };
+
+        let encoded = B64.encode(output.as_bytes());
+        let data = format!(
+            r#"{{"filename":{},"data":{},"mime":"text/plain"}}"#,
+            serde_json::Value::String(out_filename),
+            serde_json::Value::String(encoded),
+        );
+        yield Ok::<_, Infallible>(Event::default().event("done").data(data));
+    };
+
+    Ok(Sse::new(stream))
 }
 
 fn err(status: StatusCode, msg: String) -> (StatusCode, Json<ErrorResponse>) {

@@ -40,8 +40,14 @@ pub fn parse_srt(input: &str) -> Vec<SubtitleCue> {
     cues
 }
 
-/// Parse a WebVTT subtitle file into cues.
-pub fn parse_vtt(input: &str) -> Vec<SubtitleCue> {
+/// Parse a WebVTT subtitle file into metadata blocks and cues.
+///
+/// Returns `(metadata, cues)` where `metadata` is the ordered list of raw
+/// non-cue blocks (WEBVTT header, NOTE, STYLE, REGION) that should be
+/// re-emitted verbatim by `render_vtt` so the translated file remains
+/// semantically equivalent to the original.
+pub fn parse_vtt(input: &str) -> (Vec<String>, Vec<SubtitleCue>) {
+    let mut metadata = Vec::new();
     let mut cues = Vec::new();
     let normalised = input.replace("\r\n", "\n");
     let blocks: Vec<&str> = normalised
@@ -52,13 +58,13 @@ pub fn parse_vtt(input: &str) -> Vec<SubtitleCue> {
         .collect();
 
     for block in blocks {
-        // Skip the WEBVTT header block and NOTE/STYLE/REGION blocks.
         let first_line = block.lines().next().unwrap_or("").trim();
         if first_line.starts_with("WEBVTT")
             || first_line.starts_with("NOTE")
             || first_line.starts_with("STYLE")
             || first_line.starts_with("REGION")
         {
+            metadata.push(block.to_string());
             continue;
         }
 
@@ -93,7 +99,7 @@ pub fn parse_vtt(input: &str) -> Vec<SubtitleCue> {
         }
         cues.push(SubtitleCue { header, lines: text_lines });
     }
-    cues
+    (metadata, cues)
 }
 
 /// Render cues back to SRT format.
@@ -112,8 +118,21 @@ pub fn render_srt(cues: &[SubtitleCue]) -> String {
 }
 
 /// Render cues back to VTT format.
-pub fn render_vtt(cues: &[SubtitleCue]) -> String {
-    let mut out = String::from("WEBVTT\n\n");
+///
+/// `metadata` should be the slice returned by `parse_vtt` so that the original
+/// WEBVTT header (including any header comment) and any NOTE/STYLE/REGION
+/// blocks are preserved in the output.  If `metadata` is empty a bare
+/// `WEBVTT` header is emitted.
+pub fn render_vtt(metadata: &[String], cues: &[SubtitleCue]) -> String {
+    let mut out = String::new();
+    if metadata.is_empty() {
+        out.push_str("WEBVTT\n\n");
+    } else {
+        for meta in metadata {
+            out.push_str(meta);
+            out.push_str("\n\n");
+        }
+    }
     for cue in cues {
         out.push_str(&cue.header);
         out.push('\n');
