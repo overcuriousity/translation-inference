@@ -127,18 +127,6 @@ pub struct ConfigTestResponse {
 }
 
 #[derive(Debug, Serialize)]
-pub struct DocumentFile {
-    pub filename: String,
-    pub data: String, // base64
-    pub mime: String,
-}
-
-#[derive(Debug, Serialize)]
-pub struct TranslateDocumentResponse {
-    pub files: Vec<DocumentFile>,
-}
-
-#[derive(Debug, Serialize)]
 pub struct ErrorResponse {
     pub error: String,
 }
@@ -147,7 +135,6 @@ pub struct ErrorResponse {
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum UploadResult {
     Text { filename: String, text: String },
-    Document { filename: String, data: String, mime: String },
 }
 
 #[derive(Debug, Serialize)]

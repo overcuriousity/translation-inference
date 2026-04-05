@@ -183,26 +183,6 @@ pub async fn translate(
     Ok((parts.concat(), total, total))
 }
 
-/// Translate `text` as a single API call with no chunking.
-/// If the text exceeds the model's context window it falls back to `translate`.
-/// Used by document translators that pre-batch paragraphs to fit the window.
-pub async fn translate_single(
-    client: &OpenAiClient,
-    model: &str,
-    source_lang: &str,
-    target_lang: &str,
-    text: &str,
-    config: &TranslationConfig,
-) -> Result<String> {
-    let max_chars = usable_input_chars(context_size_from_model_id(model, config), text, config);
-    if text.chars().count() > max_chars {
-        let (result, _, _) = translate(client, model, source_lang, target_lang, text, config).await?;
-        return Ok(result);
-    }
-    let system_prompt = build_system_prompt(source_lang, target_lang);
-    translate_chunk(client, model, &system_prompt, None, text, config).await
-}
-
 pub fn translate_stream(
     client: OpenAiClient,
     model: String,

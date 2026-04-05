@@ -69,10 +69,6 @@
             <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
             Text
           </button>
-          <button id="tab-document" class="mode-tab">
-            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-            Document
-          </button>
         </div>
         <div id="source-lang-info" class="source-lang-info">
           <span class="lang-label">Auto-detect</span>
@@ -87,16 +83,8 @@
           spellcheck="false"
         ></textarea>
         <div id="drop-overlay" class="drop-overlay hidden">
-          <div class="drop-msg">Drop files to transcribe or translate</div>
+          <div class="drop-msg">Drop audio or video files to transcribe</div>
         </div>
-      </div>
-      <div id="doc-upload-area" class="doc-upload-area hidden">
-        <label for="doc-file-input" class="doc-upload-zone">
-          <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
-          <span class="doc-upload-text">Drop documents here or <span class="doc-upload-link">browse</span></span>
-          <span class="doc-upload-hint">PDF, DOCX, ODT &middot; max 50 MB</span>
-        </label>
-        <input type="file" id="doc-file-input" accept=".pdf,.docx,.odt" multiple hidden />
       </div>
 
       <div class="panel-footer">
@@ -144,16 +132,10 @@
             <ul id="lang-list" class="lang-list" role="listbox"></ul>
           </div>
         </div>
-        <select id="output-format-select" class="lang-select hidden" title="Output format for translated documents">
-          <option value="odt">ODT</option>
-          <option value="pdf">PDF</option>
-        </select>
       </div>
       <div id="output-text" class="panel-output-content">
         <span class="placeholder">Translation will appear here…</span>
       </div>
-
-      <div id="results-doc-list" class="doc-list hidden"></div>
 
       <div class="panel-footer">
         <div class="footer-left">

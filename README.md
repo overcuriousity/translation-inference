@@ -9,7 +9,6 @@ A fast, memory-efficient, Rust-based translation and transcription inference ser
 ## ✨ Features
 
 - **Bring Your Own API**: Seamlessly integrates with any OpenAI-compatible backend for both LLMs (translation) and Whisper models (transcription).
-- **Document Translation**: Upload and translate full documents while preserving formatting. Supports `.docx`, `.odt`, and `.pdf` files.
 - **Audio & Video Transcription**: Extract and transcribe speech from audio and video files (`.mp3`, `.wav`, `.mp4`, `.mkv`, etc.).
   - **Memory-Efficient**: Uploads are streamed directly to disk. Large files (up to 100MB) are automatically chunked (25MB segments) using `ffmpeg` without exhausting server RAM.
 - **Real-Time Streaming**: Text translation supports streaming outputs for a responsive UI experience.
@@ -28,16 +27,6 @@ Before you begin, ensure you have the following installed:
 - **`ffmpeg`**: Required for extracting audio from video files and chunking large audio files.
   - Ubuntu/Debian: `sudo apt install ffmpeg`
   - macOS: `brew install ffmpeg`
-- **PDF Support (Optional but recommended):**
-  - `poppler-utils` (provides `pdftotext` for PDF text extraction)
-    - Ubuntu/Debian: `sudo apt install poppler-utils`
-    - Fedora/RHEL: `sudo dnf install poppler-utils`
-    - macOS: `brew install poppler`
-  - `liberation-fonts` for PDF output rendering
-    - Ubuntu/Debian: `sudo apt install fonts-liberation`
-    - Fedora/RHEL: `sudo dnf install liberation-fonts`
-    - macOS: `brew install --cask font-liberation`
-
 ## 🚀 Getting Started
 
 1. **Clone the repository:**
@@ -139,8 +128,7 @@ The service provides a RESTful API for integrations:
 - `POST /api/translate` - Translate raw text.
 - `POST /api/translate/stream` - Translate raw text with SSE streaming response.
 - `POST /api/transcribe` - Transcribe an audio or video file.
-- `POST /api/translate-document` - Translate `.docx`, `.odt`, or `.pdf` files.
-- `POST /api/upload` - Unified upload endpoint for mixed media (transcribes audio/video, translates documents).
+- `POST /api/upload` - Upload audio/video files for transcription.
 - `POST /api/tts` - Synthesize text to speech. Requires `TTS_API_BASE_URL` to be configured server-side, or `tts_endpoint`+`tts_api_key` in the request body (BYOK). Request body: `{ "text": "...", "target_lang": "en", "tts_endpoint": "...", "tts_api_key": "..." }`. Returns `audio/mpeg`.
 - `POST /api/detect-language` - Detect the language of a text snippet (up to 500 chars). Uses the same translation LLM and auth as `/api/translate`. Request body: `{ "text": "...", "endpoint": "...", "api_key": "..." }` (`endpoint`+`api_key` are optional BYOK overrides, same as `/api/translate`). Returns `{ "language": "en" }` (ISO 639-1 code; Traditional Chinese returns `zh-TW`).
 - `POST /api/save-to-bitvault` - *(requires `BITVAULT_URL`)* Save text as a Bitvault paste and return its URL.
