@@ -3,6 +3,7 @@ use base64::{Engine as _, engine::general_purpose::STANDARD as B64};
 use std::path::Path;
 use std::sync::Arc;
 
+use crate::api::chunker::TranslationConfig;
 use crate::document::{self, OutputFormat};
 use crate::models::{DocumentFile, ErrorResponse, TranslateDocumentResponse};
 use crate::routes::translate::resolve_client;
@@ -102,6 +103,7 @@ pub async fn post_translate_document(
             None => OutputFormat::default_for(&ext),
         };
 
+        let translation_config = TranslationConfig::from(&state.config);
         let (out, out_ext, mime) = document::translate_document(
             bytes,
             &ext,
@@ -110,6 +112,7 @@ pub async fn post_translate_document(
             model_str,
             &source_lang,
             &target_lang,
+            &translation_config,
         )
         .await
         .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, format!("{filename}: {e:#}")))?;

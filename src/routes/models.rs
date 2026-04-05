@@ -1,7 +1,7 @@
 use axum::{extract::State, http::HeaderMap, Json};
 use std::sync::Arc;
 
-use crate::api::chunker::context_size_from_model_id;
+use crate::api::chunker::{context_size_from_model_id, TranslationConfig};
 use crate::api::client::OpenAiClient;
 use crate::models::{ModelInfo, ModelsResponse};
 use crate::routes::translate::get_session_id;
@@ -64,11 +64,13 @@ pub async fn get_models(
         transcription_ids.push(state.config.whisper_model.clone());
     }
 
+    let cfg = TranslationConfig::from(&state.config);
+
     let translation_models = translation_ids
         .into_iter()
         .map(|id| ModelInfo {
             name: id.clone(),
-            context_size: context_size_from_model_id(&id),
+            context_size: context_size_from_model_id(&id, &cfg),
             id,
         })
         .collect();
@@ -77,7 +79,7 @@ pub async fn get_models(
         .into_iter()
         .map(|id| ModelInfo {
             name: id.clone(),
-            context_size: context_size_from_model_id(&id),
+            context_size: context_size_from_model_id(&id, &cfg),
             id,
         })
         .collect();

@@ -2,7 +2,7 @@ use axum::{body::Body, extract::State, http::{header, HeaderMap, StatusCode}, re
 use futures::StreamExt;
 use std::sync::Arc;
 
-use crate::api::{chat, client::OpenAiClient};
+use crate::api::{chat, chunker::TranslationConfig, client::OpenAiClient};
 use crate::models::{ErrorResponse, TranslateRequest, TranslateResponse};
 use crate::AppState;
 
@@ -37,6 +37,7 @@ pub async fn post_translate_stream(
         req.source_lang,
         req.target_lang,
         req.text,
+        TranslationConfig::from(&state.config),
     );
 
     let byte_stream = stream.map(|result| {
@@ -85,7 +86,8 @@ pub async fn post_translate(
         .as_deref()
         .unwrap_or(&state.config.translation_model);
 
-    match chat::translate(&client, model, &req.source_lang, &req.target_lang, &req.text).await {
+    let translation_config = TranslationConfig::from(&state.config);
+    match chat::translate(&client, model, &req.source_lang, &req.target_lang, &req.text, &translation_config).await {
         Ok((translated_text, chunks_total, chunks_completed)) => Ok(Json(TranslateResponse {
             translated_text,
             chunks_total,

@@ -4,6 +4,7 @@ use std::io::{Cursor, Read, Write};
 use std::sync::OnceLock;
 use zip::{ZipArchive, ZipWriter, write::SimpleFileOptions};
 
+use crate::api::chunker::TranslationConfig;
 use crate::api::client::OpenAiClient;
 use crate::document::translate_paragraphs;
 
@@ -16,6 +17,7 @@ pub async fn translate_odt(
     model: &str,
     source_lang: &str,
     target_lang: &str,
+    config: &TranslationConfig,
 ) -> Result<Vec<u8>> {
     let mut archive = ZipArchive::new(Cursor::new(bytes))
         .context("failed to open ODT (ZIP) archive")?;
@@ -46,7 +48,7 @@ pub async fn translate_odt(
         .collect();
 
     let translated_non_empty =
-        translate_paragraphs(&non_empty_texts, client, model, source_lang, target_lang)
+        translate_paragraphs(&non_empty_texts, client, model, source_lang, target_lang, config)
             .await
             .context("translation failed")?;
 

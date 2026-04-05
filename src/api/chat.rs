@@ -4,7 +4,10 @@ use regex::Regex;
 use reqwest_eventsource::{Event, RequestBuilderExt};
 use std::sync::OnceLock;
 
-use crate::api::chunker::{context_size_from_model_id, last_sentences, max_output_tokens, split_into_chunks, usable_input_chars};
+use crate::api::chunker::{
+    context_size_from_model_id, last_sentences, max_output_tokens, split_into_chunks,
+    usable_input_chars, TranslationConfig,
+};
 use crate::api::client::OpenAiClient;
 use crate::models::{ChatMessage, ChatRequest, ChatResponse, StreamResponse};
 
@@ -49,12 +52,32 @@ fn build_user_content(translated_overlap: Option<&str>, text: &str) -> String {
     }
 }
 
+/// Warn if the translated output is suspiciously short compared to the input,
+/// which may indicate the model summarised or skipped content.
+fn warn_if_short(input: &str, output: &str, min_ratio: f64) {
+    let in_len = input.chars().count();
+    let out_len = output.chars().count();
+    if in_len >= 100 && out_len > 0 {
+        let ratio = out_len as f64 / in_len as f64;
+        if ratio < min_ratio {
+            tracing::warn!(
+                output_chars = out_len,
+                input_chars = in_len,
+                ratio = format!("{ratio:.2}"),
+                threshold = min_ratio,
+                "Translation output suspiciously short — model may have summarised or omitted content."
+            );
+        }
+    }
+}
+
 async fn translate_chunk(
     client: &OpenAiClient,
     model: &str,
     system_prompt: &str,
     translated_overlap: Option<&str>,
     text: &str,
+    config: &TranslationConfig,
 ) -> Result<String> {
     let user_content = build_user_content(translated_overlap, text);
 
@@ -62,7 +85,8 @@ async fn translate_chunk(
     // max_tokens to the full context window, leaving zero budget for the input
     // and triggering aggressive input truncation (observed as
     // "litellm_truncated skipped N chars" in the request payload).
-    let output_tokens = max_output_tokens(context_size_from_model_id(model));
+    let context_size = context_size_from_model_id(model, config);
+    let output_tokens = max_output_tokens(context_size, config);
 
     let request = ChatRequest {
         model: model.to_string(),
@@ -101,14 +125,24 @@ async fn translate_chunk(
         .await
         .context("failed to parse chat completion response")?;
 
-    let raw = chat
-        .choices
-        .into_iter()
-        .next()
-        .map(|c| c.message.content)
-        .unwrap_or_default();
+    let choice = chat.choices.into_iter().next();
 
-    Ok(strip_think_tags(&raw))
+    if let Some(ref c) = choice {
+        if c.finish_reason.as_deref() == Some("length") {
+            tracing::warn!(
+                "Translation chunk was truncated by the model (finish_reason=length). \
+                 Output may be incomplete. Consider reducing INPUT_TOKEN_RATIO or \
+                 using a model with a larger context window."
+            );
+        }
+    }
+
+    let raw = choice.map(|c| c.message.content).unwrap_or_default();
+    let result = strip_think_tags(&raw);
+
+    warn_if_short(text, &result, config.min_output_ratio);
+
+    Ok(result)
 }
 
 pub async fn translate(
@@ -117,9 +151,10 @@ pub async fn translate(
     source_lang: &str,
     target_lang: &str,
     text: &str,
+    config: &TranslationConfig,
 ) -> Result<(String, usize, usize)> {
-    let context_size = context_size_from_model_id(model);
-    let max_chars = usable_input_chars(context_size);
+    let context_size = context_size_from_model_id(model, config);
+    let max_chars = usable_input_chars(context_size, text, config);
 
     let chunks = split_into_chunks(text, max_chars);
     let total = chunks.len();
@@ -137,6 +172,7 @@ pub async fn translate(
             &system_prompt,
             translated_overlap.as_deref(),
             &chunk.text,
+            config,
         )
         .await?;
 
@@ -156,14 +192,15 @@ pub async fn translate_single(
     source_lang: &str,
     target_lang: &str,
     text: &str,
+    config: &TranslationConfig,
 ) -> Result<String> {
-    let max_chars = usable_input_chars(context_size_from_model_id(model));
+    let max_chars = usable_input_chars(context_size_from_model_id(model, config), text, config);
     if text.chars().count() > max_chars {
-        let (result, _, _) = translate(client, model, source_lang, target_lang, text).await?;
+        let (result, _, _) = translate(client, model, source_lang, target_lang, text, config).await?;
         return Ok(result);
     }
     let system_prompt = build_system_prompt(source_lang, target_lang);
-    translate_chunk(client, model, &system_prompt, None, text).await
+    translate_chunk(client, model, &system_prompt, None, text, config).await
 }
 
 pub fn translate_stream(
@@ -172,16 +209,17 @@ pub fn translate_stream(
     source_lang: String,
     target_lang: String,
     text: String,
+    config: TranslationConfig,
 ) -> impl futures::Stream<Item = Result<String>> + Send + 'static {
     async_stream::stream! {
-        let context_size = context_size_from_model_id(&model);
-        let max_chars = usable_input_chars(context_size);
+        let context_size = context_size_from_model_id(&model, &config);
+        let max_chars = usable_input_chars(context_size, &text, &config);
         let chunks = split_into_chunks(&text, max_chars);
         let system_prompt = build_system_prompt(&source_lang, &target_lang);
 
         let mut translated_overlap: Option<String> = None;
 
-        let output_tokens = max_output_tokens(context_size_from_model_id(&model));
+        let output_tokens = max_output_tokens(context_size, &config);
 
         for chunk in chunks {
             let user_content = build_user_content(translated_overlap.as_deref(), &chunk.text);
@@ -215,6 +253,7 @@ pub fn translate_stream(
             // for the next chunk's overlap context.
             let mut chunk_buf = String::new();
             let mut in_think_block = false;
+            let mut last_finish_reason: Option<String> = None;
 
             while let Some(event) = es.next().await {
                 match event {
@@ -226,6 +265,10 @@ pub fn translate_stream(
                         match serde_json::from_str::<StreamResponse>(&message.data) {
                             Ok(chat_res) => {
                                 if let Some(choice) = chat_res.choices.first() {
+                                    if let Some(ref reason) = choice.finish_reason {
+                                        last_finish_reason = Some(reason.clone());
+                                    }
+
                                     if let Some(content) = &choice.delta.content {
                                         let mut token = content.clone();
 
@@ -268,6 +311,16 @@ pub fn translate_stream(
                     }
                 }
             }
+
+            if last_finish_reason.as_deref() == Some("length") {
+                tracing::warn!(
+                    "Streaming translation chunk was truncated by the model (finish_reason=length). \
+                     Output may be incomplete. Consider reducing INPUT_TOKEN_RATIO or \
+                     using a model with a larger context window."
+                );
+            }
+
+            warn_if_short(&chunk.text, &chunk_buf, config.min_output_ratio);
 
             // Update the translated overlap for the next chunk using the
             // target-language output we just streamed.

@@ -7,7 +7,7 @@ pub use pdf::translate_pdf;
 
 use anyhow::Result;
 
-use crate::api::chunker::{context_size_from_model_id, usable_input_chars};
+use crate::api::chunker::{context_size_from_model_id, usable_input_chars, TranslationConfig};
 use crate::api::{chat::translate_single, client::OpenAiClient};
 
 // We use a highly unlikely string as a batch separator because null bytes
@@ -68,34 +68,35 @@ pub async fn translate_document(
     model: &str,
     source_lang: &str,
     target_lang: &str,
+    config: &TranslationConfig,
 ) -> Result<(Vec<u8>, &'static str, &'static str)> {
     let out = match (input_ext.to_lowercase().as_str(), output_fmt) {
         // ODT→ODT preserves original structure; PDF→PDF re-renders (lossy)
         ("odt", OutputFormat::Odt) => {
-            translate_odt(bytes, client, model, source_lang, target_lang).await?
+            translate_odt(bytes, client, model, source_lang, target_lang, config).await?
         }
         ("pdf", OutputFormat::Pdf) => {
-            translate_pdf(bytes, client, model, source_lang, target_lang).await?
+            translate_pdf(bytes, client, model, source_lang, target_lang, config).await?
         }
 
         // DOCX → ODT
         ("docx", OutputFormat::Odt) => {
             let paragraphs = docx::extract_docx_paragraphs(bytes)?;
-            let translated = translate_paragraphs_sparse(&paragraphs, client, model, source_lang, target_lang).await?;
+            let translated = translate_paragraphs_sparse(&paragraphs, client, model, source_lang, target_lang, config).await?;
             odt::build_odt_from_paragraphs(&translated)?
         }
 
         // DOCX → PDF
         ("docx", OutputFormat::Pdf) => {
             let paragraphs = docx::extract_docx_paragraphs(bytes)?;
-            let translated = translate_paragraphs_sparse(&paragraphs, client, model, source_lang, target_lang).await?;
+            let translated = translate_paragraphs_sparse(&paragraphs, client, model, source_lang, target_lang, config).await?;
             pdf::build_pdf_from_text(&translated.join("\n"))?
         }
 
         // ODT → PDF
         ("odt", OutputFormat::Pdf) => {
             let paragraphs = odt::extract_odt_paragraphs(bytes)?;
-            let translated = translate_paragraphs_sparse(&paragraphs, client, model, source_lang, target_lang).await?;
+            let translated = translate_paragraphs_sparse(&paragraphs, client, model, source_lang, target_lang, config).await?;
             pdf::build_pdf_from_text(&translated.join("\n"))?
         }
 
@@ -103,7 +104,7 @@ pub async fn translate_document(
         ("pdf", OutputFormat::Odt) => {
             let text = pdf::extract_pdf_text(bytes)?;
             let (translated, _, _) =
-                crate::api::chat::translate(client, model, source_lang, target_lang, &text)
+                crate::api::chat::translate(client, model, source_lang, target_lang, &text, config)
                     .await?;
             odt::build_odt_from_text(&translated)?
         }
@@ -125,6 +126,7 @@ async fn translate_paragraphs_sparse(
     model: &str,
     source_lang: &str,
     target_lang: &str,
+    config: &TranslationConfig,
 ) -> Result<Vec<String>> {
     let non_empty_indices: Vec<usize> = paragraphs
         .iter()
@@ -139,7 +141,7 @@ async fn translate_paragraphs_sparse(
 
     let non_empty_refs: Vec<&str> = non_empty_indices.iter().map(|&i| paragraphs[i].as_str()).collect();
     let translated_non_empty =
-        translate_paragraphs(&non_empty_refs, client, model, source_lang, target_lang).await?;
+        translate_paragraphs(&non_empty_refs, client, model, source_lang, target_lang, config).await?;
 
     let mut translated: Vec<String> = paragraphs.iter().map(|_| String::new()).collect();
     for (j, &idx) in non_empty_indices.iter().enumerate() {
@@ -160,13 +162,21 @@ pub async fn translate_paragraphs(
     model: &str,
     source_lang: &str,
     target_lang: &str,
+    config: &TranslationConfig,
 ) -> Result<Vec<String>> {
     if paragraphs.is_empty() {
         return Ok(Vec::new());
     }
 
-    // max_chars for joined batch text (separators count toward budget)
-    let max_chars = usable_input_chars(context_size_from_model_id(model));
+    // max_chars for joined batch text (separators count toward budget).
+    // Build a bounded sample (≤1000 chars) for script detection so we don't
+    // allocate a full copy of large documents just to feed chars_per_token.
+    let sample: String = paragraphs
+        .iter()
+        .flat_map(|p| p.chars())
+        .take(1000)
+        .collect();
+    let max_chars = usable_input_chars(context_size_from_model_id(model, config), &sample, config);
     // "\n\n" + SEP + "\n\n"
     let sep_full = format!("\n\n{PARA_SEP}\n\n");
     let sep_chars = sep_full.chars().count();
@@ -207,7 +217,7 @@ pub async fn translate_paragraphs(
             .join(&sep_full);
 
         let translated =
-            translate_single(client, model, source_lang, target_lang, &joined).await?;
+            translate_single(client, model, source_lang, target_lang, &joined, config).await?;
 
         // Split on the separator.  If the model slightly alters surrounding
         // whitespace we still find the marker itself.
