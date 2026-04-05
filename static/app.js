@@ -155,6 +155,11 @@ async function init() {
     mdRenderActive = true;
     mdToggleBtn.setAttribute('aria-pressed', 'true');
   }
+  if (localStorage.getItem('paraView') === 'true') {
+    paraViewActive = true;
+    paraToggleBtn.setAttribute('aria-pressed', 'true');
+    // Don't auto-load the view here — there's no translated output yet on boot.
+  }
   if (localStorage.getItem('contextHint')) {
     contextHintInput.value = localStorage.getItem('contextHint');
   }
@@ -1287,8 +1292,8 @@ paraToggleBtn.addEventListener('click', async () => {
 });
 
 async function loadParaView() {
-  const text = sourceText.value.trim();
-  if (!text) {
+  const text = sourceText.value;
+  if (!text.trim()) {
     paraViewActive = false;
     paraToggleBtn.setAttribute('aria-pressed', 'false');
     return;

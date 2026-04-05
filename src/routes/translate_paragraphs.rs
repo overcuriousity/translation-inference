@@ -30,8 +30,10 @@ pub async fn post_translate_paragraphs(
         .as_deref()
         .unwrap_or(&state.config.translation_model);
 
+    // Normalize newlines so paragraph splitting works for both Unix and Windows inputs.
+    let normalized_text = req.text.replace("\r\n", "\n").replace('\r', "\n");
     // Split source into paragraphs (split on blank lines).
-    let source_paragraphs: Vec<&str> = req.text.split("\n\n").collect();
+    let source_paragraphs: Vec<&str> = normalized_text.split("\n\n").collect();
 
     // Collect non-empty paragraphs and their original indices.
     let non_empty: Vec<(usize, &str)> = source_paragraphs
@@ -100,16 +102,34 @@ pub async fn post_translate_paragraphs(
     })?;
     let (chunks_total, chunks_completed) = (1usize, 1usize);
 
-    // Split translated text back on the separator.
-    let translated_parts: Vec<&str> = translated.split("§§§").collect();
+    // Split translated text back on the separator; strip empty leading/trailing splits
+    // that can arise when the model wraps the output in extra newlines.
+    let mut translated_parts: Vec<&str> = translated
+        .split("§§§")
+        .map(str::trim)
+        .collect();
+    while translated_parts.first().is_some_and(|p| p.is_empty()) {
+        translated_parts.remove(0);
+    }
+    while translated_parts.last().is_some_and(|p| p.is_empty()) {
+        translated_parts.pop();
+    }
+
+    if translated_parts.len() != non_empty.len() {
+        let error = format!(
+            "Paragraph translation separator mismatch: expected {} parts, got {}. \
+             The model may have dropped or altered the §§§ separator.",
+            non_empty.len(),
+            translated_parts.len()
+        );
+        tracing::error!("{error}");
+        return Err((StatusCode::UNPROCESSABLE_ENTITY, Json(ErrorResponse { error })));
+    }
 
     // Build result array preserving original paragraph positions.
     let mut results: Vec<String> = source_paragraphs.iter().map(|_| String::new()).collect();
     for (slot, (orig_idx, _)) in non_empty.iter().enumerate() {
-        results[*orig_idx] = translated_parts
-            .get(slot)
-            .map(|s| s.trim().to_string())
-            .unwrap_or_default();
+        results[*orig_idx] = translated_parts[slot].to_string();
     }
 
     let paragraphs = source_paragraphs
