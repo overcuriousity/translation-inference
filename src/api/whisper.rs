@@ -150,7 +150,30 @@ pub async fn transcribe_file(
         .await
         .context("failed to parse whisper response")?;
 
-    Ok(result.text)
+    Ok(join_broken_words(&result.text))
+}
+
+/// Whisper sometimes inserts a newline mid-word at a segment boundary, e.g.
+/// "halb\nwegs" or "Bro\ncken". Rejoin any line pair where the first line ends
+/// with a letter and the next line starts with a lowercase letter.
+fn join_broken_words(text: &str) -> String {
+    let lines: Vec<&str> = text.split('\n').collect();
+    let mut out = String::with_capacity(text.len());
+    for (i, line) in lines.iter().enumerate() {
+        if i == 0 {
+            out.push_str(line);
+            continue;
+        }
+        let prev_ends_with_letter = out.chars().next_back().map_or(false, |c| c.is_alphabetic());
+        let next_starts_lowercase = line.chars().next().map_or(false, |c| c.is_lowercase());
+        if prev_ends_with_letter && next_starts_lowercase {
+            // mid-word break — join without separator
+        } else {
+            out.push('\n');
+        }
+        out.push_str(line);
+    }
+    out
 }
 
 /// Transcribe audio data, segmenting if necessary.

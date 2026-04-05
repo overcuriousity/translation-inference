@@ -103,11 +103,9 @@ pub async fn post_upload(
         let final_path = wav_tmp.path().to_path_buf();
         let _wav_tmp = wav_tmp;
 
-        eprintln!("[DEBUG upload] whisper_model={whisper_model_str} language={:?} file={}", language.as_deref(), file.filename);
         let text = whisper::transcribe(&client, whisper_model_str, language.as_deref(), &final_path, "extracted.wav")
             .await
             .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, format!("{}: {e:#}", file.filename)))?;
-        eprintln!("[DEBUG upload] transcribed text: {text:?}");
         results.push(UploadResult::Text { filename: file.filename, text });
     }
 

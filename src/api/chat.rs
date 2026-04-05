@@ -104,10 +104,6 @@ async fn translate_chunk(
 ) -> Result<String> {
     let user_content = build_user_content(translated_overlap, text);
 
-    eprintln!("[DEBUG translate_chunk] model={model}");
-    eprintln!("[DEBUG translate_chunk] system_prompt:\n{system_prompt}");
-    eprintln!("[DEBUG translate_chunk] user_content:\n{user_content}");
-
     // Set max_tokens explicitly. Without it, LiteLLM and similar proxies default
     // max_tokens to the full context window, leaving zero budget for the input
     // and triggering aggressive input truncation (observed as
@@ -166,9 +162,6 @@ async fn translate_chunk(
 
     let raw = choice.map(|c| c.message.content).unwrap_or_default();
     let result = strip_think_tags(&raw);
-
-    eprintln!("[DEBUG translate_chunk] raw response:\n{raw}");
-    eprintln!("[DEBUG translate_chunk] after strip_think_tags:\n{result}");
 
     warn_if_short(text, &result, config.min_output_ratio);
 
