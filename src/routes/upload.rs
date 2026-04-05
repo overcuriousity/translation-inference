@@ -21,9 +21,6 @@ pub async fn post_upload(
     mut multipart: Multipart,
 ) -> Result<Json<UploadResponse>, (StatusCode, Json<ErrorResponse>)> {
     let mut uploaded_files: Vec<UploadedFile> = Vec::new();
-    let mut source_lang = String::from("auto");
-    let mut target_lang = String::from("English");
-    let mut model: Option<String> = None;
     let mut whisper_model: Option<String> = None;
     let mut endpoint: Option<String> = None;
     let mut api_key: Option<String> = None;
@@ -39,7 +36,15 @@ pub async fn post_upload(
                 let ext = std::path::Path::new(&filename)
                     .extension()
                     .and_then(|e| e.to_str())
-                    .unwrap_or("bin");
+                    .unwrap_or("")
+                    .to_lowercase();
+
+                if !is_audio_video(&ext) {
+                    return Err(err(
+                        StatusCode::BAD_REQUEST,
+                        format!("Unsupported file type: .{ext}"),
+                    ));
+                }
 
                 let tmp = tempfile::Builder::new()
                     .suffix(&format!(".{ext}"))
@@ -62,16 +67,6 @@ pub async fn post_upload(
 
                 uploaded_files.push(UploadedFile { filename, tmp });
             }
-            Some("source_lang") => {
-                source_lang = field.text().await.map_err(|e| err(StatusCode::BAD_REQUEST, e.to_string()))?;
-            }
-            Some("target_lang") => {
-                target_lang = field.text().await.map_err(|e| err(StatusCode::BAD_REQUEST, e.to_string()))?;
-            }
-            Some("model") => {
-                let v = field.text().await.map_err(|e| err(StatusCode::BAD_REQUEST, e.to_string()))?;
-                if !v.is_empty() { model = Some(v); }
-            }
             Some("whisper_model") => {
                 let v = field.text().await.map_err(|e| err(StatusCode::BAD_REQUEST, e.to_string()))?;
                 if !v.is_empty() { whisper_model = Some(v); }
@@ -93,34 +88,20 @@ pub async fn post_upload(
     }
 
     let client = resolve_client(&state, endpoint.as_deref(), api_key.as_deref(), &headers)?;
-    let model_str = model.as_deref().unwrap_or(&state.config.translation_model);
     let whisper_model_str = whisper_model.as_deref().unwrap_or(&state.config.whisper_model);
-
-    let _ = (source_lang, target_lang, model_str); // reserved for future text translation of transcripts
 
     let mut results: Vec<UploadResult> = Vec::new();
 
     for file in uploaded_files {
-        let filename = file.filename;
-        let ext = std::path::Path::new(&filename)
-            .extension()
-            .and_then(|e| e.to_str())
-            .unwrap_or("")
-            .to_lowercase();
+        let wav_tmp = whisper::extract_audio_from_video(file.tmp.path())
+            .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, format!("{}: {e:#}", file.filename)))?;
+        let final_path = wav_tmp.path().to_path_buf();
+        let _wav_tmp = wav_tmp;
 
-        if is_audio_video(&ext) {
-            let wav_tmp = whisper::extract_audio_from_video(file.tmp.path())
-                .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, format!("{filename}: {e:#}")))?;
-            let final_path = wav_tmp.path().to_path_buf();
-            let _wav_tmp = wav_tmp;
-
-            let text = whisper::transcribe(&client, whisper_model_str, &final_path, "extracted.wav")
-                .await
-                .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, format!("{filename}: {e:#}")))?;
-            results.push(UploadResult::Text { filename, text });
-        } else {
-            return Err(err(StatusCode::BAD_REQUEST, format!("Unsupported file type: .{ext}")));
-        }
+        let text = whisper::transcribe(&client, whisper_model_str, &final_path, "extracted.wav")
+            .await
+            .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, format!("{}: {e:#}", file.filename)))?;
+        results.push(UploadResult::Text { filename: file.filename, text });
     }
 
     Ok(Json(UploadResponse { results }))
