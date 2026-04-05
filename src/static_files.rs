@@ -32,7 +32,7 @@ pub async fn serve_index(
             let sid = uuid::Uuid::new_v4().to_string();
             {
                 let mut sessions = state.sessions.write().unwrap();
-                // Evict oldest entry if the store is full.
+                // Evict an arbitrary entry if the store is full.
                 if sessions.len() >= 1000 {
                     if let Some(old) = sessions.keys().next().cloned() {
                         sessions.remove(&old);

@@ -20,9 +20,9 @@ pub async fn get_status(
     let session_active = session_tier_str.is_some();
 
     let char_limit = match session_tier_str.as_deref() {
-        Some("free") | None => state.config.free_tier_char_limit,
-        Some("gated")       => state.config.gated_char_limit,
-        _                   => None, // byok: unlimited
+        Some("free")  => state.config.free_tier_char_limit,
+        Some("gated") => state.config.gated_char_limit,
+        _             => None, // byok or no active session: unlimited
     };
 
     Json(StatusResponse {
@@ -85,6 +85,7 @@ pub async fn post_config_test(
         let sid = uuid::Uuid::new_v4().to_string();
         {
             let mut sessions = state.sessions.write().unwrap();
+            // Evict an arbitrary entry if the store is full.
             if sessions.len() >= 1000 {
                 if let Some(old_key) = sessions.keys().next().cloned() {
                     sessions.remove(&old_key);
@@ -171,7 +172,7 @@ pub async fn post_gated_access(
     let sid = uuid::Uuid::new_v4().to_string();
     {
         let mut sessions = state.sessions.write().unwrap();
-        // Prevent unbounded memory growth
+        // Evict an arbitrary entry if the store is full.
         if sessions.len() >= 1000 {
             if let Some(old_key) = sessions.keys().next().cloned() {
                 sessions.remove(&old_key);

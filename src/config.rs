@@ -131,15 +131,39 @@ impl AppConfig {
                 .and_then(|s| s.parse::<f64>().ok())
                 .map(|v| v.max(0.0))
                 .unwrap_or(0.3),
-            free_tier_char_limit: match std::env::var("FREE_TIER_CHAR_LIMIT").ok().as_deref() {
-                Some("0") => None,
-                Some(s) => s.parse::<usize>().ok().filter(|&n| n > 0),
-                None => Some(16_000),
+            free_tier_char_limit: match std::env::var("FREE_TIER_CHAR_LIMIT") {
+                Ok(s) => {
+                    let s = s.trim();
+                    if s == "0" {
+                        None
+                    } else {
+                        match s.parse::<usize>() {
+                            Ok(n) if n > 0 => Some(n),
+                            _ => {
+                                eprintln!("Invalid FREE_TIER_CHAR_LIMIT value {s:?}; using default 16000");
+                                Some(16_000)
+                            }
+                        }
+                    }
+                }
+                Err(_) => Some(16_000),
             },
-            gated_char_limit: match std::env::var("GATED_CHAR_LIMIT").ok().as_deref() {
-                Some("0") => None,
-                Some(s) => s.parse::<usize>().ok().filter(|&n| n > 0),
-                None => Some(65_536),
+            gated_char_limit: match std::env::var("GATED_CHAR_LIMIT") {
+                Ok(s) => {
+                    let s = s.trim();
+                    if s == "0" {
+                        None
+                    } else {
+                        match s.parse::<usize>() {
+                            Ok(n) if n > 0 => Some(n),
+                            _ => {
+                                eprintln!("Invalid GATED_CHAR_LIMIT value {s:?}; using default 65536");
+                                Some(65_536)
+                            }
+                        }
+                    }
+                }
+                Err(_) => Some(65_536),
             },
             tts_voice_map: std::env::var("TTS_VOICE_MAP")
                 .unwrap_or_default()

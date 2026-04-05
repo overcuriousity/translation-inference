@@ -16,7 +16,7 @@ let mediaRecorder      = null;
 let ttsAudio           = null;   // active Audio instance
 let serverTtsConfigured = false;
 let serverTtsLanguages  = [];   // language codes with a configured TTS voice
-let serverTtsHostname   = null; // TTS endpoint hostname for backend-info display
+let serverTtsHostname   = null; // retained for status field compatibility (unused in UI)
 let sessionActive       = false; // true when a gated/byok session cookie exists
 let sessionTier         = null;  // 'free' | 'gated' | 'byok' | null
 let charLimit           = null;  // max input chars for this tier, null = unlimited
@@ -144,7 +144,7 @@ async function init() {
   serverTtsLanguages  = status.tts_languages || [];
   serverTtsHostname   = status.tts_hostname || null;
   sessionTier         = status.session_tier || null;
-  sessionActive       = sessionTier === 'gated' || sessionTier === 'byok';
+  sessionActive       = sessionTier === 'gated' || sessionTier === 'byok' || !status.gated_configured;
   charLimit           = status.char_limit || null;
   updateTtsButtonVisibility();
   updateSrcTtsButtonVisibility();
@@ -248,11 +248,7 @@ function updateBackendInfo() {
   const st = serviceLabel(sttModel, userEndpoint);
   if (st) parts.push(`STT: ${st}`);
 
-  // TTS: prefer user-supplied endpoint, fall back to server hostname.
-  const ttsHost = userTtsEndpoint
-    ? (() => { try { return new URL(userTtsEndpoint).hostname; } catch (_) { return null; } })()
-    : serverTtsHostname;
-  if (ttsHost) parts.push(`TTS: ${ttsHost}`);
+  if (userTtsEndpoint || serverTtsHostname) parts.push('TTS: configured');
 
   backendInfoEl.textContent = parts.join('  ·  ');
 }
@@ -420,7 +416,7 @@ async function loadModels() {
       }
     }
     // Free-tier users see what the server uses but cannot change it.
-    const isFree = sessionTier === 'free' || (!sessionTier && !sessionActive);
+    const isFree = sessionTier === 'free';
     modelSel.disabled = isFree;
     whisperModelSel.disabled = isFree;
 
@@ -827,7 +823,7 @@ voiceBtn.addEventListener('click', async () => {
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 function updateCharCount() {
-  const len = sourceText.value.length;
+  const len = Array.from(sourceText.value).length;
   charCount.textContent = charLimit
     ? `${len.toLocaleString()} / ${charLimit.toLocaleString()}`
     : len.toLocaleString();

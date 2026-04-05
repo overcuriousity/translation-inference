@@ -187,6 +187,12 @@ pub fn get_char_limit(state: &AppState, headers: &HeaderMap) -> Option<usize> {
             };
         }
     }
+    // Bearer-authenticated direct API access in gated mode → apply gated limit.
+    if !state.config.gated_access_key.is_empty()
+        && verify_bearer(headers, &state.config.gated_access_key).is_ok()
+    {
+        return state.config.gated_char_limit;
+    }
     // Personal/local mode (no session, no gated key): treat as unlimited.
     None
 }
