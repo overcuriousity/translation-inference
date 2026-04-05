@@ -20,7 +20,7 @@ let ttsAudio           = null;   // active Audio instance
 let serverTtsConfigured = false;
 let serverTtsLanguages  = [];   // language codes with a configured TTS voice
 let serverTtsHostname   = null; // retained for status field compatibility (unused in UI)
-let sessionActive       = false; // true when a gated/byok session cookie exists
+let sessionActive       = false; // true when any session cookie exists (free/gated/byok) or gated is not configured
 let sessionTier         = null;  // 'free' | 'gated' | 'byok' | null
 let charLimit           = null;  // max input chars for this tier, null = unlimited
 let detectedSourceLang    = null;  // language code like 'en', null = not yet detected
@@ -158,7 +158,7 @@ async function init() {
   serverTtsHostname   = status.tts_hostname || null;
   serverTtsModel      = status.tts_model || null;
   sessionTier         = status.session_tier || null;
-  sessionActive       = sessionTier === 'gated' || sessionTier === 'byok' || !status.gated_configured;
+  sessionActive       = sessionTier === 'gated' || sessionTier === 'byok' || sessionTier === 'free' || !status.gated_configured;
   charLimit           = status.char_limit || null;
   updateTtsButtonVisibility();
   updateSrcTtsButtonVisibility();

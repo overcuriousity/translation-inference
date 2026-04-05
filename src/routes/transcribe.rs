@@ -6,7 +6,7 @@ use tokio::io::AsyncWriteExt;
 use crate::api::whisper::{self, extract_audio_from_video, is_video_file};
 use crate::api::client::OpenAiClient;
 use crate::models::{ErrorResponse, TranscribeResponse};
-use crate::routes::translate::{check_authenticated, get_session_id, resolve_client};
+use crate::routes::translate::{check_authenticated, resolve_client};
 use crate::AppState;
 
 /// Maximum upload size: 100 MB
@@ -97,19 +97,11 @@ pub async fn post_transcribe(
 
     let file_tmp = file_tmp.ok_or_else(|| err(StatusCode::BAD_REQUEST, "No file field found".into()))?;
 
-    // STT-specific BYOK: only honour stt_endpoint/stt_api_key for authenticated callers
-    // (web-interface session or validated bearer — not just any Authorization header).
-    let has_session = get_session_id(&headers)
-        .map(|sid| state.sessions.read().unwrap().contains_key(&sid))
-        .unwrap_or(false);
-    let allow_byok_stt = has_session || check_authenticated(&state, &headers).is_ok();
-    let client = if allow_byok_stt {
-        if let (Some(ep), Some(key)) = (stt_endpoint.as_deref(), stt_api_key.as_deref()) {
-            if !ep.is_empty() && !key.is_empty() {
-                OpenAiClient::with_credentials(ep, key)
-            } else {
-                resolve_client(&state, endpoint.as_deref(), api_key.as_deref(), &headers)?
-            }
+    // Authentication was already enforced above; use stt_endpoint/stt_api_key directly
+    // if provided, otherwise fall back to the standard client resolver.
+    let client = if let (Some(ep), Some(key)) = (stt_endpoint.as_deref(), stt_api_key.as_deref()) {
+        if !ep.is_empty() && !key.is_empty() {
+            OpenAiClient::with_credentials(ep, key)
         } else {
             resolve_client(&state, endpoint.as_deref(), api_key.as_deref(), &headers)?
         }
