@@ -6,7 +6,7 @@ use tokio::io::AsyncWriteExt;
 use crate::api::whisper::{self, extract_audio_from_video, is_video_file};
 use crate::api::client::OpenAiClient;
 use crate::models::{ErrorResponse, TranscribeResponse};
-use crate::routes::translate::{get_session_id, resolve_client};
+use crate::routes::translate::{check_authenticated, get_session_id, resolve_client};
 use crate::AppState;
 
 /// Maximum upload size: 100 MB
@@ -17,6 +17,9 @@ pub async fn post_transcribe(
     headers: HeaderMap,
     mut multipart: Multipart,
 ) -> Result<Json<TranscribeResponse>, (StatusCode, Json<ErrorResponse>)> {
+    // Reject unauthenticated callers in gated mode before reading any multipart data.
+    check_authenticated(&state, &headers)?;
+
     let mut file_tmp: Option<NamedTempFile> = None;
     let mut filename = String::from("upload.bin");
     let mut model: Option<String> = None;
@@ -94,16 +97,13 @@ pub async fn post_transcribe(
 
     let file_tmp = file_tmp.ok_or_else(|| err(StatusCode::BAD_REQUEST, "No file field found".into()))?;
 
-    // STT-specific BYOK: only honour stt_endpoint/stt_api_key for authenticated callers.
+    // STT-specific BYOK: only honour stt_endpoint/stt_api_key for authenticated callers
+    // (web-interface session or validated bearer — not just any Authorization header).
     let has_session = get_session_id(&headers)
         .map(|sid| state.sessions.read().unwrap().contains_key(&sid))
         .unwrap_or(false);
-    let has_bearer = headers
-        .get(axum::http::header::AUTHORIZATION)
-        .and_then(|v| v.to_str().ok())
-        .map(|v| v.trim_start().starts_with("Bearer "))
-        .unwrap_or(false);
-    let client = if has_session || has_bearer {
+    let allow_byok_stt = has_session || check_authenticated(&state, &headers).is_ok();
+    let client = if allow_byok_stt {
         if let (Some(ep), Some(key)) = (stt_endpoint.as_deref(), stt_api_key.as_deref()) {
             if !ep.is_empty() && !key.is_empty() {
                 OpenAiClient::with_credentials(ep, key)

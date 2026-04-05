@@ -861,7 +861,9 @@ function updateCharCount() {
   charCount.textContent = charLimit
     ? `${len.toLocaleString()} / ${charLimit.toLocaleString()}`
     : len.toLocaleString();
-  const over = charLimit && len > charLimit;
+  // Match translate() which trims before sending — don't block on whitespace-only padding.
+  const submittedLen = Array.from(sourceText.value.trim()).length;
+  const over = charLimit && submittedLen > charLimit;
   charCount.classList.toggle('over-limit', !!over);
   translateBtn.disabled = !!over;
 }

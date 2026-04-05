@@ -17,13 +17,12 @@ pub async fn get_models(
     let session_client: Option<OpenAiClient> = get_session_id(&headers).and_then(|sid| {
         state.sessions.read().unwrap()
             .get(&sid)
-            .map(|c| {
-                if let crate::SessionTier::Gated = c.tier {
-                    if let Some(ref gc) = state.gated_client {
-                        return gc.clone();
-                    }
-                }
-                OpenAiClient::with_credentials(&c.endpoint, &c.api_key)
+            .map(|c| match c.tier {
+                crate::SessionTier::Gated => state.gated_client
+                    .clone()
+                    .unwrap_or_else(|| state.client.clone()),
+                crate::SessionTier::Free => state.client.clone(),
+                crate::SessionTier::Byok => OpenAiClient::with_credentials(&c.endpoint, &c.api_key),
             })
     });
 
