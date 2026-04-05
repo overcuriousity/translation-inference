@@ -1,8 +1,7 @@
 # translation-inference
 
-<p align="center">
-  <img width="1087" height="794" alt="translation-inference web interface" src="https://github.com/user-attachments/assets/b5665388-d45f-42ad-971d-81ba721310fc" />
-</p>
+<img width="1112" height="958" alt="image" src="https://github.com/user-attachments/assets/bfc89dd0-3b50-47a4-ae1c-d60023ade26f" />
+
 
 A fast, memory-efficient, Rust-based translation and transcription inference service with a built-in modern web interface. Designed to act as a unified frontend and API for any OpenAI-compatible LLM and Whisper endpoint (such as Ollama, vLLM, LM Studio, or LiteLLM).
 
