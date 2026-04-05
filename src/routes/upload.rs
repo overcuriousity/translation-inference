@@ -4,8 +4,9 @@ use tempfile::NamedTempFile;
 use tokio::io::AsyncWriteExt;
 
 use crate::api::whisper;
+use crate::api::client::OpenAiClient;
 use crate::models::{ErrorResponse, UploadResponse, UploadResult};
-use crate::routes::translate::resolve_client;
+use crate::routes::translate::{check_authenticated, resolve_client};
 use crate::AppState;
 
 const MAX_FILE_BYTES: usize = 100 * 1024 * 1024; // 100 MB
@@ -20,11 +21,16 @@ pub async fn post_upload(
     headers: HeaderMap,
     mut multipart: Multipart,
 ) -> Result<Json<UploadResponse>, (StatusCode, Json<ErrorResponse>)> {
+    // Reject unauthenticated callers in gated mode before reading any multipart data.
+    check_authenticated(&state, &headers)?;
+
     let mut uploaded_files: Vec<UploadedFile> = Vec::new();
     let mut whisper_model: Option<String> = None;
     let mut language: Option<String> = None;
     let mut endpoint: Option<String> = None;
     let mut api_key: Option<String> = None;
+    let mut stt_endpoint: Option<String> = None;
+    let mut stt_api_key: Option<String> = None;
 
     while let Some(mut field) = multipart
         .next_field()
@@ -84,6 +90,14 @@ pub async fn post_upload(
                 let v = field.text().await.map_err(|e| err(StatusCode::BAD_REQUEST, e.to_string()))?;
                 if !v.is_empty() { api_key = Some(v); }
             }
+            Some("stt_endpoint") => {
+                let v = field.text().await.map_err(|e| err(StatusCode::BAD_REQUEST, e.to_string()))?;
+                if !v.is_empty() { stt_endpoint = Some(v); }
+            }
+            Some("stt_api_key") => {
+                let v = field.text().await.map_err(|e| err(StatusCode::BAD_REQUEST, e.to_string()))?;
+                if !v.is_empty() { stt_api_key = Some(v); }
+            }
             _ => {}
         }
     }
@@ -92,7 +106,17 @@ pub async fn post_upload(
         return Err(err(StatusCode::BAD_REQUEST, "No files provided".into()));
     }
 
-    let client = resolve_client(&state, endpoint.as_deref(), api_key.as_deref(), &headers)?;
+    // Authentication was already enforced above; use stt_endpoint/stt_api_key directly
+    // if provided, otherwise fall back to the standard client resolver.
+    let client = if let (Some(ep), Some(key)) = (stt_endpoint.as_deref(), stt_api_key.as_deref()) {
+        if !ep.is_empty() && !key.is_empty() {
+            OpenAiClient::with_credentials(ep, key)
+        } else {
+            resolve_client(&state, endpoint.as_deref(), api_key.as_deref(), &headers)?
+        }
+    } else {
+        resolve_client(&state, endpoint.as_deref(), api_key.as_deref(), &headers)?
+    };
     let whisper_model_str = whisper_model.as_deref().unwrap_or(&state.config.whisper_model);
 
     let mut results: Vec<UploadResult> = Vec::new();

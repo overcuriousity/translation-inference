@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 use crate::api::{chat::translate_single, chunker::TranslationConfig};
 use crate::models::ErrorResponse;
-use crate::routes::translate::{check_authenticated, resolve_client};
+use crate::routes::translate::{check_authenticated, get_char_limit, resolve_translation_client};
 use crate::subtitle::{parse_srt, parse_vtt, render_srt, render_vtt};
 use crate::AppState;
 
@@ -133,7 +133,20 @@ pub async fn post_translate_subtitle(
         ));
     }
 
-    let client = resolve_client(&state, endpoint.as_deref(), api_key.as_deref(), &headers)?;
+    if let Some(limit) = get_char_limit(&state, &headers) {
+        let total_chars: usize = cues.iter()
+            .flat_map(|c| c.lines.iter())
+            .map(|l| l.chars().count())
+            .sum();
+        if total_chars > limit {
+            return Err(err(
+                StatusCode::PAYLOAD_TOO_LARGE,
+                format!("Subtitle content is {total_chars} characters, which exceeds the {limit}-character limit for your access tier."),
+            ));
+        }
+    }
+
+    let client = resolve_translation_client(&state, endpoint.as_deref(), api_key.as_deref(), &headers)?;
     let model_str = model
         .as_deref()
         .unwrap_or(&state.config.translation_model)

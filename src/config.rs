@@ -52,6 +52,14 @@ pub struct AppConfig {
     /// Warn when translated output/input char ratio is below this value.
     /// Default: 0.3. Override with `MIN_OUTPUT_RATIO`.
     pub min_output_ratio: f64,
+
+    // ── Per-tier input character limits ──────────────────────────────────────
+    /// Maximum input characters for the free tier (anonymous web-UI sessions).
+    /// `None` = unlimited. Default: 16 000 (~4 096 tokens). Set `FREE_TIER_CHAR_LIMIT=0` to disable.
+    pub free_tier_char_limit: Option<usize>,
+    /// Maximum input characters for gated-key sessions.
+    /// `None` = unlimited. Default: 65 536 (~16 384 tokens). Set `GATED_CHAR_LIMIT=0` to disable.
+    pub gated_char_limit: Option<usize>,
 }
 
 impl AppConfig {
@@ -123,6 +131,40 @@ impl AppConfig {
                 .and_then(|s| s.parse::<f64>().ok())
                 .map(|v| v.max(0.0))
                 .unwrap_or(0.3),
+            free_tier_char_limit: match std::env::var("FREE_TIER_CHAR_LIMIT") {
+                Ok(s) => {
+                    let s = s.trim();
+                    if s == "0" {
+                        None
+                    } else {
+                        match s.parse::<usize>() {
+                            Ok(n) if n > 0 => Some(n),
+                            _ => {
+                                eprintln!("Invalid FREE_TIER_CHAR_LIMIT value {s:?}; using default 16000");
+                                Some(16_000)
+                            }
+                        }
+                    }
+                }
+                Err(_) => Some(16_000),
+            },
+            gated_char_limit: match std::env::var("GATED_CHAR_LIMIT") {
+                Ok(s) => {
+                    let s = s.trim();
+                    if s == "0" {
+                        None
+                    } else {
+                        match s.parse::<usize>() {
+                            Ok(n) if n > 0 => Some(n),
+                            _ => {
+                                eprintln!("Invalid GATED_CHAR_LIMIT value {s:?}; using default 65536");
+                                Some(65_536)
+                            }
+                        }
+                    }
+                }
+                Err(_) => Some(65_536),
+            },
             tts_voice_map: std::env::var("TTS_VOICE_MAP")
                 .unwrap_or_default()
                 .split(',')
@@ -164,5 +206,14 @@ impl AppConfig {
 
     pub fn is_tts_configured(&self) -> bool {
         !self.tts_api_base_url.is_empty() && !self.tts_api_key.is_empty()
+    }
+
+    /// Returns the hostname of the TTS endpoint for UI display, or `None` if not configured.
+    pub fn tts_hostname(&self) -> Option<String> {
+        if !self.is_tts_configured() { return None; }
+        url::Url::parse(&self.tts_api_base_url)
+            .ok()
+            .and_then(|u| u.host_str().map(|h| h.to_string()))
+            .filter(|h| !h.is_empty())
     }
 }

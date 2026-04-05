@@ -23,6 +23,9 @@ use config::AppConfig;
 /// Which backend tier a session was authenticated against.
 #[derive(Clone, Copy)]
 pub enum SessionTier {
+    /// Anonymous web-UI session: uses the server's own backend credentials.
+    /// Grants access to text translation and conversation only; no file tab.
+    Free,
     Byok,
     Gated,
 }
@@ -106,7 +109,7 @@ async fn main() -> Result<()> {
 
     let app = Router::new()
         // Static files
-        .route("/", get(static_files::serve_static))
+        .route("/", get(static_files::serve_index))
         .route("/static/*path", get(static_files::serve_static))
         // API docs
         .route("/openapi.yaml", get(static_files::get_openapi_spec))
@@ -114,6 +117,7 @@ async fn main() -> Result<()> {
         // API
         .route("/api/status", get(routes::config::get_status))
         .route("/api/config/test", post(routes::config::post_config_test))
+        .route("/api/config/check", post(routes::config::post_config_check))
         .route("/api/config/gated", post(routes::config::post_gated_access))
         .route("/api/translate", post(routes::translate::post_translate))
         .route("/api/translate/stream", post(routes::translate::post_translate_stream))

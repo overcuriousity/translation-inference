@@ -4,8 +4,9 @@ use tempfile::NamedTempFile;
 use tokio::io::AsyncWriteExt;
 
 use crate::api::whisper::{self, extract_audio_from_video, is_video_file};
+use crate::api::client::OpenAiClient;
 use crate::models::{ErrorResponse, TranscribeResponse};
-use crate::routes::translate::resolve_client;
+use crate::routes::translate::{check_authenticated, resolve_client};
 use crate::AppState;
 
 /// Maximum upload size: 100 MB
@@ -16,11 +17,16 @@ pub async fn post_transcribe(
     headers: HeaderMap,
     mut multipart: Multipart,
 ) -> Result<Json<TranscribeResponse>, (StatusCode, Json<ErrorResponse>)> {
+    // Reject unauthenticated callers in gated mode before reading any multipart data.
+    check_authenticated(&state, &headers)?;
+
     let mut file_tmp: Option<NamedTempFile> = None;
     let mut filename = String::from("upload.bin");
     let mut model: Option<String> = None;
     let mut endpoint: Option<String> = None;
     let mut api_key: Option<String> = None;
+    let mut stt_endpoint: Option<String> = None;
+    let mut stt_api_key: Option<String> = None;
 
     while let Some(mut field) = multipart
         .next_field()
@@ -77,12 +83,31 @@ pub async fn post_transcribe(
                     field.text().await.map_err(|e| err(StatusCode::BAD_REQUEST, e.to_string()))?,
                 );
             }
+            Some("stt_endpoint") => {
+                let v = field.text().await.map_err(|e| err(StatusCode::BAD_REQUEST, e.to_string()))?;
+                if !v.is_empty() { stt_endpoint = Some(v); }
+            }
+            Some("stt_api_key") => {
+                let v = field.text().await.map_err(|e| err(StatusCode::BAD_REQUEST, e.to_string()))?;
+                if !v.is_empty() { stt_api_key = Some(v); }
+            }
             _ => {}
         }
     }
 
     let file_tmp = file_tmp.ok_or_else(|| err(StatusCode::BAD_REQUEST, "No file field found".into()))?;
-    let client = resolve_client(&state, endpoint.as_deref(), api_key.as_deref(), &headers)?;
+
+    // Authentication was already enforced above; use stt_endpoint/stt_api_key directly
+    // if provided, otherwise fall back to the standard client resolver.
+    let client = if let (Some(ep), Some(key)) = (stt_endpoint.as_deref(), stt_api_key.as_deref()) {
+        if !ep.is_empty() && !key.is_empty() {
+            OpenAiClient::with_credentials(ep, key)
+        } else {
+            resolve_client(&state, endpoint.as_deref(), api_key.as_deref(), &headers)?
+        }
+    } else {
+        resolve_client(&state, endpoint.as_deref(), api_key.as_deref(), &headers)?
+    };
 
     // For video files, extract audio with ffmpeg first
     let mut final_filename = filename.clone();

@@ -23,7 +23,16 @@ pub async fn post_translate_stream(
     headers: HeaderMap,
     Json(req): Json<TranslateRequest>,
 ) -> Result<Response, (StatusCode, Json<ErrorResponse>)> {
-    let client = resolve_client(&state, req.endpoint.as_deref(), req.api_key.as_deref(), &headers)?;
+    if let Some(limit) = get_char_limit(&state, &headers) {
+        let len = req.text.chars().count();
+        if len > limit {
+            return Err((StatusCode::PAYLOAD_TOO_LARGE, Json(ErrorResponse {
+                error: format!("Input is {len} characters, which exceeds the {limit}-character limit for your access tier."),
+            })));
+        }
+    }
+
+    let client = resolve_translation_client(&state, req.endpoint.as_deref(), req.api_key.as_deref(), &headers)?;
 
     let model = req
         .model
@@ -34,7 +43,7 @@ pub async fn post_translate_stream(
     let stream = chat::translate_stream(
         client,
         model,
-        req.source_lang,
+        req.source_lang.unwrap_or_else(|| "auto".to_string()),
         req.target_lang,
         req.text,
         req.context,
@@ -72,6 +81,15 @@ pub async fn post_translate(
     headers: HeaderMap,
     Json(req): Json<TranslateRequest>,
 ) -> Result<Json<TranslateResponse>, (StatusCode, Json<ErrorResponse>)> {
+    if let Some(limit) = get_char_limit(&state, &headers) {
+        let len = req.text.chars().count();
+        if len > limit {
+            return Err((StatusCode::PAYLOAD_TOO_LARGE, Json(ErrorResponse {
+                error: format!("Input is {len} characters, which exceeds the {limit}-character limit for your access tier."),
+            })));
+        }
+    }
+
     if req.text.trim().is_empty() {
         return Ok(Json(TranslateResponse {
             translated_text: String::new(),
@@ -80,7 +98,7 @@ pub async fn post_translate(
         }));
     }
 
-    let client = resolve_client(&state, req.endpoint.as_deref(), req.api_key.as_deref(), &headers)?;
+    let client = resolve_translation_client(&state, req.endpoint.as_deref(), req.api_key.as_deref(), &headers)?;
 
     let model = req
         .model
@@ -88,7 +106,8 @@ pub async fn post_translate(
         .unwrap_or(&state.config.translation_model);
 
     let translation_config = TranslationConfig::from(&state.config);
-    match chat::translate(&client, model, &req.source_lang, &req.target_lang, &req.text, req.context.as_deref(), &translation_config).await {
+    let source_lang = req.source_lang.as_deref().unwrap_or("auto");
+    match chat::translate(&client, model, source_lang, &req.target_lang, &req.text, req.context.as_deref(), &translation_config).await {
         Ok((translated_text, chunks_total, chunks_completed)) => Ok(Json(TranslateResponse {
             translated_text,
             chunks_total,
@@ -153,27 +172,29 @@ pub fn check_authenticated(
         ));
     }
 
-    // Gated mode: Bearer token present → must match access key.
-    // No Bearer token → free tier: allow when server is configured (mirrors resolve_client).
-    let provided = headers
-        .get(header::AUTHORIZATION)
-        .and_then(|v| v.to_str().ok())
-        .and_then(|v| v.strip_prefix("Bearer "))
-        .unwrap_or("");
-
-    if provided.is_empty() {
-        if state.config.is_configured() || state.config.is_tts_configured() {
-            return Ok(());
-        }
-        return Err((
-            StatusCode::UNAUTHORIZED,
-            Json(ErrorResponse {
-                error: "No API credentials configured. Please set up your endpoint via the web interface.".into(),
-            }),
-        ));
-    }
-
+    // Gated mode: Bearer token required for all direct API requests.
     verify_bearer(headers, access_key)
+}
+
+/// Returns the character limit for the session making this request, or `None` for unlimited.
+pub fn get_char_limit(state: &AppState, headers: &HeaderMap) -> Option<usize> {
+    if let Some(sid) = get_session_id(headers) {
+        if let Some(creds) = state.sessions.read().unwrap().get(&sid) {
+            return match creds.tier {
+                crate::SessionTier::Free  => state.config.free_tier_char_limit,
+                crate::SessionTier::Gated => state.config.gated_char_limit,
+                crate::SessionTier::Byok  => None,
+            };
+        }
+    }
+    // Bearer-authenticated direct API access in gated mode → apply gated limit.
+    if !state.config.gated_access_key.is_empty()
+        && verify_bearer(headers, &state.config.gated_access_key).is_ok()
+    {
+        return state.config.gated_char_limit;
+    }
+    // Personal/local mode (no session, no gated key): treat as unlimited.
+    None
 }
 
 pub fn resolve_client(
@@ -182,15 +203,22 @@ pub fn resolve_client(
     api_key: Option<&str>,
     headers: &HeaderMap,
 ) -> Result<OpenAiClient, (StatusCode, Json<ErrorResponse>)> {
-    // Session cookie → web interface path, proceed with existing tier logic.
+    // Session cookie → web interface path, dispatch by tier.
     if let Some(sid) = get_session_id(headers) {
         if let Some(creds) = state.sessions.read().unwrap().get(&sid) {
-            if let crate::SessionTier::Gated = creds.tier {
-                if let Some(ref gc) = state.gated_client {
-                    return Ok(gc.clone());
+            return match creds.tier {
+                crate::SessionTier::Free => Ok(state.client.clone()),
+                crate::SessionTier::Gated => {
+                    if let Some(ref gc) = state.gated_client {
+                        Ok(gc.clone())
+                    } else {
+                        Ok(state.client.clone())
+                    }
                 }
-            }
-            return Ok(OpenAiClient::with_credentials(&creds.endpoint, &creds.api_key));
+                crate::SessionTier::Byok => {
+                    Ok(OpenAiClient::with_credentials(&creds.endpoint, &creds.api_key))
+                }
+            };
         }
     }
 
@@ -216,15 +244,11 @@ pub fn resolve_client(
         .and_then(|v| v.strip_prefix("Bearer "))
         .unwrap_or("");
 
-    // No bearer token → free tier: use the server's own client if available.
     if provided.is_empty() {
-        if state.config.is_configured() {
-            return Ok(state.client.clone());
-        }
         return Err((
             StatusCode::UNAUTHORIZED,
             Json(ErrorResponse {
-                error: "No API credentials configured. Please set up your endpoint via the web interface.".into(),
+                error: "Authentication required. Provide a Bearer token or use the web interface.".into(),
             }),
         ));
     }
@@ -257,4 +281,30 @@ pub fn resolve_client(
             error: "No API credentials configured. Provide endpoint and api_key in the request.".into(),
         }),
     ))
+}
+
+/// Like `resolve_client` but also honours per-request `endpoint`/`api_key` for gated sessions.
+/// Used by translation routes so that a gated user can overlay their own LLM endpoint without
+/// replacing their session. STT routes deliberately do NOT use this — they have their own
+/// `stt_endpoint`/`stt_api_key` overlay mechanism.
+pub fn resolve_translation_client(
+    state: &AppState,
+    endpoint: Option<&str>,
+    api_key: Option<&str>,
+    headers: &HeaderMap,
+) -> Result<OpenAiClient, (StatusCode, Json<ErrorResponse>)> {
+    if let Some(sid) = get_session_id(headers) {
+        if let Some(creds) = state.sessions.read().unwrap().get(&sid) {
+            if matches!(creds.tier, crate::SessionTier::Gated) {
+                // Gated session: allow a per-request BYOK translation override.
+                if let (Some(ep), Some(key)) = (endpoint, api_key) {
+                    if !ep.is_empty() && !key.is_empty() {
+                        return Ok(OpenAiClient::with_credentials(ep, key));
+                    }
+                }
+            }
+        }
+    }
+    // All other cases fall through to the standard resolver.
+    resolve_client(state, endpoint, api_key, headers)
 }

@@ -14,14 +14,7 @@
       <span class="app-title">Translation</span>
     </div>
     <div class="header-controls">
-      <div class="select-group">
-        <label class="select-label">Translation</label>
-        <select id="model-select" class="select-compact" title="Translation Model"></select>
-      </div>
-      <div class="select-group">
-        <label class="select-label">Transcription</label>
-        <select id="whisper-model-select" class="select-compact" title="Transcription Model (Whisper)"></select>
-      </div>
+      <span id="backend-info" class="backend-info"></span>
       <button id="settings-btn" class="settings-btn" title="API Settings">
 
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -50,12 +43,33 @@
         <button id="config-connect-btn" class="btn-primary">Connect</button>
         <span id="config-msg" class="config-msg"></span>
       </div>
+      <!-- STT BYOK row -->
+      <div class="config-row">
+        <input id="config-stt-endpoint" type="url" class="config-input" placeholder="STT Endpoint URL (optional)" />
+        <input id="config-stt-apikey" type="password" class="config-input" placeholder="STT API Key (optional)" />
+        <button id="config-stt-btn" class="btn-primary">Set STT</button>
+        <span id="stt-endpoint-msg" class="config-msg"></span>
+      </div>
       <!-- TTS BYOK row -->
       <div class="config-row">
         <input id="config-tts-endpoint" type="url" class="config-input" placeholder="TTS Endpoint URL (optional)" />
         <input id="config-tts-apikey" type="password" class="config-input" placeholder="TTS API Key (optional)" />
         <button id="config-tts-btn" class="btn-primary">Set TTS</button>
         <span id="tts-msg" class="config-msg"></span>
+      </div>
+      <!-- Model selection -->
+      <div class="config-separator config-separator-models">
+        <span>models</span>
+      </div>
+      <div class="config-row config-models-row">
+        <div class="model-select-group">
+          <label class="select-label" for="model-select">Translation</label>
+          <select id="model-select" class="select-compact" title="Translation Model"></select>
+        </div>
+        <div class="model-select-group">
+          <label class="select-label" for="whisper-model-select">Transcription</label>
+          <select id="whisper-model-select" class="select-compact" title="Transcription Model (Whisper)"></select>
+        </div>
       </div>
     </div>
   </div>
