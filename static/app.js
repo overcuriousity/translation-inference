@@ -141,6 +141,7 @@ async function init() {
   sessionActive       = !!status.session_active;
   updateTtsButtonVisibility();
   updateSrcTtsButtonVisibility();
+  updateFileTabVisibility();
   // Show context hint toggle in initial text mode
   contextHintToggle.classList.remove('hidden');
 
@@ -208,8 +209,18 @@ function showConfigPanel(msg) {
   }
 }
 
+function updateFileTabVisibility() {
+  if (sessionActive) {
+    tabDocumentBtn.classList.remove('hidden');
+  } else {
+    tabDocumentBtn.classList.add('hidden');
+    if (activeTab === 'file') switchTab('text');
+  }
+}
+
 function promptReauth() {
   sessionActive = false;
+  updateFileTabVisibility();
   showConfigPanel('Session expired. Please re-authenticate.');
   showNotification('Session expired \u2014 please re-authenticate', 'error');
 }
@@ -243,6 +254,7 @@ configGatedBtn.addEventListener('click', async () => {
       userEndpoint = '';
       userApiKey   = '';
       sessionActive = true;
+      updateFileTabVisibility();
       configAccesskey.value = '';
       gatedMsg.textContent = '\u2713 Access granted';
       gatedMsg.className = 'config-msg success';
@@ -285,6 +297,7 @@ configConnectBtn.addEventListener('click', async () => {
       userEndpoint = ep;
       userApiKey   = key;
       sessionActive = true;
+      updateFileTabVisibility();
       configMsg.textContent = '✓ Connected';
       configMsg.className = 'config-msg success';
       await Promise.all([loadLanguages(), loadModels()]);
