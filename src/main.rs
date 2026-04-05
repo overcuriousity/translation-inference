@@ -117,6 +117,7 @@ async fn main() -> Result<()> {
         // API
         .route("/api/status", get(routes::config::get_status))
         .route("/api/config/test", post(routes::config::post_config_test))
+        .route("/api/config/check", post(routes::config::post_config_check))
         .route("/api/config/gated", post(routes::config::post_gated_access))
         .route("/api/translate", post(routes::translate::post_translate))
         .route("/api/translate/stream", post(routes::translate::post_translate_stream))

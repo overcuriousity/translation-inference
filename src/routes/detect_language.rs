@@ -9,7 +9,7 @@ use crate::models::{
     ChatMessage, ChatRequest, ChatResponse, DetectLanguageRequest, DetectLanguageResponse,
     ErrorResponse,
 };
-use crate::routes::translate::{check_authenticated, resolve_client};
+use crate::routes::translate::{check_authenticated, resolve_translation_client};
 use crate::AppState;
 
 pub async fn post_detect_language(
@@ -19,7 +19,7 @@ pub async fn post_detect_language(
 ) -> Result<Json<DetectLanguageResponse>, (StatusCode, Json<ErrorResponse>)> {
     check_authenticated(&state, &headers)?;
 
-    let client = resolve_client(&state, req.endpoint.as_deref(), req.api_key.as_deref(), &headers)?;
+    let client = resolve_translation_client(&state, req.endpoint.as_deref(), req.api_key.as_deref(), &headers)?;
 
     let snippet: String = req.text.chars().take(500).collect();
     if snippet.trim().is_empty() {

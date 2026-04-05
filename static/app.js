@@ -344,8 +344,14 @@ configConnectBtn.addEventListener('click', async () => {
   configConnectBtn.disabled = true;
   configMsg.textContent = 'Testing…';
 
+  // When a gated session is already active, validate the endpoint without replacing the session.
+  // The translation BYOK creds are sent per-request (like STT/TTS), keeping the gated session
+  // intact so STT/TTS can still fall back to the gated backend.
+  const isGatedOverlay = sessionTier === 'gated';
+  const testUrl = isGatedOverlay ? '/api/config/check' : '/api/config/test';
+
   try {
-    const res  = await fetch('/api/config/test', {
+    const res  = await fetch(testUrl, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ endpoint: ep, api_key: key }),
@@ -355,11 +361,13 @@ configConnectBtn.addEventListener('click', async () => {
     if (res.ok) {
       userEndpoint = ep;
       userApiKey   = key;
-      sessionTier   = 'byok';
-      sessionActive = true;
-      charLimit     = null; // BYOK is always unlimited
-      updateFileTabVisibility();
-      updateCharCount();
+      if (!isGatedOverlay) {
+        sessionTier   = 'byok';
+        sessionActive = true;
+        charLimit     = null; // BYOK is always unlimited
+        updateFileTabVisibility();
+        updateCharCount();
+      }
       configMsg.textContent = '✓ Connected';
       configMsg.className = 'config-msg success';
       await Promise.all([loadLanguages(), loadModels()]);

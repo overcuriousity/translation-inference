@@ -55,6 +55,45 @@ pub fn make_session_cookie(sid: &str) -> String {
     }
 }
 
+/// Validate an endpoint+key pair without creating a session. Used when a gated user wants to
+/// overlay their own translation endpoint without replacing the gated session cookie.
+pub async fn post_config_check(
+    Json(req): Json<ConfigTestRequest>,
+) -> Result<Json<ConfigTestResponse>, (StatusCode, Json<ErrorResponse>)> {
+    if req.endpoint.is_empty() || req.api_key.is_empty() {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse { error: "endpoint and api_key are required".into() }),
+        ));
+    }
+
+    let client = OpenAiClient::with_credentials(&req.endpoint, &req.api_key);
+    let response = client
+        .http
+        .get(client.models_url())
+        .bearer_auth(&client.api_key)
+        .send()
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::BAD_GATEWAY,
+                Json(ErrorResponse { error: format!("Cannot reach endpoint: {e}") }),
+            )
+        })?;
+
+    let status = response.status();
+    if status.is_success() {
+        Ok(Json(ConfigTestResponse { ok: true, message: "Connection successful".into() }))
+    } else if status.as_u16() == 401 || status.as_u16() == 403 {
+        Err((StatusCode::UNAUTHORIZED, Json(ErrorResponse { error: "Invalid API key".into() })))
+    } else {
+        let body = response.text().await.unwrap_or_default();
+        Err((StatusCode::BAD_GATEWAY, Json(ErrorResponse {
+            error: format!("Endpoint returned {status}: {body}"),
+        })))
+    }
+}
+
 pub async fn post_config_test(
     State(state): State<Arc<AppState>>,
     Json(req): Json<ConfigTestRequest>,

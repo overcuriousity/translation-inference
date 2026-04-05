@@ -32,7 +32,7 @@ pub async fn post_translate_stream(
         }
     }
 
-    let client = resolve_client(&state, req.endpoint.as_deref(), req.api_key.as_deref(), &headers)?;
+    let client = resolve_translation_client(&state, req.endpoint.as_deref(), req.api_key.as_deref(), &headers)?;
 
     let model = req
         .model
@@ -98,7 +98,7 @@ pub async fn post_translate(
         }));
     }
 
-    let client = resolve_client(&state, req.endpoint.as_deref(), req.api_key.as_deref(), &headers)?;
+    let client = resolve_translation_client(&state, req.endpoint.as_deref(), req.api_key.as_deref(), &headers)?;
 
     let model = req
         .model
@@ -281,4 +281,30 @@ pub fn resolve_client(
             error: "No API credentials configured. Provide endpoint and api_key in the request.".into(),
         }),
     ))
+}
+
+/// Like `resolve_client` but also honours per-request `endpoint`/`api_key` for gated sessions.
+/// Used by translation routes so that a gated user can overlay their own LLM endpoint without
+/// replacing their session. STT routes deliberately do NOT use this — they have their own
+/// `stt_endpoint`/`stt_api_key` overlay mechanism.
+pub fn resolve_translation_client(
+    state: &AppState,
+    endpoint: Option<&str>,
+    api_key: Option<&str>,
+    headers: &HeaderMap,
+) -> Result<OpenAiClient, (StatusCode, Json<ErrorResponse>)> {
+    if let Some(sid) = get_session_id(headers) {
+        if let Some(creds) = state.sessions.read().unwrap().get(&sid) {
+            if matches!(creds.tier, crate::SessionTier::Gated) {
+                // Gated session: allow a per-request BYOK translation override.
+                if let (Some(ep), Some(key)) = (endpoint, api_key) {
+                    if !ep.is_empty() && !key.is_empty() {
+                        return Ok(OpenAiClient::with_credentials(ep, key));
+                    }
+                }
+            }
+        }
+    }
+    // All other cases fall through to the standard resolver.
+    resolve_client(state, endpoint, api_key, headers)
 }

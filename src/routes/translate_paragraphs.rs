@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use crate::api::{chat, chunker::{context_size_from_model_id, usable_input_chars, TranslationConfig}};
 use crate::models::{ErrorResponse, ParagraphPair, TranslateParagraphsRequest, TranslateParagraphsResponse};
-use crate::routes::translate::{get_char_limit, resolve_client};
+use crate::routes::translate::{get_char_limit, resolve_translation_client};
 use crate::AppState;
 
 /// Separator injected between source paragraphs before sending to the LLM.
@@ -35,7 +35,7 @@ pub async fn post_translate_paragraphs(
         }));
     }
 
-    let client = resolve_client(&state, req.endpoint.as_deref(), req.api_key.as_deref(), &headers)?;
+    let client = resolve_translation_client(&state, req.endpoint.as_deref(), req.api_key.as_deref(), &headers)?;
 
     let model = req
         .model
