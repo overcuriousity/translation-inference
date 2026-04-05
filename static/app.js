@@ -106,8 +106,7 @@ const convMicA             = document.getElementById('conv-mic-a');
 const convMicB             = document.getElementById('conv-mic-b');
 const convLangAsel         = document.getElementById('conv-lang-a');
 const convLangBsel         = document.getElementById('conv-lang-b');
-const convTranscriptA      = document.getElementById('conv-transcript-a');
-const convTranscriptB      = document.getElementById('conv-transcript-b');
+const convTimeline         = document.getElementById('conv-timeline');
 const convAutoTtsInput     = document.getElementById('conv-auto-tts');
 const convVadInput         = document.getElementById('conv-vad');
 const convClearBtn         = document.getElementById('conv-clear-btn');
@@ -1647,7 +1646,14 @@ convMicB.addEventListener('click', () => {
 
 function createConvBubble(entry) {
   const bubble = document.createElement('div');
-  bubble.className = 'conv-bubble';
+  bubble.className = `conv-bubble conv-bubble-${entry.speaker}`;
+
+  if (entry.srcLangName) {
+    const label = document.createElement('p');
+    label.className = 'conv-lang-label';
+    label.textContent = entry.srcLangName;
+    bubble.appendChild(label);
+  }
 
   const srcP = document.createElement('p');
   srcP.className = 'conv-source';
@@ -1675,43 +1681,13 @@ function createConvBubble(entry) {
   return bubble;
 }
 
-function syncConvHeights() {
-  const itemsA = Array.from(convTranscriptA.children);
-  const itemsB = Array.from(convTranscriptB.children);
-  convHistory.forEach((entry, i) => {
-    const a = itemsA[i];
-    const b = itemsB[i];
-    if (!a || !b) return;
-    if (entry.speaker === 'a') {
-      b.style.height = a.offsetHeight + 'px';
-    } else {
-      a.style.height = b.offsetHeight + 'px';
-    }
-  });
-}
-
 function renderConvTranscript() {
-  convTranscriptA.innerHTML = '';
-  convTranscriptB.innerHTML = '';
-
+  convTimeline.innerHTML = '';
   for (const entry of convHistory) {
-    const bubble = createConvBubble(entry);
-    const spacer = document.createElement('div');
-    spacer.className = 'conv-spacer';
-
-    if (entry.speaker === 'a') {
-      convTranscriptA.appendChild(bubble);
-      convTranscriptB.appendChild(spacer);
-    } else {
-      convTranscriptA.appendChild(spacer);
-      convTranscriptB.appendChild(bubble);
-    }
+    convTimeline.appendChild(createConvBubble(entry));
   }
-
   requestAnimationFrame(() => {
-    syncConvHeights();
-    convTranscriptA.scrollTop = convTranscriptA.scrollHeight;
-    convTranscriptB.scrollTop = convTranscriptB.scrollHeight;
+    convTimeline.scrollTop = convTimeline.scrollHeight;
   });
 }
 
