@@ -2,6 +2,7 @@
 
 <img width="1112" height="958" alt="image" src="https://github.com/user-attachments/assets/bfc89dd0-3b50-47a4-ae1c-d60023ade26f" />
 
+<img width="554" height="924" alt="image" src="https://github.com/user-attachments/assets/5fe0a4ac-7a80-4143-9c46-3f8f0ecf8867" />
 
 A fast, memory-efficient, Rust-based translation and transcription inference service with a built-in modern web interface. Designed to act as a unified frontend and API for any OpenAI-compatible LLM and Whisper endpoint (such as llama.cpp, vLLM, LM Studio, or LiteLLM).
 
