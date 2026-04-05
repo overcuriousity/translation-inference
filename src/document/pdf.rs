@@ -31,12 +31,14 @@ pub async fn translate_pdf(
     model: &str,
     source_lang: &str,
     target_lang: &str,
+    config: &crate::api::chunker::TranslationConfig,
 ) -> Result<Vec<u8>> {
     let text = extract_pdf_text(bytes).context("failed to extract text from PDF")?;
 
-    let (translated, _, _) = crate::api::chat::translate(client, model, source_lang, target_lang, &text)
-        .await
-        .context("translation failed")?;
+    let (translated, _, _) =
+        crate::api::chat::translate(client, model, source_lang, target_lang, &text, config)
+            .await
+            .context("translation failed")?;
 
     build_pdf_from_text(&translated)
 }

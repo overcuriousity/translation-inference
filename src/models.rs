@@ -182,6 +182,8 @@ pub struct ChatResponse {
 #[derive(Debug, Deserialize)]
 pub struct ChatChoice {
     pub message: ChatMessage,
+    #[serde(default)]
+    pub finish_reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -192,6 +194,8 @@ pub struct StreamResponse {
 #[derive(Debug, Deserialize)]
 pub struct StreamChoice {
     pub delta: StreamDelta,
+    #[serde(default)]
+    pub finish_reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

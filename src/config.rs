@@ -34,6 +34,24 @@ pub struct AppConfig {
     /// Required format per entry: `lang:voice@model`.
     /// The map keys determine which languages show TTS buttons in the UI.
     pub tts_voice_map: std::collections::HashMap<String, TtsVoiceEntry>,
+
+    // ── Translation quality tuning ────────────────────────────────────────────
+    /// Fallback context size (tokens) when the model ID does not encode one.
+    /// Default: 4096. Override with `DEFAULT_CONTEXT_SIZE`.
+    pub default_context_size: usize,
+    /// Fraction of usable tokens allocated to input (remainder goes to output).
+    /// Default: 0.5. Set to e.g. 0.4 for compact→verbose language pairs.
+    /// Override with `INPUT_TOKEN_RATIO`.
+    pub input_token_ratio: f64,
+    /// Chars-per-token ratio for CJK-dominant text. Default: 1.5.
+    /// Override with `CJK_CHARS_PER_TOKEN`.
+    pub cjk_chars_per_token: f64,
+    /// Chars-per-token ratio for Latin-script text. Default: 4.0.
+    /// Override with `LATIN_CHARS_PER_TOKEN`.
+    pub latin_chars_per_token: f64,
+    /// Warn when translated output/input char ratio is below this value.
+    /// Default: 0.3. Override with `MIN_OUTPUT_RATIO`.
+    pub min_output_ratio: f64,
 }
 
 impl AppConfig {
@@ -80,6 +98,27 @@ impl AppConfig {
                 Some("0") | None => None,
                 Some(s) => s.parse::<usize>().ok().filter(|&n| n > 0),
             },
+            default_context_size: std::env::var("DEFAULT_CONTEXT_SIZE")
+                .ok()
+                .and_then(|s| s.parse::<usize>().ok())
+                .unwrap_or(4096),
+            input_token_ratio: std::env::var("INPUT_TOKEN_RATIO")
+                .ok()
+                .and_then(|s| s.parse::<f64>().ok())
+                .map(|v| v.clamp(0.1, 0.9))
+                .unwrap_or(0.5),
+            cjk_chars_per_token: std::env::var("CJK_CHARS_PER_TOKEN")
+                .ok()
+                .and_then(|s| s.parse::<f64>().ok())
+                .unwrap_or(1.5),
+            latin_chars_per_token: std::env::var("LATIN_CHARS_PER_TOKEN")
+                .ok()
+                .and_then(|s| s.parse::<f64>().ok())
+                .unwrap_or(4.0),
+            min_output_ratio: std::env::var("MIN_OUTPUT_RATIO")
+                .ok()
+                .and_then(|s| s.parse::<f64>().ok())
+                .unwrap_or(0.3),
             tts_voice_map: std::env::var("TTS_VOICE_MAP")
                 .unwrap_or_default()
                 .split(',')
