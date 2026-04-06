@@ -9,13 +9,14 @@ use crate::models::{
     ChatMessage, ChatRequest, ChatResponse, DetectLanguageRequest, DetectLanguageResponse,
     ErrorResponse,
 };
+use crate::routes::extractors::AppJson;
 use crate::routes::translate::{check_authenticated, resolve_translation_client};
 use crate::AppState;
 
 pub async fn post_detect_language(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<DetectLanguageRequest>,
+    AppJson(req): AppJson<DetectLanguageRequest>,
 ) -> Result<Json<DetectLanguageResponse>, (StatusCode, Json<ErrorResponse>)> {
     check_authenticated(&state, &headers)?;
 

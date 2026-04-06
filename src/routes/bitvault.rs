@@ -1,8 +1,5 @@
-use axum::{
-    extract::{Query, State},
-    http::StatusCode,
-    Json,
-};
+use crate::routes::extractors::{AppJson, AppQuery};
+use axum::{extract::State, http::StatusCode, Json};
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 use std::{sync::Arc, time::Duration};
@@ -32,7 +29,7 @@ struct BitvaultCreateResp {
 
 pub async fn post_save_to_bitvault(
     State(state): State<Arc<AppState>>,
-    Json(req): Json<SaveToBitvaultRequest>,
+    AppJson(req): AppJson<SaveToBitvaultRequest>,
 ) -> Result<Json<SaveToBitvaultResponse>, (StatusCode, Json<ErrorResponse>)> {
     let bitvault_url = state.config.bitvault_url.as_deref().ok_or_else(|| {
         (
@@ -103,9 +100,14 @@ pub struct ProxyQuery {
     pub url: String,
 }
 
+#[derive(Deserialize)]
+struct BitvaultPasteResp {
+    content: String,
+}
+
 pub async fn get_proxy_text(
     State(state): State<Arc<AppState>>,
-    Query(q): Query<ProxyQuery>,
+    AppQuery(q): AppQuery<ProxyQuery>,
 ) -> Result<String, (StatusCode, Json<ErrorResponse>)> {
     let bitvault_url = state.config.bitvault_url.as_deref().ok_or_else(|| {
         (
@@ -144,6 +146,84 @@ pub async fn get_proxy_text(
         ));
     }
 
+    // Extract paste ID from /upload/<id> or /raw/<id> paths and use the
+    // Bitvault REST API to retrieve raw content. Trailing slashes (which
+    // produce an empty final segment) are ignored.
+    let paste_id: Option<&str> = {
+        let mut segs = requested
+            .path_segments()
+            .into_iter()
+            .flatten()
+            .filter(|s| !s.is_empty());
+        let prefix = segs.next();
+        let id = segs.next();
+        let extra = segs.next();
+        if (prefix == Some("upload") || prefix == Some("raw")) && id.is_some() && extra.is_none() {
+            id
+        } else {
+            None
+        }
+    };
+
+    if let Some(id) = paste_id {
+        let api_url = format!("{bitvault_url}/api/v1/paste/{id}");
+        let mut req = state.bitvault_http.get(&api_url);
+        if let Some(key) = &state.config.bitvault_api_key {
+            req = req.header("Authorization", format!("Bearer {key}"));
+        }
+        let resp = req.send().await.map_err(|e| {
+            (
+                StatusCode::BAD_GATEWAY,
+                Json(ErrorResponse {
+                    error: format!("Failed to fetch from Bitvault: {e}"),
+                }),
+            )
+        })?;
+
+        if !resp.status().is_success() {
+            let upstream_status = resp.status();
+            return Err((
+                StatusCode::BAD_GATEWAY,
+                Json(ErrorResponse {
+                    error: format!("Bitvault responded with {upstream_status}"),
+                }),
+            ));
+        }
+
+        if resp
+            .content_length()
+            .is_some_and(|n| n > MAX_PROXY_BYTES as u64)
+        {
+            return Err((
+                StatusCode::BAD_GATEWAY,
+                Json(ErrorResponse {
+                    error: "Bitvault response exceeds size limit".into(),
+                }),
+            ));
+        }
+
+        let paste: BitvaultPasteResp = resp.json().await.map_err(|e| {
+            (
+                StatusCode::BAD_GATEWAY,
+                Json(ErrorResponse {
+                    error: format!("Failed to parse Bitvault response: {e}"),
+                }),
+            )
+        })?;
+
+        if paste.content.len() > MAX_PROXY_BYTES {
+            return Err((
+                StatusCode::BAD_GATEWAY,
+                Json(ErrorResponse {
+                    error: "Bitvault response exceeds size limit".into(),
+                }),
+            ));
+        }
+
+        return Ok(paste.content);
+    }
+
+    // Fallback: direct fetch for other valid Bitvault URLs.
     let resp = state.bitvault_http.get(&q.url).send().await.map_err(|e| {
         (
             StatusCode::BAD_GATEWAY,

@@ -161,7 +161,19 @@ pub async fn post_transcribe(
         Ok(text) => Ok(Json(TranscribeResponse { text })),
         Err(e) => {
             tracing::error!("Transcription error: {e:#}");
-            Err(err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))
+            if e.downcast_ref::<whisper::WhisperApiError>()
+                .is_some_and(|w| w.upstream_status == 400)
+            {
+                Err(err(
+                    StatusCode::BAD_REQUEST,
+                    "The uploaded file could not be processed. Ensure it is a valid audio or video file.".into(),
+                ))
+            } else {
+                Err(err(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Transcription failed".into(),
+                ))
+            }
         }
     }
 }

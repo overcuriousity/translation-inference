@@ -6,6 +6,21 @@ use tempfile::NamedTempFile;
 use crate::api::client::OpenAiClient;
 use crate::models::WhisperResponse;
 
+/// Error returned when the upstream Whisper/STT API rejects the request.
+/// Carries the HTTP status code so callers can map it to an appropriate client error.
+#[derive(Debug)]
+pub struct WhisperApiError {
+    pub upstream_status: u16,
+}
+
+impl std::fmt::Display for WhisperApiError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "whisper API error {}", self.upstream_status)
+    }
+}
+
+impl std::error::Error for WhisperApiError {}
+
 /// Returns true if the file's extension suggests a video container.
 pub fn is_video_file(filename: &str) -> bool {
     let ext = Path::new(filename)
@@ -171,8 +186,13 @@ pub async fn transcribe_file(
 
     if !response.status().is_success() {
         let status = response.status();
+        // Log the raw upstream body for debugging but do not propagate it to clients.
         let body = response.text().await.unwrap_or_default();
-        anyhow::bail!("whisper API error {status}: {body}");
+        tracing::debug!("whisper API error {status}: {body}");
+        return Err(WhisperApiError {
+            upstream_status: status.as_u16(),
+        }
+        .into());
     }
 
     let result: WhisperResponse = response

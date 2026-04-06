@@ -9,13 +9,14 @@ use std::sync::Arc;
 
 use crate::api::client::OpenAiClient;
 use crate::models::{ErrorResponse, TtsRequest};
+use crate::routes::extractors::AppJson;
 use crate::routes::translate::{check_authenticated, get_session_id};
 use crate::AppState;
 
 pub async fn post_tts(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<TtsRequest>,
+    AppJson(req): AppJson<TtsRequest>,
 ) -> Result<Response, (StatusCode, Json<ErrorResponse>)> {
     check_authenticated(&state, &headers)?;
 

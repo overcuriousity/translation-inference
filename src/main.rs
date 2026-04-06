@@ -1,8 +1,9 @@
 use anyhow::Result;
 use axum::{
     extract::DefaultBodyLimit,
+    http::StatusCode,
     routing::{get, post},
-    Router,
+    Json, Router,
 };
 use std::sync::Arc;
 use tower_http::{
@@ -160,6 +161,22 @@ async fn main() -> Result<()> {
             "/api/detect-language",
             post(routes::detect_language::post_detect_language),
         )
+        .fallback(|| async {
+            (
+                StatusCode::NOT_FOUND,
+                Json(models::ErrorResponse {
+                    error: "Not found".into(),
+                }),
+            )
+        })
+        .method_not_allowed_fallback(|| async {
+            (
+                StatusCode::METHOD_NOT_ALLOWED,
+                Json(models::ErrorResponse {
+                    error: "Method not allowed".into(),
+                }),
+            )
+        })
         .layer(DefaultBodyLimit::max(100 * 1024 * 1024))
         .layer(CompressionLayer::new())
         .layer(cors)
