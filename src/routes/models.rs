@@ -14,19 +14,25 @@ pub async fn get_models(
     let mut translation_ids = Vec::new();
     let mut transcription_ids = Vec::new();
 
+    // Free-tier sessions use the server-configured model list (same as unauthenticated),
+    // not a live API fetch — the free tier has no user-supplied credentials to discover.
     let session_client: Option<OpenAiClient> = get_session_id(&headers).and_then(|sid| {
         state
             .sessions
             .read()
             .unwrap()
             .get(&sid)
-            .map(|c| match c.tier {
-                crate::SessionTier::Gated => state
-                    .gated_client
-                    .clone()
-                    .unwrap_or_else(|| state.client.clone()),
-                crate::SessionTier::Free => state.client.clone(),
-                crate::SessionTier::Byok => OpenAiClient::with_credentials(&c.endpoint, &c.api_key),
+            .and_then(|c| match c.tier {
+                crate::SessionTier::Gated => Some(
+                    state
+                        .gated_client
+                        .clone()
+                        .unwrap_or_else(|| state.client.clone()),
+                ),
+                crate::SessionTier::Free => None,
+                crate::SessionTier::Byok => {
+                    Some(OpenAiClient::with_credentials(&c.endpoint, &c.api_key))
+                }
             })
     });
 
