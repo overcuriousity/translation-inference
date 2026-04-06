@@ -1,9 +1,5 @@
-use axum::{
-    extract::State,
-    http::StatusCode,
-    Json,
-};
 use crate::routes::extractors::{AppJson, AppQuery};
+use axum::{extract::State, http::StatusCode, Json};
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 use std::{sync::Arc, time::Duration};
@@ -162,10 +158,7 @@ pub async fn get_proxy_text(
         let prefix = segs.next();
         let id = segs.next();
         let extra = segs.next();
-        if (prefix == Some("upload") || prefix == Some("raw"))
-            && id.is_some()
-            && extra.is_none()
-        {
+        if (prefix == Some("upload") || prefix == Some("raw")) && id.is_some() && extra.is_none() {
             id
         } else {
             None

@@ -40,7 +40,7 @@ pub const VALID_TARGET_LANGS: &[(&str, &str)] = &[
 pub fn is_valid_target_lang(value: &str) -> bool {
     VALID_TARGET_LANGS
         .iter()
-        .any(|(code, name)| *code == value || *name == value)
+        .any(|&(code, name)| code == value || name == value)
 }
 
 pub async fn get_languages() -> Json<LanguagesResponse> {
@@ -48,10 +48,10 @@ pub async fn get_languages() -> Json<LanguagesResponse> {
         code: "auto".into(),
         name: "Auto-detect".into(),
     }];
-    for (code, name) in VALID_TARGET_LANGS {
+    for &(code, name) in VALID_TARGET_LANGS {
         languages.push(Language {
-            code: (*code).into(),
-            name: (*name).into(),
+            code: code.into(),
+            name: name.into(),
         });
     }
     Json(LanguagesResponse { languages })

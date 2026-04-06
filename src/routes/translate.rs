@@ -1,3 +1,4 @@
+use crate::routes::extractors::AppJson;
 use axum::{
     body::Body,
     extract::State,
@@ -5,7 +6,6 @@ use axum::{
     response::Response,
     Json,
 };
-use crate::routes::extractors::AppJson;
 use futures::StreamExt;
 use std::sync::Arc;
 

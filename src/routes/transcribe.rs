@@ -169,7 +169,10 @@ pub async fn post_transcribe(
                     "The uploaded file could not be processed. Ensure it is a valid audio or video file.".into(),
                 ))
             } else {
-                Err(err(StatusCode::INTERNAL_SERVER_ERROR, "Transcription failed".into()))
+                Err(err(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Transcription failed".into(),
+                ))
             }
         }
     }

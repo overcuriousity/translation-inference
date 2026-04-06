@@ -1,7 +1,7 @@
 pub mod bitvault;
-pub mod extractors;
 pub mod config;
 pub mod detect_language;
+pub mod extractors;
 pub mod languages;
 pub mod models;
 pub mod subtitle;
