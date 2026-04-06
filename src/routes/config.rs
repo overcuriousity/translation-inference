@@ -9,25 +9,36 @@ use crate::api::client::OpenAiClient;
 use crate::models::{
     ConfigTestRequest, ConfigTestResponse, ErrorResponse, GatedAccessRequest, StatusResponse,
 };
-use crate::routes::translate::{check_authenticated, get_session_id};
+use crate::routes::extractors::AppJson;
+use crate::routes::translate::{check_authenticated, get_session_id, verify_bearer};
 use crate::{AppState, SessionCredentials, SessionTier};
 
 pub async fn get_status(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
 ) -> Json<StatusResponse> {
-    let session_tier_str = get_session_id(&headers).and_then(|sid| {
-        state
-            .sessions
-            .read()
-            .unwrap()
-            .get(&sid)
-            .map(|creds| match creds.tier {
-                SessionTier::Free => "free".to_string(),
-                SessionTier::Byok => "byok".to_string(),
-                SessionTier::Gated => "gated".to_string(),
-            })
-    });
+    let session_tier_str = get_session_id(&headers)
+        .and_then(|sid| {
+            state
+                .sessions
+                .read()
+                .unwrap()
+                .get(&sid)
+                .map(|creds| match creds.tier {
+                    SessionTier::Free => "free".to_string(),
+                    SessionTier::Byok => "byok".to_string(),
+                    SessionTier::Gated => "gated".to_string(),
+                })
+        })
+        .or_else(|| {
+            // Bearer token auth: reflect as an active gated session.
+            let key = &state.config.gated_access_key;
+            if !key.is_empty() && verify_bearer(&headers, key).is_ok() {
+                Some("gated".to_string())
+            } else {
+                None
+            }
+        });
     let session_active = session_tier_str.is_some();
 
     let char_limit = match session_tier_str.as_deref() {
@@ -80,7 +91,7 @@ pub fn make_session_cookie(sid: &str) -> String {
 pub async fn post_config_check(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<ConfigTestRequest>,
+    AppJson(req): AppJson<ConfigTestRequest>,
 ) -> Result<Json<ConfigTestResponse>, (StatusCode, Json<ErrorResponse>)> {
     check_authenticated(&state, &headers)?;
 
@@ -135,7 +146,7 @@ pub async fn post_config_check(
 
 pub async fn post_config_test(
     State(state): State<Arc<AppState>>,
-    Json(req): Json<ConfigTestRequest>,
+    AppJson(req): AppJson<ConfigTestRequest>,
 ) -> Result<(HeaderMap, Json<ConfigTestResponse>), (StatusCode, Json<ErrorResponse>)> {
     if req.endpoint.is_empty() || req.api_key.is_empty() {
         return Err((
@@ -218,7 +229,7 @@ pub async fn post_config_test(
 
 pub async fn post_gated_access(
     State(state): State<Arc<AppState>>,
-    Json(req): Json<GatedAccessRequest>,
+    AppJson(req): AppJson<GatedAccessRequest>,
 ) -> Result<(HeaderMap, Json<ConfigTestResponse>), (StatusCode, Json<ErrorResponse>)> {
     if !state.config.is_gated_configured() {
         return Err((

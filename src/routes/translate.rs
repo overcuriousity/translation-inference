@@ -5,6 +5,7 @@ use axum::{
     response::Response,
     Json,
 };
+use crate::routes::extractors::AppJson;
 use futures::StreamExt;
 use std::sync::Arc;
 
@@ -27,8 +28,17 @@ pub fn get_session_id(headers: &HeaderMap) -> Option<String> {
 pub async fn post_translate_stream(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<TranslateRequest>,
+    AppJson(req): AppJson<TranslateRequest>,
 ) -> Result<Response, (StatusCode, Json<ErrorResponse>)> {
+    if !crate::routes::languages::is_valid_target_lang(&req.target_lang) {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse {
+                error: format!("Unsupported target language: {:?}", req.target_lang),
+            }),
+        ));
+    }
+
     if let Some(limit) = get_char_limit(&state, &headers) {
         let len = req.text.chars().count();
         if len > limit {
@@ -88,8 +98,17 @@ pub async fn post_translate_stream(
 pub async fn post_translate(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<TranslateRequest>,
+    AppJson(req): AppJson<TranslateRequest>,
 ) -> Result<Json<TranslateResponse>, (StatusCode, Json<ErrorResponse>)> {
+    if !crate::routes::languages::is_valid_target_lang(&req.target_lang) {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse {
+                error: format!("Unsupported target language: {:?}", req.target_lang),
+            }),
+        ));
+    }
+
     if let Some(limit) = get_char_limit(&state, &headers) {
         let len = req.text.chars().count();
         if len > limit {
@@ -151,7 +170,7 @@ pub async fn post_translate(
 
 /// Validate the Bearer token against `access_key` using a constant-time compare.
 /// Returns `Ok(())` on match, or an UNAUTHORIZED error.
-fn verify_bearer(
+pub fn verify_bearer(
     headers: &HeaderMap,
     access_key: &str,
 ) -> Result<(), (StatusCode, Json<ErrorResponse>)> {
