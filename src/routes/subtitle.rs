@@ -101,6 +101,13 @@ pub async fn post_translate_subtitle(
         }
     }
 
+    if !crate::routes::languages::is_valid_target_lang(&target_lang) {
+        return Err(err(
+            StatusCode::BAD_REQUEST,
+            format!("Unsupported target language: {:?}", target_lang),
+        ));
+    }
+
     let bytes =
         file_bytes.ok_or_else(|| err(StatusCode::BAD_REQUEST, "No file provided".into()))?;
 

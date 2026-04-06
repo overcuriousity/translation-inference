@@ -150,15 +150,20 @@ pub async fn get_proxy_text(
         ));
     }
 
-    // Extract paste ID from /upload/<id> or /raw/<id> paths (exactly two
-    // segments) and use the Bitvault REST API to retrieve raw content.
+    // Extract paste ID from /upload/<id> or /raw/<id> paths and use the
+    // Bitvault REST API to retrieve raw content. Trailing slashes (which
+    // produce an empty final segment) are ignored.
     let paste_id: Option<&str> = {
-        let mut segs = requested.path_segments().into_iter().flatten();
+        let mut segs = requested
+            .path_segments()
+            .into_iter()
+            .flatten()
+            .filter(|s| !s.is_empty());
         let prefix = segs.next();
         let id = segs.next();
         let extra = segs.next();
         if (prefix == Some("upload") || prefix == Some("raw"))
-            && id.is_some_and(|s| !s.is_empty())
+            && id.is_some()
             && extra.is_none()
         {
             id
