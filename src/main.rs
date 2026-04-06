@@ -169,6 +169,14 @@ async fn main() -> Result<()> {
                 }),
             )
         })
+        .method_not_allowed_fallback(|| async {
+            (
+                StatusCode::METHOD_NOT_ALLOWED,
+                Json(models::ErrorResponse {
+                    error: "Method not allowed".into(),
+                }),
+            )
+        })
         .layer(DefaultBodyLimit::max(100 * 1024 * 1024))
         .layer(CompressionLayer::new())
         .layer(cors)

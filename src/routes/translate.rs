@@ -170,7 +170,7 @@ pub async fn post_translate(
 
 /// Validate the Bearer token against `access_key` using a constant-time compare.
 /// Returns `Ok(())` on match, or an UNAUTHORIZED error.
-pub fn verify_bearer(
+pub(crate) fn verify_bearer(
     headers: &HeaderMap,
     access_key: &str,
 ) -> Result<(), (StatusCode, Json<ErrorResponse>)> {

@@ -150,13 +150,22 @@ pub async fn get_proxy_text(
         ));
     }
 
-    // Extract paste ID from /upload/<id> or /raw/<id> paths and use the
-    // Bitvault REST API to retrieve the raw content, avoiding HTML pages.
-    let path = requested.path();
-    let paste_id = path
-        .strip_prefix("/upload/")
-        .or_else(|| path.strip_prefix("/raw/"))
-        .filter(|s| !s.is_empty());
+    // Extract paste ID from /upload/<id> or /raw/<id> paths (exactly two
+    // segments) and use the Bitvault REST API to retrieve raw content.
+    let paste_id: Option<&str> = {
+        let mut segs = requested.path_segments().into_iter().flatten();
+        let prefix = segs.next();
+        let id = segs.next();
+        let extra = segs.next();
+        if (prefix == Some("upload") || prefix == Some("raw"))
+            && id.is_some_and(|s| !s.is_empty())
+            && extra.is_none()
+        {
+            id
+        } else {
+            None
+        }
+    };
 
     if let Some(id) = paste_id {
         let api_url = format!("{bitvault_url}/api/v1/paste/{id}");
@@ -183,6 +192,18 @@ pub async fn get_proxy_text(
             ));
         }
 
+        if resp
+            .content_length()
+            .is_some_and(|n| n > MAX_PROXY_BYTES as u64)
+        {
+            return Err((
+                StatusCode::BAD_GATEWAY,
+                Json(ErrorResponse {
+                    error: "Bitvault response exceeds size limit".into(),
+                }),
+            ));
+        }
+
         let paste: BitvaultPasteResp = resp.json().await.map_err(|e| {
             (
                 StatusCode::BAD_GATEWAY,
@@ -191,6 +212,15 @@ pub async fn get_proxy_text(
                 }),
             )
         })?;
+
+        if paste.content.len() > MAX_PROXY_BYTES {
+            return Err((
+                StatusCode::BAD_GATEWAY,
+                Json(ErrorResponse {
+                    error: "Bitvault response exceeds size limit".into(),
+                }),
+            ));
+        }
 
         return Ok(paste.content);
     }
