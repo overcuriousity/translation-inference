@@ -12,6 +12,7 @@ use crate::api::{
 use crate::models::{
     ErrorResponse, ParagraphPair, TranslateParagraphsRequest, TranslateParagraphsResponse,
 };
+use crate::routes::extractors::AppJson;
 use crate::routes::translate::{get_char_limit, resolve_translation_client};
 use crate::AppState;
 
@@ -22,7 +23,7 @@ const SEP: &str = "\n§§§\n";
 pub async fn post_translate_paragraphs(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<TranslateParagraphsRequest>,
+    AppJson(req): AppJson<TranslateParagraphsRequest>,
 ) -> Result<Json<TranslateParagraphsResponse>, (StatusCode, Json<ErrorResponse>)> {
     if let Some(limit) = get_char_limit(&state, &headers) {
         let len = req.text.chars().count();
@@ -34,6 +35,15 @@ pub async fn post_translate_paragraphs(
                 }),
             ));
         }
+    }
+
+    if !crate::routes::languages::is_valid_target_lang(&req.target_lang) {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse {
+                error: format!("Unsupported target language: {:?}", req.target_lang),
+            }),
+        ));
     }
 
     if req.text.trim().is_empty() {

@@ -2,125 +2,54 @@ use axum::Json;
 
 use crate::models::{Language, LanguagesResponse};
 
-pub async fn get_languages() -> Json<LanguagesResponse> {
-    let languages = vec![
-        Language {
-            code: "auto".into(),
-            name: "Auto-detect".into(),
-        },
-        Language {
-            code: "en".into(),
-            name: "English".into(),
-        },
-        Language {
-            code: "de".into(),
-            name: "German".into(),
-        },
-        Language {
-            code: "fr".into(),
-            name: "French".into(),
-        },
-        Language {
-            code: "es".into(),
-            name: "Spanish".into(),
-        },
-        Language {
-            code: "it".into(),
-            name: "Italian".into(),
-        },
-        Language {
-            code: "pt".into(),
-            name: "Portuguese".into(),
-        },
-        Language {
-            code: "nl".into(),
-            name: "Dutch".into(),
-        },
-        Language {
-            code: "pl".into(),
-            name: "Polish".into(),
-        },
-        Language {
-            code: "ru".into(),
-            name: "Russian".into(),
-        },
-        Language {
-            code: "zh".into(),
-            name: "Chinese (Simplified)".into(),
-        },
-        Language {
-            code: "zh-TW".into(),
-            name: "Chinese (Traditional)".into(),
-        },
-        Language {
-            code: "ja".into(),
-            name: "Japanese".into(),
-        },
-        Language {
-            code: "ko".into(),
-            name: "Korean".into(),
-        },
-        Language {
-            code: "vi".into(),
-            name: "Vietnamese".into(),
-        },
-        Language {
-            code: "id".into(),
-            name: "Indonesian".into(),
-        },
-        Language {
-            code: "ar".into(),
-            name: "Arabic".into(),
-        },
-        Language {
-            code: "tr".into(),
-            name: "Turkish".into(),
-        },
-        Language {
-            code: "uk".into(),
-            name: "Ukrainian".into(),
-        },
-        Language {
-            code: "cs".into(),
-            name: "Czech".into(),
-        },
-        Language {
-            code: "sv".into(),
-            name: "Swedish".into(),
-        },
-        Language {
-            code: "da".into(),
-            name: "Danish".into(),
-        },
-        Language {
-            code: "fi".into(),
-            name: "Finnish".into(),
-        },
-        Language {
-            code: "no".into(),
-            name: "Norwegian".into(),
-        },
-        Language {
-            code: "ro".into(),
-            name: "Romanian".into(),
-        },
-        Language {
-            code: "hu".into(),
-            name: "Hungarian".into(),
-        },
-        Language {
-            code: "bg".into(),
-            name: "Bulgarian".into(),
-        },
-        Language {
-            code: "el".into(),
-            name: "Greek".into(),
-        },
-        Language {
-            code: "hi".into(),
-            name: "Hindi".into(),
-        },
-    ];
+/// Canonical list of supported target language codes (excluding "auto").
+/// Used both to populate the `/api/languages` response and to validate
+/// `target_lang` in translation requests.
+pub const VALID_TARGET_LANGS: &[(&str, &str)] = &[
+    ("en", "English"),
+    ("de", "German"),
+    ("fr", "French"),
+    ("es", "Spanish"),
+    ("it", "Italian"),
+    ("pt", "Portuguese"),
+    ("nl", "Dutch"),
+    ("pl", "Polish"),
+    ("ru", "Russian"),
+    ("zh", "Chinese (Simplified)"),
+    ("zh-TW", "Chinese (Traditional)"),
+    ("ja", "Japanese"),
+    ("ko", "Korean"),
+    ("vi", "Vietnamese"),
+    ("id", "Indonesian"),
+    ("ar", "Arabic"),
+    ("tr", "Turkish"),
+    ("uk", "Ukrainian"),
+    ("cs", "Czech"),
+    ("sv", "Swedish"),
+    ("da", "Danish"),
+    ("fi", "Finnish"),
+    ("no", "Norwegian"),
+    ("ro", "Romanian"),
+    ("hu", "Hungarian"),
+    ("bg", "Bulgarian"),
+    ("el", "Greek"),
+    ("hi", "Hindi"),
+];
 
+pub fn is_valid_target_lang(code: &str) -> bool {
+    VALID_TARGET_LANGS.iter().any(|(c, _)| *c == code)
+}
+
+pub async fn get_languages() -> Json<LanguagesResponse> {
+    let mut languages = vec![Language {
+        code: "auto".into(),
+        name: "Auto-detect".into(),
+    }];
+    for (code, name) in VALID_TARGET_LANGS {
+        languages.push(Language {
+            code: (*code).into(),
+            name: (*name).into(),
+        });
+    }
     Json(LanguagesResponse { languages })
 }
