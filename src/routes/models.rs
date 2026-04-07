@@ -94,8 +94,8 @@ pub async fn get_models(
     // BYOK sessions fetch live but probe without writing to the shared cache — results
     // are scoped to this request only, avoiding cross-user cache pollution.
     enum SessionKind {
-        UseCache(OpenAiClient),    // gated: probe results persist to AppState cache
-        NoCache(OpenAiClient),     // byok: probe inline, never write to shared cache
+        UseCache(OpenAiClient), // gated: probe results persist to AppState cache
+        NoCache(OpenAiClient),  // byok: probe inline, never write to shared cache
     }
 
     let session = get_session_id(&headers).and_then(|sid| {

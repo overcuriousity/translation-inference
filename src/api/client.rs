@@ -81,7 +81,10 @@ impl OpenAiClient {
             true => return Some(ModelKind::Transcription),
             false => {}
         }
-        match self.probe_tts(model_id, tts_voice.unwrap_or("alloy")).await? {
+        match self
+            .probe_tts(model_id, tts_voice.unwrap_or("alloy"))
+            .await?
+        {
             true => return Some(ModelKind::Tts),
             false => {}
         }

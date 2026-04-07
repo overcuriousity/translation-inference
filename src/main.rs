@@ -55,9 +55,8 @@ pub struct AppState {
     /// Cache: (endpoint_base_url, model_id) → ModelKind.
     /// Populated at startup for the server's own models; BYOK models are probed
     /// on first `/api/models` call and cached here for subsequent requests.
-    pub model_capabilities: std::sync::RwLock<
-        std::collections::HashMap<(String, String), api::client::ModelKind>,
-    >,
+    pub model_capabilities:
+        std::sync::RwLock<std::collections::HashMap<(String, String), api::client::ModelKind>>,
 }
 
 #[tokio::main]
