@@ -126,21 +126,38 @@ async fn main() -> Result<()> {
 
     // Probe the server's own models at startup so the capability cache is warm
     // before the first user request. Each model is probed sequentially:
-    // chat → STT → TTS → Unknown. Results are cached and reused across requests.
+    // chat → STT → TTS → Unknown. Only definitive results are cached;
+    // transient failures (429 / 5xx / timeout) are skipped so the model is
+    // re-probed on the next /api/models call.
     {
         let probe_state = state.clone();
         tokio::spawn(async move {
+            // Use a configured TTS voice so the TTS probe is as realistic as possible.
+            let tts_voice: Option<String> = probe_state
+                .config
+                .tts_voice_map
+                .values()
+                .next()
+                .map(|e| e.voice.clone());
+            let tts_voice_ref = tts_voice.as_deref();
+
             let client = probe_state.client.clone();
             match client.fetch_models().await {
                 Ok(models) => {
                     for id in models {
-                        let kind = client.probe_model_kind(&id).await;
-                        tracing::info!(model = %id, kind = ?kind, "model capability probe");
-                        probe_state
-                            .model_capabilities
-                            .write()
-                            .unwrap()
-                            .insert((client.base_url.clone(), id), kind);
+                        match client.probe_model_kind(&id, tts_voice_ref).await {
+                            Some(kind) => {
+                                tracing::info!(model = %id, kind = ?kind, "model capability probe");
+                                probe_state
+                                    .model_capabilities
+                                    .write()
+                                    .unwrap()
+                                    .insert((client.base_url.clone(), id), kind);
+                            }
+                            None => {
+                                tracing::warn!(model = %id, "startup probe inconclusive (transient); will retry on first request");
+                            }
+                        }
                     }
                 }
                 Err(e) => tracing::warn!("startup model probe failed: {e:#}"),

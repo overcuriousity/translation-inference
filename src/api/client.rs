@@ -11,7 +11,7 @@ pub enum ModelKind {
     Transcription,
     /// Accepts text, returns audio — text-to-speech.
     Tts,
-    /// Did not respond successfully to any probe.
+    /// All probes gave definitive non-success (4xx). Excluded from all dropdowns.
     Unknown,
 }
 
@@ -57,57 +57,82 @@ impl OpenAiClient {
     }
 
     /// Probe a model sequentially to determine its kind:
-    ///   1. Send text → expect text  (Translation)
-    ///   2. Send audio → expect text (Transcription)
-    ///   3. Send text  → expect audio (Tts)
-    ///   4. None matched → Unknown
+    ///   1. POST /v1/chat/completions  (text in → text out)  → Translation
+    ///   2. POST /v1/audio/transcriptions (audio in → text out) → Transcription
+    ///   3. POST /v1/audio/speech      (text in → audio out) → Tts
+    ///   4. All probes definitively failed                    → Unknown
     ///
-    /// This is intentionally behaviour-based so that unusual model names
-    /// (e.g. a TTS model called "whisper-voice") are still classified correctly.
-    pub async fn probe_model_kind(&self, model_id: &str) -> ModelKind {
-        if self.probe_chat(model_id).await {
-            return ModelKind::Translation;
+    /// Returns `None` if any probe encountered a transient condition (429, 5xx,
+    /// or network/timeout error) — the caller should **not** cache this result
+    /// and should retry on the next opportunity.
+    ///
+    /// `tts_voice` should be one of the voices configured for this endpoint in
+    /// the TTS_VOICE_MAP; falls back to "alloy" if not provided.
+    pub async fn probe_model_kind(
+        &self,
+        model_id: &str,
+        tts_voice: Option<&str>,
+    ) -> Option<ModelKind> {
+        match self.probe_chat(model_id).await? {
+            true => return Some(ModelKind::Translation),
+            false => {}
         }
-        if self.probe_stt(model_id).await {
-            return ModelKind::Transcription;
+        match self.probe_stt(model_id).await? {
+            true => return Some(ModelKind::Transcription),
+            false => {}
         }
-        if self.probe_tts(model_id).await {
-            return ModelKind::Tts;
+        match self.probe_tts(model_id, tts_voice.unwrap_or("alloy")).await? {
+            true => return Some(ModelKind::Tts),
+            false => {}
         }
-        ModelKind::Unknown
+        // All probes returned definitive non-success — model supports none of these APIs.
+        Some(ModelKind::Unknown)
     }
 
     /// Try `/v1/chat/completions` with a 1-token request.
-    /// Returns true on a 2xx response.
-    async fn probe_chat(&self, model_id: &str) -> bool {
+    ///
+    /// Returns `Some(true)` on 2xx, `Some(false)` on a definitive 4xx (not 429),
+    /// and `None` on 429 / 5xx / network error (transient — do not cache).
+    async fn probe_chat(&self, model_id: &str) -> Option<bool> {
         let body = serde_json::json!({
             "model": model_id,
             "messages": [{"role": "user", "content": "x"}],
             "max_tokens": 1
         });
-        matches!(
-            self.http
-                .post(self.chat_url())
-                .bearer_auth(&self.api_key)
-                .json(&body)
-                .timeout(Duration::from_secs(10))
-                .send()
-                .await,
-            Ok(r) if r.status().is_success()
-        )
+        match self
+            .http
+            .post(self.chat_url())
+            .bearer_auth(&self.api_key)
+            .json(&body)
+            .timeout(Duration::from_secs(10))
+            .send()
+            .await
+        {
+            Ok(r) => {
+                let status = r.status();
+                let _ = r.bytes().await; // drain body to allow connection reuse
+                if status.is_success() {
+                    Some(true)
+                } else if status.as_u16() == 429 || status.is_server_error() {
+                    None // transient
+                } else {
+                    Some(false) // 404, 400, 422, … — definitively not a chat model
+                }
+            }
+            Err(_) => None, // timeout / network error — transient
+        }
     }
 
     /// Try `/v1/audio/transcriptions` with a minimal silent WAV.
-    /// Returns true if the response is 2xx JSON containing a "text" field.
-    async fn probe_stt(&self, model_id: &str) -> bool {
+    ///
+    /// Returns `Some(true)` if the response is 2xx JSON with a "text" field,
+    /// `Some(false)` on definitive 4xx, `None` on transient conditions.
+    async fn probe_stt(&self, model_id: &str) -> Option<bool> {
         let wav = minimal_wav();
-        let part = match reqwest::multipart::Part::bytes(wav)
+        let part = reqwest::multipart::Part::bytes(wav)
             .file_name("probe.wav")
             .mime_str("audio/wav")
-        {
-            Ok(p) => p,
-            Err(_) => return false,
-        };
+            .ok()?;
         let form = reqwest::multipart::Form::new()
             .text("model", model_id.to_string())
             .part("file", part);
@@ -120,22 +145,34 @@ impl OpenAiClient {
             .send()
             .await
         {
-            Ok(r) if r.status().is_success() => r
-                .json::<serde_json::Value>()
-                .await
-                .map(|v| v.get("text").is_some())
-                .unwrap_or(false),
-            _ => false,
+            Ok(r) => {
+                let status = r.status();
+                if status.as_u16() == 429 || status.is_server_error() {
+                    return None; // transient
+                }
+                if !status.is_success() {
+                    return Some(false); // definitive
+                }
+                let has_text = r
+                    .json::<serde_json::Value>()
+                    .await
+                    .map(|v| v.get("text").is_some())
+                    .unwrap_or(false);
+                Some(has_text)
+            }
+            Err(_) => None, // transient
         }
     }
 
     /// Try `/v1/audio/speech` with a minimal text payload.
-    /// Returns true if the response is 2xx with an audio Content-Type.
-    async fn probe_tts(&self, model_id: &str) -> bool {
+    ///
+    /// Returns `Some(true)` if the response is 2xx with an audio Content-Type,
+    /// `Some(false)` on definitive 4xx, `None` on transient conditions.
+    async fn probe_tts(&self, model_id: &str, voice: &str) -> Option<bool> {
         let body = serde_json::json!({
             "model": model_id,
             "input": "x",
-            "voice": "alloy"
+            "voice": voice
         });
         match self
             .http
@@ -146,13 +183,21 @@ impl OpenAiClient {
             .send()
             .await
         {
-            Ok(r) if r.status().is_success() => r
-                .headers()
-                .get(reqwest::header::CONTENT_TYPE)
-                .and_then(|v| v.to_str().ok())
-                .map(|ct| ct.starts_with("audio/") || ct == "application/octet-stream")
-                .unwrap_or(false),
-            _ => false,
+            Ok(r) => {
+                let status = r.status();
+                if status.as_u16() == 429 || status.is_server_error() {
+                    return None; // transient
+                }
+                let is_audio = status.is_success()
+                    && r.headers()
+                        .get(reqwest::header::CONTENT_TYPE)
+                        .and_then(|v| v.to_str().ok())
+                        .map(|ct| ct.starts_with("audio/") || ct == "application/octet-stream")
+                        .unwrap_or(false);
+                let _ = r.bytes().await; // drain body to allow connection reuse
+                Some(is_audio)
+            }
+            Err(_) => None, // transient
         }
     }
 
