@@ -2,10 +2,47 @@ use axum::{extract::State, http::HeaderMap, Json};
 use std::sync::Arc;
 
 use crate::api::chunker::{context_size_from_model_id, TranslationConfig};
-use crate::api::client::OpenAiClient;
+use crate::api::client::{ModelKind, OpenAiClient};
 use crate::models::{ModelInfo, ModelsResponse};
 use crate::routes::translate::get_session_id;
 use crate::AppState;
+
+/// Categorize a list of model IDs into translation / transcription buckets using
+/// the capability cache. Models not yet in the cache are probed on-demand and the
+/// result is stored for subsequent calls.
+///
+/// Classification is purely behaviour-based (see `OpenAiClient::probe_model_kind`):
+/// - Translation  → chat probe succeeded (text in, text out)
+/// - Transcription → STT probe succeeded (audio in, text out)
+/// - Tts / Unknown → excluded from all dropdowns
+async fn categorize_models(
+    fetched: Vec<String>,
+    client: &OpenAiClient,
+    cache: &std::sync::RwLock<std::collections::HashMap<(String, String), ModelKind>>,
+    translation: &mut Vec<String>,
+    transcription: &mut Vec<String>,
+) {
+    for id in fetched {
+        let key = (client.base_url.clone(), id.clone());
+
+        let cached = cache.read().unwrap().get(&key).copied();
+        let kind = match cached {
+            Some(k) => k,
+            None => {
+                let k = client.probe_model_kind(&id).await;
+                tracing::info!(model = %id, kind = ?k, "model capability probe (on-demand)");
+                cache.write().unwrap().insert(key, k);
+                k
+            }
+        };
+
+        match kind {
+            ModelKind::Translation => translation.push(id),
+            ModelKind::Transcription => transcription.push(id),
+            ModelKind::Tts | ModelKind::Unknown => {} // excluded
+        }
+    }
+}
 
 pub async fn get_models(
     State(state): State<Arc<AppState>>,
@@ -38,13 +75,14 @@ pub async fn get_models(
 
     if let Some(client) = session_client {
         if let Ok(fetched) = client.fetch_models().await {
-            for id in fetched {
-                if id.to_lowercase().contains("whisper") {
-                    transcription_ids.push(id);
-                } else {
-                    translation_ids.push(id);
-                }
-            }
+            categorize_models(
+                fetched,
+                &client,
+                &state.model_capabilities,
+                &mut translation_ids,
+                &mut transcription_ids,
+            )
+            .await;
         }
     } else {
         translation_ids = state.config.translation_models.clone();
@@ -55,13 +93,14 @@ pub async fn get_models(
             && state.config.is_configured()
         {
             if let Ok(fetched) = state.client.fetch_models().await {
-                for id in fetched {
-                    if id.to_lowercase().contains("whisper") {
-                        transcription_ids.push(id);
-                    } else {
-                        translation_ids.push(id);
-                    }
-                }
+                categorize_models(
+                    fetched,
+                    &state.client,
+                    &state.model_capabilities,
+                    &mut translation_ids,
+                    &mut transcription_ids,
+                )
+                .await;
             }
         }
     }

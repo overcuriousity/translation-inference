@@ -52,6 +52,12 @@ pub struct AppState {
     /// Sessions survive as long as the server process runs; the browser-side
     /// cookie is session-scoped (no Max-Age) so it expires when the tab closes.
     pub sessions: std::sync::RwLock<std::collections::HashMap<String, SessionCredentials>>,
+    /// Cache: (endpoint_base_url, model_id) → ModelKind.
+    /// Populated at startup for the server's own models; BYOK models are probed
+    /// on first `/api/models` call and cached here for subsequent requests.
+    pub model_capabilities: std::sync::RwLock<
+        std::collections::HashMap<(String, String), api::client::ModelKind>,
+    >,
 }
 
 #[tokio::main]
@@ -115,7 +121,32 @@ async fn main() -> Result<()> {
         tts_client,
         bitvault_http,
         sessions: std::sync::RwLock::new(std::collections::HashMap::new()),
+        model_capabilities: std::sync::RwLock::new(std::collections::HashMap::new()),
     });
+
+    // Probe the server's own models at startup so the capability cache is warm
+    // before the first user request. Each model is probed sequentially:
+    // chat → STT → TTS → Unknown. Results are cached and reused across requests.
+    {
+        let probe_state = state.clone();
+        tokio::spawn(async move {
+            let client = probe_state.client.clone();
+            match client.fetch_models().await {
+                Ok(models) => {
+                    for id in models {
+                        let kind = client.probe_model_kind(&id).await;
+                        tracing::info!(model = %id, kind = ?kind, "model capability probe");
+                        probe_state
+                            .model_capabilities
+                            .write()
+                            .unwrap()
+                            .insert((client.base_url.clone(), id), kind);
+                    }
+                }
+                Err(e) => tracing::warn!("startup model probe failed: {e:#}"),
+            }
+        });
+    }
 
     let cors = CorsLayer::new()
         .allow_origin(Any)
