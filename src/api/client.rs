@@ -73,20 +73,17 @@ impl OpenAiClient {
         model_id: &str,
         tts_voice: Option<&str>,
     ) -> Option<ModelKind> {
-        match self.probe_chat(model_id).await? {
-            true => return Some(ModelKind::Translation),
-            false => {}
+        if self.probe_chat(model_id).await? {
+            return Some(ModelKind::Translation);
         }
-        match self.probe_stt(model_id).await? {
-            true => return Some(ModelKind::Transcription),
-            false => {}
+        if self.probe_stt(model_id).await? {
+            return Some(ModelKind::Transcription);
         }
-        match self
+        if self
             .probe_tts(model_id, tts_voice.unwrap_or("alloy"))
             .await?
         {
-            true => return Some(ModelKind::Tts),
-            false => {}
+            return Some(ModelKind::Tts);
         }
         // All probes returned definitive non-success — model supports none of these APIs.
         Some(ModelKind::Unknown)

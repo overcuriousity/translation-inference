@@ -18,7 +18,6 @@ fn json_err(msg: String) -> (StatusCode, Json<ErrorResponse>) {
 /// deserialization failures instead of Axum's default plain-text rejection.
 pub struct AppJson<T>(pub T);
 
-#[axum::async_trait]
 impl<S, T> FromRequest<S> for AppJson<T>
 where
     Json<T>: FromRequest<S, Rejection = JsonRejection>,
@@ -38,7 +37,6 @@ where
 /// on deserialization failures instead of Axum's default plain-text rejection.
 pub struct AppQuery<T>(pub T);
 
-#[axum::async_trait]
 impl<S, T> FromRequestParts<S> for AppQuery<T>
 where
     Query<T>: FromRequestParts<S, Rejection = QueryRejection>,
