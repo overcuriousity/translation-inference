@@ -84,10 +84,7 @@ impl OpenAiClient {
             Some(false) => {}
             None => saw_inconclusive = true,
         }
-        match self
-            .probe_tts(model_id, tts_voice.unwrap_or("alloy"))
-            .await
-        {
+        match self.probe_tts(model_id, tts_voice.unwrap_or("alloy")).await {
             Some(true) => return Some(ModelKind::Tts),
             Some(false) => {}
             None => saw_inconclusive = true,

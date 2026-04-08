@@ -22,8 +22,8 @@ use crate::AppState;
 /// pollution (different users may present different BYOK endpoints/keys).
 ///
 /// On a transient probe failure (`probe_model_kind` returns `None`) the model
-/// is assumed to be a Translation model so it is not silently hidden from the
-/// user; the next `/api/models` call will probe it again.
+/// is excluded from all dropdowns for this request; it will be re-probed and
+/// appear correctly on the next `/api/models` call.
 async fn categorize_models(
     fetched: Vec<String>,
     client: &OpenAiClient,
@@ -56,10 +56,10 @@ async fn categorize_models(
                         k
                     }
                     None => {
-                        // Transient failure — do not cache. Assume Translation so the
-                        // model is not silently hidden; it will be re-probed next time.
-                        tracing::warn!(model = %id, "probe inconclusive (transient); assuming Translation");
-                        ModelKind::Translation
+                        // Transient failure — do not cache, and skip for this
+                        // request. It will be re-probed on the next /api/models call.
+                        tracing::warn!(model = %id, "probe inconclusive (transient); excluding from dropdowns until next probe");
+                        continue;
                     }
                 }
             }

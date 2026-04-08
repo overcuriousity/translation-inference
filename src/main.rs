@@ -164,7 +164,9 @@ async fn main() -> Result<()> {
                                 }
                             }
                         }
-                        Err(e) => tracing::warn!(base_url = %base_url, "startup model probe failed: {e:#}"),
+                        Err(e) => {
+                            tracing::warn!(base_url = %base_url, "startup model probe failed: {e:#}")
+                        }
                     }
                 }
             };
