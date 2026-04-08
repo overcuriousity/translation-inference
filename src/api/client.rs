@@ -66,27 +66,40 @@ impl OpenAiClient {
     /// or network/timeout error) — the caller should **not** cache this result
     /// and should retry on the next opportunity.
     ///
-    /// `tts_voice` should be one of the voices configured for this endpoint in
-    /// the TTS_VOICE_MAP; falls back to "alloy" if not provided.
+    /// `tts_voice` is a best-effort voice string used only to make the TTS probe
+    /// request realistic; falls back to "alloy" if not provided.
     pub async fn probe_model_kind(
         &self,
         model_id: &str,
         tts_voice: Option<&str>,
     ) -> Option<ModelKind> {
-        if self.probe_chat(model_id).await? {
-            return Some(ModelKind::Translation);
+        let mut saw_inconclusive = false;
+        match self.probe_chat(model_id).await {
+            Some(true) => return Some(ModelKind::Translation),
+            Some(false) => {}
+            None => saw_inconclusive = true,
         }
-        if self.probe_stt(model_id).await? {
-            return Some(ModelKind::Transcription);
+        match self.probe_stt(model_id).await {
+            Some(true) => return Some(ModelKind::Transcription),
+            Some(false) => {}
+            None => saw_inconclusive = true,
         }
-        if self
+        match self
             .probe_tts(model_id, tts_voice.unwrap_or("alloy"))
-            .await?
+            .await
         {
-            return Some(ModelKind::Tts);
+            Some(true) => return Some(ModelKind::Tts),
+            Some(false) => {}
+            None => saw_inconclusive = true,
         }
-        // All probes returned definitive non-success — model supports none of these APIs.
-        Some(ModelKind::Unknown)
+        if saw_inconclusive {
+            // At least one probe hit a transient condition and no definitive
+            // classification was found. Let the caller retry later.
+            None
+        } else {
+            // All probes returned definitive non-success — model supports none of these APIs.
+            Some(ModelKind::Unknown)
+        }
     }
 
     /// Try `/v1/chat/completions` with a 1-token request.
@@ -172,7 +185,8 @@ impl OpenAiClient {
         let body = serde_json::json!({
             "model": model_id,
             "input": "x",
-            "voice": voice
+            "voice": voice,
+            "response_format": "mp3"
         });
         match self
             .http

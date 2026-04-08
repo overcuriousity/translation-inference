@@ -138,28 +138,45 @@ async fn main() -> Result<()> {
                 .values()
                 .next()
                 .map(|e| e.voice.clone());
-            let tts_voice_ref = tts_voice.as_deref();
 
-            let client = probe_state.client.clone();
-            match client.fetch_models().await {
-                Ok(models) => {
-                    for id in models {
-                        match client.probe_model_kind(&id, tts_voice_ref).await {
-                            Some(kind) => {
-                                tracing::info!(model = %id, kind = ?kind, "model capability probe");
-                                probe_state
-                                    .model_capabilities
-                                    .write()
-                                    .unwrap()
-                                    .insert((client.base_url.clone(), id), kind);
-                            }
-                            None => {
-                                tracing::warn!(model = %id, "startup probe inconclusive (transient); will retry on first request");
+            // Probe all models for a single client and populate the shared cache.
+            let warm_client = |client: OpenAiClient| {
+                let probe_state = probe_state.clone();
+                let tts_voice = tts_voice.clone();
+                async move {
+                    let tts_voice_ref = tts_voice.as_deref();
+                    let base_url = client.base_url.clone();
+                    match client.fetch_models().await {
+                        Ok(models) => {
+                            for id in models {
+                                match client.probe_model_kind(&id, tts_voice_ref).await {
+                                    Some(kind) => {
+                                        tracing::info!(base_url = %base_url, model = %id, kind = ?kind, "model capability probe");
+                                        probe_state
+                                            .model_capabilities
+                                            .write()
+                                            .unwrap()
+                                            .insert((base_url.clone(), id), kind);
+                                    }
+                                    None => {
+                                        tracing::warn!(base_url = %base_url, model = %id, "startup probe inconclusive (transient); will retry on first request");
+                                    }
+                                }
                             }
                         }
+                        Err(e) => tracing::warn!(base_url = %base_url, "startup model probe failed: {e:#}"),
                     }
                 }
-                Err(e) => tracing::warn!("startup model probe failed: {e:#}"),
+            };
+
+            let client = probe_state.client.clone();
+            let client_base_url = client.base_url.clone();
+            warm_client(client).await;
+            // Also warm the gated client if it targets a different endpoint.
+            if let Some(gated_client) = probe_state.gated_client.clone() {
+                if gated_client.base_url != client_base_url {
+                    warm_client(gated_client).await;
+                }
             }
         });
     }

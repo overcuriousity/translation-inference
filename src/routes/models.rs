@@ -17,7 +17,9 @@ use crate::AppState;
 /// `cache` should be `Some(&state.model_capabilities)` for server-managed
 /// sessions (gated) so that probe results persist across requests.
 /// Pass `None` for BYOK sessions — results are used only for this request
-/// and never written to the shared cache.
+/// and never written to the shared cache. This means BYOK re-probes on every
+/// `/api/models` call; this is intentional to prevent cross-user cache
+/// pollution (different users may present different BYOK endpoints/keys).
 ///
 /// On a transient probe failure (`probe_model_kind` returns `None`) the model
 /// is assumed to be a Translation model so it is not silently hidden from the
