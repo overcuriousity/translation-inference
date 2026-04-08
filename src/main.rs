@@ -52,6 +52,11 @@ pub struct AppState {
     /// Sessions survive as long as the server process runs; the browser-side
     /// cookie is session-scoped (no Max-Age) so it expires when the tab closes.
     pub sessions: std::sync::RwLock<std::collections::HashMap<String, SessionCredentials>>,
+    /// Cache: (endpoint_base_url, model_id) → ModelKind.
+    /// Populated at startup for the server's own models; BYOK models are probed
+    /// on first `/api/models` call and cached here for subsequent requests.
+    pub model_capabilities:
+        std::sync::RwLock<std::collections::HashMap<(String, String), api::client::ModelKind>>,
 }
 
 #[tokio::main]
@@ -115,7 +120,68 @@ async fn main() -> Result<()> {
         tts_client,
         bitvault_http,
         sessions: std::sync::RwLock::new(std::collections::HashMap::new()),
+        model_capabilities: std::sync::RwLock::new(std::collections::HashMap::new()),
     });
+
+    // Probe the server's own models at startup so the capability cache is warm
+    // before the first user request. Each model is probed sequentially:
+    // chat → STT → TTS → Unknown. Only definitive results are cached;
+    // transient failures (429 / 5xx / timeout) are skipped so the model is
+    // re-probed on the next /api/models call.
+    {
+        let probe_state = state.clone();
+        tokio::spawn(async move {
+            // Use a configured TTS voice so the TTS probe is as realistic as possible.
+            let tts_voice: Option<String> = probe_state
+                .config
+                .tts_voice_map
+                .values()
+                .next()
+                .map(|e| e.voice.clone());
+
+            // Probe all models for a single client and populate the shared cache.
+            let warm_client = |client: OpenAiClient| {
+                let probe_state = probe_state.clone();
+                let tts_voice = tts_voice.clone();
+                async move {
+                    let tts_voice_ref = tts_voice.as_deref();
+                    let base_url = client.base_url.clone();
+                    match client.fetch_models().await {
+                        Ok(models) => {
+                            for id in models {
+                                match client.probe_model_kind(&id, tts_voice_ref).await {
+                                    Some(kind) => {
+                                        tracing::info!(base_url = %base_url, model = %id, kind = ?kind, "model capability probe");
+                                        probe_state
+                                            .model_capabilities
+                                            .write()
+                                            .unwrap()
+                                            .insert((base_url.clone(), id), kind);
+                                    }
+                                    None => {
+                                        tracing::warn!(base_url = %base_url, model = %id, "startup probe inconclusive (transient); will retry on first request");
+                                    }
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            tracing::warn!(base_url = %base_url, "startup model probe failed: {e:#}")
+                        }
+                    }
+                }
+            };
+
+            let client = probe_state.client.clone();
+            let client_base_url = client.base_url.clone();
+            warm_client(client).await;
+            // Also warm the gated client if it targets a different endpoint.
+            if let Some(gated_client) = probe_state.gated_client.clone() {
+                if gated_client.base_url != client_base_url {
+                    warm_client(gated_client).await;
+                }
+            }
+        });
+    }
 
     let cors = CorsLayer::new()
         .allow_origin(Any)
