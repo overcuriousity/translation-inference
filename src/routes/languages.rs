@@ -36,13 +36,6 @@ pub const VALID_TARGET_LANGS: &[(&str, &str)] = &[
     ("hi", "Hindi"),
 ];
 
-/// Returns true if `value` is a recognized target language code ("en") or name ("English").
-pub fn is_valid_target_lang(value: &str) -> bool {
-    VALID_TARGET_LANGS
-        .iter()
-        .any(|&(code, name)| code == value || name == value)
-}
-
 pub async fn get_languages() -> Json<LanguagesResponse> {
     let mut languages = vec![Language {
         code: "auto".into(),
