@@ -37,15 +37,6 @@ pub async fn post_translate_paragraphs(
         }
     }
 
-    if !crate::routes::languages::is_valid_target_lang(&req.target_lang) {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse {
-                error: format!("Unsupported target language: {:?}", req.target_lang),
-            }),
-        ));
-    }
-
     if req.text.trim().is_empty() {
         return Ok(Json(TranslateParagraphsResponse {
             paragraphs: vec![],

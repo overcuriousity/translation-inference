@@ -30,15 +30,6 @@ pub async fn post_translate_stream(
     headers: HeaderMap,
     AppJson(req): AppJson<TranslateRequest>,
 ) -> Result<Response, (StatusCode, Json<ErrorResponse>)> {
-    if !crate::routes::languages::is_valid_target_lang(&req.target_lang) {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse {
-                error: format!("Unsupported target language: {:?}", req.target_lang),
-            }),
-        ));
-    }
-
     if let Some(limit) = get_char_limit(&state, &headers) {
         let len = req.text.chars().count();
         if len > limit {
@@ -100,15 +91,6 @@ pub async fn post_translate(
     headers: HeaderMap,
     AppJson(req): AppJson<TranslateRequest>,
 ) -> Result<Json<TranslateResponse>, (StatusCode, Json<ErrorResponse>)> {
-    if !crate::routes::languages::is_valid_target_lang(&req.target_lang) {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse {
-                error: format!("Unsupported target language: {:?}", req.target_lang),
-            }),
-        ));
-    }
-
     if let Some(limit) = get_char_limit(&state, &headers) {
         let len = req.text.chars().count();
         if len > limit {
