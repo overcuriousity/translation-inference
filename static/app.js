@@ -4,6 +4,7 @@
 let availableLanguages      = [];
 let availableModels         = [];
 let selectedTargetLangCode  = 'en';
+let isCustomLang            = false;
 let langPickerOpen          = false;
 let userEndpoint            = '';
 let userApiKey              = '';
@@ -56,6 +57,9 @@ const langPickerLabel    = document.getElementById('lang-picker-label');
 const langPickerDropdown = document.getElementById('lang-picker-dropdown');
 const langSearchInput    = document.getElementById('lang-search');
 const langListEl         = document.getElementById('lang-list');
+const langCustomInput    = document.getElementById('lang-custom-input');
+const langCustomBtn      = document.getElementById('lang-custom-btn');
+const langCustomBadge    = document.getElementById('lang-custom-badge');
 const tabTextBtn         = document.getElementById('tab-text');
 const sourceLangInfo     = document.getElementById('source-lang-info');
 const outputPanel        = document.querySelector('.panel-output');
@@ -1956,6 +1960,8 @@ tabConvBtn.addEventListener('click', () => switchTab('conversation'));
 // ── Language Picker ───────────────────────────────────────────────────────
 function setTargetLang(code, triggerTranslate = false) {
   selectedTargetLangCode = code;
+  isCustomLang = false;
+  langCustomBadge.classList.add('hidden');
   const lang = availableLanguages.find(l => l.code === code);
   langPickerLabel.textContent = lang ? lang.name : code;
   // refresh checkmarks if dropdown is open
@@ -1965,6 +1971,22 @@ function setTargetLang(code, triggerTranslate = false) {
     lastOutputText = '';
     translate(true);
   }
+  updateTtsButtonVisibility();
+}
+
+function setCustomLang(name) {
+  const trimmed = name.trim();
+  if (!trimmed) return;
+  selectedTargetLangCode = trimmed;
+  isCustomLang = true;
+  langPickerLabel.textContent = trimmed;
+  langCustomBadge.classList.remove('hidden');
+  if (langPickerOpen) renderLangList(langSearchInput.value);
+  closeLangPicker();
+  langPickerBtn.focus();
+  lastTranslatedText = '';
+  lastOutputText = '';
+  translate(true);
   updateTtsButtonVisibility();
 }
 
@@ -2068,6 +2090,19 @@ langSearchInput.addEventListener('keydown', e => {
 document.addEventListener('click', e => {
   if (langPickerOpen && !document.getElementById('lang-picker').contains(e.target)) {
     closeLangPicker();
+  }
+});
+
+langCustomBtn.addEventListener('click', () => setCustomLang(langCustomInput.value));
+
+langCustomInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    setCustomLang(langCustomInput.value);
+  } else if (e.key === 'Escape') {
+    e.preventDefault();
+    closeLangPicker();
+    langPickerBtn.focus();
   }
 });
 

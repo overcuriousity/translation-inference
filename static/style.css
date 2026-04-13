@@ -28,6 +28,11 @@
     --color-text-muted:#a9b1ba;
     color-scheme:      dark;
   }
+  .lang-custom-badge {
+    color: #fcd34d;
+    background: rgba(252, 211, 77, 0.12);
+    border-color: rgba(252, 211, 77, 0.35);
+  }
 }
 
 
@@ -775,6 +780,56 @@ body {
   color: var(--color-text-muted);
   font-style: italic;
 }
+.lang-custom-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--color-border);
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+}
+.lang-custom-icon { flex-shrink: 0; }
+.lang-custom-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 0.875rem;
+  color: var(--color-text);
+  min-width: 0;
+}
+.lang-custom-input::placeholder { color: var(--color-text-muted); }
+.lang-custom-btn {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--color-primary);
+  background: transparent;
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: var(--transition);
+}
+.lang-custom-btn:hover {
+  background: rgba(242, 169, 0, 0.12);
+}
+.lang-custom-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 5px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #b45309;
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  border-radius: 4px;
+  line-height: 1.4;
+}
+.lang-custom-badge.hidden { display: none; }
 
 /* ── Markdown toggle active state ────────────────────────────────────────── */
 #md-toggle-btn[aria-pressed="true"] {
