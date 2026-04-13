@@ -191,7 +191,7 @@ async fn main() -> Result<()> {
     let app = Router::new()
         // Static files
         .route("/", get(static_files::serve_index))
-        .route("/static/*path", get(static_files::serve_static))
+        .route("/static/{*path}", get(static_files::serve_static))
         // API docs
         .route("/openapi.yaml", get(static_files::get_openapi_spec))
         .route("/docs", get(static_files::get_swagger_docs))
