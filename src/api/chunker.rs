@@ -143,22 +143,20 @@ pub fn last_sentences(text: &str, n: usize) -> String {
     for (i, ch) in text.char_indices() {
         let next_byte = i + ch.len_utf8();
         match ch {
-            '.' | '!' | '?' => {
+            '.' | '!' | '?'
                 // ASCII punctuation must be followed by a space to count as a
                 // sentence end (avoids splitting on "Dr." or "3.14").
-                if next_byte < text.len() && text.as_bytes()[next_byte] == b' ' {
+                if next_byte < text.len() && text.as_bytes()[next_byte] == b' ' => {
                     ends.push(next_byte + 1);
                 }
-            }
             // CJK sentence-ending punctuation: only add if there is more text
             // after the terminator, mirroring the ASCII behaviour of requiring
             // a trailing space. This avoids counting the final terminator as a
             // sentence boundary which would make ends.len() - n overshoot.
-            '\u{3002}' | '\u{FF01}' | '\u{FF1F}' => {
-                if next_byte < text.len() {
+            '\u{3002}' | '\u{FF01}' | '\u{FF1F}'
+                if next_byte < text.len() => {
                     ends.push(next_byte);
                 }
-            }
             _ => {}
         }
     }
