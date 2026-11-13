@@ -1,0 +1,2 @@
+{# kind: success, warning, danger or info; icon is trusted markup from web::notice_icon. #}
+{% macro notice(kind, icon, text) %}<div class="oc-notice oc-notice--{{ kind }}" role="status">{{ icon|safe }}<span class="oc-notice__text">{{ text }}</span></div>{% endmacro %}

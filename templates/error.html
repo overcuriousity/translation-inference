@@ -1,0 +1,4 @@
+{% import "components/notice.html" as n %}
+<div class="oc-page-head"><h1>{{ heading }}</h1></div>
+{% call n::notice("danger", icon, message) %}{% endcall %}
+<p class="ti-after-notice"><a href="{{ back }}">{{ back_label }}</a></p>

@@ -1,30 +1,59 @@
 [package]
 name = "translation-inference"
-version = "1.6.0"
-edition = "2021"
+version = "2026.11.0"
+edition = "2024"
+rust-version = "1.97"
+license = "MIT"
+description = "A self-hosted translator and transcriber in front of any OpenAI-compatible LLM, speech-to-text and text-to-speech endpoint."
+readme = "README.md"
+repository = "https://github.com/overcuriousity/translation-inference"
+publish = false
 
 [dependencies]
+askama = "0.16"
+async-stream = "0.3"
 axum = { version = "0.8", features = ["multipart"] }
-tokio = { version = "1", features = ["full"] }
-tower-http = { version = "0.7", features = ["cors", "compression-gzip"] }
-reqwest = { version = "0.12", features = ["json", "multipart", "stream"] }
+clap = { version = "4", features = ["derive"] }
+eventsource-stream = "0.2"
+figment = { version = "0.10", features = ["toml", "env"] }
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
+hex = "0.4"
+ipnet = { version = "2", features = ["serde"] }
+mime_guess = "2"
+pulldown-cmark = { version = "0.13", default-features = false, features = ["html"] }
+rand = "0.10"
+regex = "1"
+reqwest = { version = "0.13", features = ["json", "multipart", "stream"] }
+rust-embed = { version = "8", features = ["debug-embed", "include-exclude"] }
+sd-notify = "0.5"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-rust-embed = { version = "8", features = ["axum"] }
-mime_guess = "2"
-dotenvy = "0.15"
+sha2 = "0.11"
+subtle = "2.6"
+tempfile = "3"
+thiserror = "2"
+tokio = { version = "1", features = ["full"] }
+tokio-util = { version = "0.7", features = ["io"] }
+tower-http = { version = "0.7", features = ["limit", "timeout", "compression-gzip", "trace", "sensitive-headers"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-anyhow = "1"
-tokio-util = { version = "0.7", features = ["io"] }
-bytes = "1"
-tempfile = "3"
-regex = "1"
-base64 = "0.22"
-reqwest-eventsource = "0.6.0"
-futures = "0.3.32"
-tokio-stream = "0.1.18"
-async-stream = "0.3.6"
-uuid = { version = "1", features = ["v4"] }
-url = "2"
-subtle = "2.6.1"
+url = { version = "2", features = ["serde"] }
+utoipa = { version = "6", features = ["axum_extras"] }
+utoipa-axum = "0.3"
+
+[dev-dependencies]
+figment = { version = "0.10", features = ["toml", "env", "test"] }
+http-body-util = "0.1"
+tower = { version = "0.5", features = ["util"] }
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true

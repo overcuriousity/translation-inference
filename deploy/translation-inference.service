@@ -1,0 +1,39 @@
+[Unit]
+Description=translation-inference
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=notify
+NotifyAccess=main
+WatchdogSec=30
+ExecStart=/usr/local/bin/@APP@ --config /etc/@APP@/config.toml
+# Secrets stay root-only on disk and reach the service as credentials, for example:
+# LoadCredential=backend-key:/etc/@APP@/backend-key
+# Environment=TRANSLATION_INFERENCE__APP__BACKEND__API_KEY_FILE=%d/backend-key
+# ffmpeg must be on this PATH for audio and video transcription.
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+Restart=on-failure
+# The app drains in-flight requests for up to 25 s after SIGTERM, then exits.
+TimeoutStopSec=30
+DynamicUser=yes
+StateDirectory=@APP@
+ConfigurationDirectory=@APP@
+UMask=0077
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+NoNewPrivileges=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+
+[Install]
+WantedBy=multi-user.target

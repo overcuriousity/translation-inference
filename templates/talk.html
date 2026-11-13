@@ -1,0 +1,43 @@
+<div class="oc-page-head">
+  <h1>Talk</h1>
+  <div class="oc-row">
+    <button type="button" class="oc-btn oc-btn--icon" id="ti-export" aria-label="Download conversation" data-oc-tip="Download conversation" disabled>{{ self.icon("download")|safe }}</button>
+    <button type="button" class="oc-btn oc-btn--icon" id="ti-clear-talk" aria-label="Clear conversation" data-oc-tip="Clear conversation" disabled>{{ self.icon("trash-2")|safe }}</button>
+  </div>
+</div>
+{%- if f.transcribe %}
+<div class="ti-talk" id="ti-talk" data-speech="{{ f.speech }}">
+  <ol class="ti-talk-log" id="ti-talk-log" aria-live="polite" data-empty="Press a microphone and speak."></ol>
+  <div class="ti-talk-controls">
+    {%- for (side, default) in [("a", "en"), ("b", "de")] %}
+    <div class="ti-speaker ti-speaker--{{ side }}">
+      <label class="oc-sr-only" for="ti-lang-{{ side }}">Speaker {{ side|upper }} language</label>
+      <select class="oc-input" id="ti-lang-{{ side }}" data-oc-menu data-default="{{ default }}">
+        {%- for (code, name) in languages %}
+        <option value="{{ code }}"{% if code == default %} selected{% endif %}>{{ name }}</option>
+        {%- endfor %}
+      </select>
+      <button type="button" class="oc-btn ti-mic" id="ti-mic-{{ side }}" aria-pressed="false" data-side="{{ side }}">{{ self.icon("mic")|safe }}<span>Speak</span></button>
+    </div>
+    {%- endfor %}
+  </div>
+  <div class="ti-talk-options">
+    {%- if !f.speech.is_empty() %}
+    <label class="ti-check"><input type="checkbox" id="ti-auto-read" checked> Read translations aloud</label>
+    {%- endif %}
+    <label class="ti-check"><input type="checkbox" id="ti-vad" checked> Stop when I pause</label>
+  </div>
+  <template id="ti-turn">
+    <li class="ti-turn">
+      <p class="ti-turn__lang"></p>
+      <p class="ti-turn__source"></p>
+      <p class="ti-turn__translation"></p>
+      {%- if !f.speech.is_empty() %}
+      <button type="button" class="oc-btn oc-btn--icon oc-btn--row ti-turn__play" aria-label="Read aloud" data-oc-tip="Read aloud" hidden>{{ self.icon("play")|safe }}</button>
+      {%- endif %}
+    </li>
+  </template>
+</div>
+{%- else %}
+<div class="oc-empty"><p>Talk needs speech to text. Choose a transcription model in <a href="/settings">Settings</a>.</p></div>
+{%- endif %}

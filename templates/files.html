@@ -1,0 +1,36 @@
+<div class="oc-page-head"><h1>Files</h1></div>
+<div class="ti-files" id="ti-files">
+  <div class="ti-drop" id="ti-drop">
+    <p>Subtitles, .srt or .vtt</p>
+    <label class="oc-btn" for="ti-file">{{ self.icon("upload")|safe }}<span>Choose files</span></label>
+    <input class="oc-sr-only" type="file" id="ti-file" accept=".srt,.vtt" multiple tabindex="-1">
+  </div>
+  <div class="ti-file-options">
+    <div class="oc-field">
+      <label for="ti-target-lang">To</label>
+      <select class="oc-input" id="ti-target-lang" data-oc-menu>
+        {%- for (code, name) in languages %}
+        <option value="{{ code }}">{{ name }}</option>
+        {%- endfor %}
+        <option value="other">Other language</option>
+      </select>
+      <label class="oc-sr-only" for="ti-target-other">Language name</label>
+      <input class="oc-input ti-other" id="ti-target-other" type="text" maxlength="40" autocomplete="off" placeholder="Language name" hidden>
+    </div>
+    <div class="oc-field">
+      <label for="ti-context">Context</label>
+      <input class="oc-input" id="ti-context" type="text" maxlength="300" autocomplete="off" placeholder="film, documentary">
+    </div>
+  </div>
+  <ul class="oc-list ti-file-list" id="ti-file-list" aria-live="polite"></ul>
+  <template id="ti-file-row">
+    <li class="oc-list__item">
+      <div class="oc-list__main"><span class="oc-list__title"></span><span class="oc-list__meta"></span></div>
+      <button type="button" class="oc-btn oc-btn--icon" aria-label="Download" data-oc-tip="Download" hidden>{{ self.icon("download")|safe }}</button>
+    </li>
+  </template>
+  <template id="ti-status-icons">
+    <span data-kind="success">{{ self.icon("circle-check")|safe }}</span>
+    <span data-kind="danger">{{ self.icon("circle-x")|safe }}</span>
+  </template>
+</div>

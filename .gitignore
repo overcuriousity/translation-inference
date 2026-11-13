@@ -1,5 +1,5 @@
 /target
-.env
-
-.gemini/
-gha-creds-*.json
+# Agent working files are never committed.
+.superpowers/
+.claude/
+docs/superpowers/
