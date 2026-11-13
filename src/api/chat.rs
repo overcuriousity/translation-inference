@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
+use eventsource_stream::Eventsource;
 use futures::StreamExt;
 use regex::Regex;
-use reqwest_eventsource::{Event, RequestBuilderExt};
 use std::sync::OnceLock;
 
 use crate::api::chunker::{
@@ -280,13 +280,20 @@ pub fn translate_stream(
                 .bearer_auth(&client.api_key)
                 .json(&request);
 
-            let mut es = match req_builder.eventsource() {
-                Ok(es) => es,
+            let res = match req_builder.send().await {
+                Ok(res) if res.status().is_success() => res,
+                Ok(res) => {
+                    let status = res.status();
+                    let body = res.text().await.unwrap_or_default();
+                    yield Err(anyhow::anyhow!("Upstream returned {status}: {body}"));
+                    return;
+                }
                 Err(e) => {
-                    yield Err(anyhow::anyhow!("Failed to create EventSource: {e}"));
+                    yield Err(anyhow::anyhow!("Failed to reach upstream: {e}"));
                     return;
                 }
             };
+            let mut es = res.bytes_stream().eventsource();
 
             // Buffer this chunk's output so we can extract the translated tail
             // for the next chunk's overlap context.
@@ -296,8 +303,7 @@ pub fn translate_stream(
 
             while let Some(event) = es.next().await {
                 match event {
-                    Ok(Event::Open) => {}
-                    Ok(Event::Message(message)) => {
+                    Ok(message) => {
                         if message.data == "[DONE]" {
                             break;
                         }
