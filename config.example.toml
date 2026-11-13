@@ -1,0 +1,79 @@
+# Every key is optional unless it says otherwise. Environment variables override this file as
+# TRANSLATION_INFERENCE__SECTION__KEY, for example TRANSLATION_INFERENCE__BIND=127.0.0.1:9000 or
+# TRANSLATION_INFERENCE__APP__BACKEND__API_KEY=... . A variable ending in _FILE reads the value
+# from a file: TRANSLATION_INFERENCE__APP__ACCESS_KEY_FILE=/run/credentials/translation-inference.service/access-key.
+
+# The address users see. Required unless the app is reached via localhost.
+# public_url = "https://translate.example.org"
+# Plain http on a non-loopback public_url: no HSTS and a session cookie without Secure, so access
+# keys and texts cross the network in clear. See AIRGAP.md.
+# allow_plain_http = false
+
+bind = "127.0.0.1:8080"
+trusted_proxies = ["127.0.0.1/32", "::1/128"]
+
+[app]
+title = "Translate"
+
+# With an access key, anonymous visitors get the free tier (text only, free_char_limit) and the
+# key, entered in Settings or sent as "Authorization: Bearer <key>", unlocks files, longer texts
+# and the [app.gated] endpoint. Without one, everyone gets everything. At least 12 characters.
+# access_key = "file:///run/credentials/translation-inference.service/access-key"
+
+# Characters per request; 0 for no limit.
+free_char_limit = 16000
+gated_char_limit = 65536
+
+# Visitors may connect their own OpenAI-compatible endpoint in Settings. This server then sends
+# requests to whatever address they enter, including addresses on its own network.
+byok = false
+
+# Largest audio or video upload for transcription, in MiB. Keep client_max_body_size in nginx above it.
+upload_max_mb = 100
+
+# The server's own endpoint: any OpenAI-compatible API (llama.cpp, vLLM, LM Studio, LiteLLM,
+# OpenAI). Required unless byok is on. ffmpeg on PATH is needed for transcription.
+[app.backend]
+url = "http://127.0.0.1:11434"
+# api_key = ""
+model = "qwen3:14b-32768"
+# A context window in the model id (like -32768) sizes the chunks; otherwise tuning.default_context_size.
+# transcription_model = "whisper-1"
+# The models offered in Settings. Left empty, the endpoint's /v1/models list is probed at start-up.
+# models = ["qwen3:14b-32768", "deepseek-chat"]
+# transcription_models = ["whisper-1"]
+
+# A separate endpoint for access-key holders, for example a larger model. Needs access_key.
+# [app.gated]
+# url = "https://llm.example.org"
+# api_key = ""
+# model = "qwen3:32b-32768"
+# transcription_model = "whisper-large-v3"
+
+# Read aloud through an OpenAI-compatible /v1/audio/speech endpoint. Only the languages listed in
+# voices get a Read aloud button; each maps a language code to "voice@model".
+# [app.speech]
+# url = "https://tts.example.org"
+# api_key = ""
+# Longest text per request in bytes; 0 sends it whole. OpenAI's hosted API needs 4000.
+# chunk_bytes = 0
+# [app.speech.voices]
+# en = "af_heart@speaches-ai/Kokoro-82M-v1.0-ONNX"
+# de = "de@piper"
+# zh = "54@kokoro-multi-lang"
+
+# Save texts as BitVault pastes, and open a paste's text with /?from=<paste address>.
+# [app.bitvault]
+# url = "https://paste.example.org"
+# uploader_password = ""
+
+[app.tuning]
+# Context window in tokens for model ids that do not name one.
+default_context_size = 4096
+# Share of the usable tokens given to the input; the rest is left for the translation. Lower it
+# (0.4) for pairs whose translation is much longer than the source, such as Chinese to German.
+input_token_ratio = 0.5
+cjk_chars_per_token = 1.5
+latin_chars_per_token = 4.0
+# A translation shorter than this share of its input is logged as possibly summarised.
+min_output_ratio = 0.3

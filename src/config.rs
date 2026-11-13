@@ -1,229 +1,336 @@
-use anyhow::Result;
+use std::collections::BTreeMap;
+use std::fmt;
+use std::net::SocketAddr;
+use std::path::Path;
 
-/// A single entry in `TTS_VOICE_MAP`.
-/// Parsed from `lang:voice@model` in the `TTS_VOICE_MAP` environment variable.
-#[derive(Debug, Clone)]
-pub struct TtsVoiceEntry {
-    pub voice: String,
-    pub model: String,
+use figment::Figment;
+use figment::providers::{Format, Toml};
+use figment::value::Value;
+use ipnet::IpNet;
+use serde::Deserialize;
+use url::Url;
+
+use crate::deployment::Deployment;
+use crate::error::Error;
+
+const ENV_PREFIX: &str = "TRANSLATION_INFERENCE__";
+/// The keys whose environment values are parsed as TOML-like values: the switches, numbers, lists
+/// and tables. Everything else stays the string it is, so a key of digits keeps its leading zeros.
+pub const PARSED_ENV_KEYS: [&str; 16] = [
+    "allow_plain_http",
+    "trusted_proxies",
+    "app.byok",
+    "app.free_char_limit",
+    "app.gated_char_limit",
+    "app.upload_max_mb",
+    "app.backend.models",
+    "app.backend.transcription_models",
+    "app.gated.models",
+    "app.gated.transcription_models",
+    "app.speech.chunk_bytes",
+    "app.speech.voices",
+    "app.tuning.default_context_size",
+    "app.tuning.input_token_ratio",
+    "app.tuning.cjk_chars_per_token",
+    "app.tuning.latin_chars_per_token",
+];
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct Config {
+    pub bind: SocketAddr,
+    pub public_url: Option<Url>,
+    pub trusted_proxies: Vec<IpNet>,
+    /// Plain http on a non-loopback host: no HSTS and no `Secure` cookie.
+    pub allow_plain_http: bool,
+    pub app: AppConfig,
 }
 
-#[derive(Debug, Clone)]
-pub struct AppConfig {
-    pub api_base_url: String,
-    pub api_key: String,
-    pub gated_api_base_url: String,
-    pub gated_api_key: String,
-    pub gated_access_key: String,
-    pub translation_model: String,
-    pub whisper_model: String,
-    pub translation_models: Vec<String>,
-    pub whisper_models: Vec<String>,
-    pub listen_addr: String,
-    pub bitvault_url: Option<String>,
-    pub bitvault_api_key: Option<String>,
-    pub tts_api_base_url: String,
-    pub tts_api_key: String,
-    /// Maximum **bytes** per TTS request chunk. `None` (the default) disables
-    /// chunking entirely — recommended for local models that have no per-request
-    /// size limit. Set `TTS_CHUNK_SIZE=4000` to restore OpenAI hosted-API limits;
-    /// `TTS_CHUNK_SIZE=0` also means no chunking.
-    pub tts_chunk_size: Option<usize>,
-    /// Per-language TTS voice and model configuration.
-    /// Populated from `TTS_VOICE_MAP=en:af_heart@speaches-ai/Kokoro-82M-v1.0-ONNX-fp16,...`
-    /// Required format per entry: `lang:voice@model`.
-    /// The map keys determine which languages show TTS buttons in the UI.
-    pub tts_voice_map: std::collections::HashMap<String, TtsVoiceEntry>,
-
-    // ── Translation quality tuning ────────────────────────────────────────────
-    /// Fallback context size (tokens) when the model ID does not encode one.
-    /// Default: 4096. Override with `DEFAULT_CONTEXT_SIZE`.
-    pub default_context_size: usize,
-    /// Fraction of usable tokens allocated to input (remainder goes to output).
-    /// Default: 0.5. Set to e.g. 0.4 for compact→verbose language pairs.
-    /// Override with `INPUT_TOKEN_RATIO`.
-    pub input_token_ratio: f64,
-    /// Chars-per-token ratio for CJK-dominant text. Default: 1.5.
-    /// Override with `CJK_CHARS_PER_TOKEN`.
-    pub cjk_chars_per_token: f64,
-    /// Chars-per-token ratio for Latin-script text. Default: 4.0.
-    /// Override with `LATIN_CHARS_PER_TOKEN`.
-    pub latin_chars_per_token: f64,
-    /// Warn when translated output/input char ratio is below this value.
-    /// Default: 0.3. Override with `MIN_OUTPUT_RATIO`.
-    pub min_output_ratio: f64,
-
-    // ── Per-tier input character limits ──────────────────────────────────────
-    /// Maximum input characters for the free tier (anonymous web-UI sessions).
-    /// `None` = unlimited. Default: 16 000 (~4 096 tokens). Set `FREE_TIER_CHAR_LIMIT=0` to disable.
-    pub free_tier_char_limit: Option<usize>,
-    /// Maximum input characters for gated-key sessions.
-    /// `None` = unlimited. Default: 65 536 (~16 384 tokens). Set `GATED_CHAR_LIMIT=0` to disable.
-    pub gated_char_limit: Option<usize>,
-}
-
-impl AppConfig {
-    pub fn from_env() -> Result<Self> {
-        let translation_models = std::env::var("TRANSLATION_MODELS")
-            .unwrap_or_default()
-            .split(',')
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty())
-            .collect::<Vec<_>>();
-
-        let whisper_models = std::env::var("WHISPER_MODELS")
-            .unwrap_or_default()
-            .split(',')
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty())
-            .collect::<Vec<_>>();
-
-        Ok(Self {
-            api_base_url: std::env::var("API_BASE_URL").unwrap_or_default(),
-            api_key: std::env::var("API_KEY").unwrap_or_default(),
-            gated_api_base_url: std::env::var("GATED_API_BASE_URL").unwrap_or_default(),
-            gated_api_key: std::env::var("GATED_API_KEY").unwrap_or_default(),
-            gated_access_key: std::env::var("GATED_ACCESS_KEY").unwrap_or_default(),
-            translation_model: std::env::var("TRANSLATION_MODEL")
-                .unwrap_or_else(|_| "gpgpu/qwen3:14b-q5_k_m-32768".to_string()),
-            whisper_model: std::env::var("WHISPER_MODEL")
-                .unwrap_or_else(|_| "gpgpu/whisper".to_string()),
-            translation_models,
-            whisper_models,
-            listen_addr: std::env::var("LISTEN_ADDR")
-                .unwrap_or_else(|_| "0.0.0.0:3000".to_string()),
-            bitvault_url: std::env::var("BITVAULT_URL")
-                .ok()
-                .map(|s| s.trim().trim_end_matches('/').to_string())
-                .filter(|s| !s.is_empty()),
-            bitvault_api_key: std::env::var("BITVAULT_API_KEY")
-                .ok()
-                .map(|s| s.trim().to_string())
-                .filter(|s| !s.is_empty()),
-            tts_api_base_url: std::env::var("TTS_API_BASE_URL").unwrap_or_default(),
-            tts_api_key: std::env::var("TTS_API_KEY").unwrap_or_default(),
-            tts_chunk_size: match std::env::var("TTS_CHUNK_SIZE").ok().as_deref() {
-                Some("0") | None => None,
-                Some(s) => s.parse::<usize>().ok().filter(|&n| n > 0),
-            },
-            default_context_size: std::env::var("DEFAULT_CONTEXT_SIZE")
-                .ok()
-                .and_then(|s| s.parse::<usize>().ok())
-                .map(|n| n.max(1024))
-                .unwrap_or(4096),
-            input_token_ratio: std::env::var("INPUT_TOKEN_RATIO")
-                .ok()
-                .and_then(|s| s.parse::<f64>().ok())
-                .map(|v| v.clamp(0.1, 0.9))
-                .unwrap_or(0.5),
-            cjk_chars_per_token: std::env::var("CJK_CHARS_PER_TOKEN")
-                .ok()
-                .and_then(|s| s.parse::<f64>().ok())
-                .map(|v| v.max(0.1))
-                .unwrap_or(1.5),
-            latin_chars_per_token: std::env::var("LATIN_CHARS_PER_TOKEN")
-                .ok()
-                .and_then(|s| s.parse::<f64>().ok())
-                .map(|v| v.max(0.1))
-                .unwrap_or(4.0),
-            min_output_ratio: std::env::var("MIN_OUTPUT_RATIO")
-                .ok()
-                .and_then(|s| s.parse::<f64>().ok())
-                .map(|v| v.max(0.0))
-                .unwrap_or(0.3),
-            free_tier_char_limit: match std::env::var("FREE_TIER_CHAR_LIMIT") {
-                Ok(s) => {
-                    let s = s.trim();
-                    if s == "0" {
-                        None
-                    } else {
-                        match s.parse::<usize>() {
-                            Ok(n) if n > 0 => Some(n),
-                            _ => {
-                                eprintln!(
-                                    "Invalid FREE_TIER_CHAR_LIMIT value {s:?}; using default 16000"
-                                );
-                                Some(16_000)
-                            }
-                        }
-                    }
-                }
-                Err(_) => Some(16_000),
-            },
-            gated_char_limit: match std::env::var("GATED_CHAR_LIMIT") {
-                Ok(s) => {
-                    let s = s.trim();
-                    if s == "0" {
-                        None
-                    } else {
-                        match s.parse::<usize>() {
-                            Ok(n) if n > 0 => Some(n),
-                            _ => {
-                                eprintln!(
-                                    "Invalid GATED_CHAR_LIMIT value {s:?}; using default 65536"
-                                );
-                                Some(65_536)
-                            }
-                        }
-                    }
-                }
-                Err(_) => Some(65_536),
-            },
-            tts_voice_map: std::env::var("TTS_VOICE_MAP")
-                .unwrap_or_default()
-                .split(',')
-                .filter_map(|pair| {
-                    let mut it = pair.trim().splitn(2, ':');
-                    let raw_lang = it.next()?.trim().to_string();
-                    let value = it.next()?.trim().to_string();
-                    if raw_lang.is_empty() || value.is_empty() {
-                        return None;
-                    }
-                    // Require `voice@model` format; silently skip malformed entries.
-                    let at = value.find('@')?;
-                    let voice = value[..at].trim().to_string();
-                    let model = value[at + 1..].trim().to_string();
-                    if voice.is_empty() || model.is_empty() {
-                        return None;
-                    }
-                    // Normalise to canonical casing (e.g. zh-tw → zh-TW) so keys
-                    // match what /api/languages and the frontend use.
-                    let lang = match raw_lang.to_lowercase().as_str() {
-                        "zh-tw" => "zh-TW".to_string(),
-                        other => other.to_string(),
-                    };
-                    Some((lang, TtsVoiceEntry { voice, model }))
-                })
-                .collect(),
-        })
-    }
-
-    pub fn is_configured(&self) -> bool {
-        !self.api_base_url.is_empty() && !self.api_key.is_empty()
-    }
-
-    pub fn is_gated_configured(&self) -> bool {
-        !self.gated_api_base_url.is_empty()
-            && !self.gated_api_key.is_empty()
-            && !self.gated_access_key.is_empty()
-    }
-
-    pub fn is_bitvault_configured(&self) -> bool {
-        self.bitvault_url.is_some()
-    }
-
-    pub fn is_tts_configured(&self) -> bool {
-        !self.tts_api_base_url.is_empty() && !self.tts_api_key.is_empty()
-    }
-
-    /// Returns the hostname of the TTS endpoint for UI display, or `None` if not configured.
-    pub fn tts_hostname(&self) -> Option<String> {
-        if !self.is_tts_configured() {
-            return None;
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            bind: SocketAddr::from(([127, 0, 0, 1], 8080)),
+            public_url: None,
+            trusted_proxies: ["127.0.0.1/32", "::1/128"].iter().filter_map(|s| s.parse().ok()).collect(),
+            allow_plain_http: false,
+            app: AppConfig::default(),
         }
-        url::Url::parse(&self.tts_api_base_url)
-            .ok()
-            .and_then(|u| u.host_str().map(|h| h.to_string()))
-            .filter(|h| !h.is_empty())
     }
+}
+
+#[derive(Clone, Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct AppConfig {
+    pub title: String,
+    /// The server's own model endpoint, used by everyone without an access key.
+    pub backend: Option<Backend>,
+    /// With an access key: anonymous visitors get the free tier and the key unlocks the gated one.
+    pub access_key: Option<String>,
+    /// A separate endpoint for access-key holders; without one they use `backend`.
+    pub gated: Option<Backend>,
+    /// Lets visitors connect their own endpoint, to which this server then sends requests.
+    pub byok: bool,
+    /// Characters per request for the free tier; 0 for no limit.
+    pub free_char_limit: usize,
+    /// Characters per request for access-key holders; 0 for no limit.
+    pub gated_char_limit: usize,
+    pub upload_max_mb: u64,
+    pub speech: Option<Speech>,
+    pub bitvault: Option<Bitvault>,
+    pub tuning: Tuning,
+}
+
+impl Default for AppConfig {
+    fn default() -> Self {
+        Self {
+            title: "Translate".into(),
+            backend: None,
+            access_key: None,
+            gated: None,
+            byok: false,
+            free_char_limit: 16_000,
+            gated_char_limit: 65_536,
+            upload_max_mb: 100,
+            speech: None,
+            bitvault: None,
+            tuning: Tuning::default(),
+        }
+    }
+}
+
+impl fmt::Debug for AppConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("AppConfig")
+            .field("title", &self.title)
+            .field("backend", &self.backend)
+            .field("access_key", &self.access_key.as_ref().map(|_| "***"))
+            .field("gated", &self.gated)
+            .field("byok", &self.byok)
+            .finish_non_exhaustive()
+    }
+}
+
+/// An OpenAI-compatible endpoint: `{url}/v1/chat/completions`, `/v1/audio/transcriptions` and
+/// `/v1/models`.
+#[derive(Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Backend {
+    pub url: Url,
+    #[serde(default)]
+    pub api_key: Option<String>,
+    /// The translation model used when none is chosen.
+    pub model: String,
+    #[serde(default)]
+    pub transcription_model: Option<String>,
+    /// The translation models offered; empty asks the endpoint and probes each model.
+    #[serde(default)]
+    pub models: Vec<String>,
+    #[serde(default)]
+    pub transcription_models: Vec<String>,
+}
+
+impl fmt::Debug for Backend {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Backend")
+            .field("url", &self.url.as_str())
+            .field("api_key", &self.api_key.as_ref().map(|_| "***"))
+            .field("model", &self.model)
+            .finish_non_exhaustive()
+    }
+}
+
+/// An OpenAI-compatible `/v1/audio/speech` endpoint.
+#[derive(Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Speech {
+    pub url: Url,
+    #[serde(default)]
+    pub api_key: Option<String>,
+    /// Longest text per synthesis request, in bytes; 0 sends the whole text at once.
+    #[serde(default)]
+    pub chunk_bytes: usize,
+    /// Language code to `voice@model`; only these languages get a Read aloud button.
+    pub voices: BTreeMap<String, String>,
+}
+
+impl fmt::Debug for Speech {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Speech").field("url", &self.url.as_str()).field("voices", &self.voices).finish_non_exhaustive()
+    }
+}
+
+#[derive(Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Bitvault {
+    /// The BitVault instance's root, such as `https://paste.example.org`.
+    pub url: Url,
+    #[serde(default)]
+    pub uploader_password: Option<String>,
+}
+
+impl fmt::Debug for Bitvault {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Bitvault").field("url", &self.url.as_str()).finish_non_exhaustive()
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct Tuning {
+    /// Context window in tokens for model ids that do not name one (like `...-32768`).
+    pub default_context_size: usize,
+    /// Share of the usable tokens given to the input; the rest is left for the output.
+    pub input_token_ratio: f64,
+    pub cjk_chars_per_token: f64,
+    pub latin_chars_per_token: f64,
+    /// A translation shorter than this share of its input is logged as possibly summarised.
+    pub min_output_ratio: f64,
+}
+
+impl Default for Tuning {
+    fn default() -> Self {
+        Self {
+            default_context_size: 4096,
+            input_token_ratio: 0.5,
+            cjk_chars_per_token: 1.5,
+            latin_chars_per_token: 4.0,
+            min_output_ratio: 0.3,
+        }
+    }
+}
+
+/// Loads the config from an optional TOML file, then `TRANSLATION_INFERENCE__SECTION__KEY`
+/// variables. `..._FILE=/path` sets the key to the trimmed contents of that file.
+pub fn load(file: Option<&Path>) -> Result<Config, Error> {
+    load_from(file, std::env::vars())
+}
+
+pub fn load_from(file: Option<&Path>, vars: impl Iterator<Item = (String, String)>) -> Result<Config, Error> {
+    let mut fig = Figment::new();
+    if let Some(path) = file {
+        if !path.exists() {
+            return Err(Error::invalid(format!("Config file {} does not exist.", path.display())));
+        }
+        fig = fig.merge(Toml::file(path));
+    }
+    let mut files = Vec::new();
+    for (name, value) in vars {
+        let Some(name) = name.strip_prefix(ENV_PREFIX) else { continue };
+        let key = |name: &str| name.to_ascii_lowercase().replace("__", ".");
+        if let Some(name) = name.strip_suffix("_FILE") {
+            let secret = std::fs::read_to_string(&value)
+                .map_err(|e| Error::invalid(format!("Cannot read the secret file {value}: {e}.")))?;
+            files.push((key(name), secret.trim().to_owned()));
+            continue;
+        }
+        let key = key(name);
+        fig = if PARSED_ENV_KEYS.contains(&key.as_str()) {
+            fig.merge((key, value.parse::<Value>().unwrap_or_else(|never| match never {})))
+        } else {
+            fig.merge((key, value))
+        };
+    }
+    // A `_FILE` variable wins over the plain one, whatever order the environment lists them in.
+    for pair in files {
+        fig = fig.merge(pair);
+    }
+    let mut cfg: Config = fig.extract().map_err(|e| Error::invalid(format!("Invalid configuration: {e}.")))?;
+    cfg.read_secret_files()?;
+    Ok(cfg)
+}
+
+/// A secret given as `file:///path` is the trimmed contents of that file.
+fn read_secret(value: &mut Option<String>) -> Result<(), Error> {
+    if let Some(path) = value.as_deref().and_then(|v| v.strip_prefix("file://")) {
+        let secret = std::fs::read_to_string(path)
+            .map_err(|e| Error::invalid(format!("Cannot read the secret file {path}: {e}.")))?;
+        *value = Some(secret.trim().to_owned());
+    }
+    Ok(())
+}
+
+impl Config {
+    fn read_secret_files(&mut self) -> Result<(), Error> {
+        let a = &mut self.app;
+        read_secret(&mut a.access_key)?;
+        for b in [&mut a.backend, &mut a.gated].into_iter().flatten() {
+            read_secret(&mut b.api_key)?;
+        }
+        if let Some(s) = &mut a.speech {
+            read_secret(&mut s.api_key)?;
+        }
+        if let Some(b) = &mut a.bitvault {
+            read_secret(&mut b.uploader_password)?;
+        }
+        Ok(())
+    }
+
+    /// Stops start-up on a combination that cannot work, naming the key to fix.
+    pub fn validate(&self) -> Result<(), Error> {
+        let a = &self.app;
+        for (name, b) in [("backend", &a.backend), ("gated", &a.gated)] {
+            if let Some(b) = b {
+                check_endpoint(&format!("app.{name}.url"), &b.url)?;
+                if b.model.trim().is_empty() {
+                    return Err(Error::invalid(format!("app.{name}.model must name a model.")));
+                }
+            }
+        }
+        if a.gated.is_some() && a.access_key.is_none() {
+            return Err(Error::invalid("app.gated needs app.access_key, which unlocks it."));
+        }
+        if a.access_key.as_deref().is_some_and(|k| k.len() < 12) {
+            return Err(Error::invalid("app.access_key must be at least 12 characters."));
+        }
+        if a.backend.is_none() && !a.byok {
+            return Err(Error::invalid("Set app.backend, or turn on app.byok so visitors can connect their own."));
+        }
+        if let Some(s) = &a.speech {
+            check_endpoint("app.speech.url", &s.url)?;
+            for (lang, v) in &s.voices {
+                if parse_voice(v).is_none() {
+                    return Err(Error::invalid(format!("app.speech.voices.{lang} must look like voice@model.")));
+                }
+            }
+        }
+        if let Some(b) = &a.bitvault {
+            check_endpoint("app.bitvault.url", &b.url)?;
+        }
+        if a.upload_max_mb == 0 || a.upload_max_mb > 4096 {
+            return Err(Error::invalid("app.upload_max_mb must be between 1 and 4096."));
+        }
+        let t = &a.tuning;
+        if !(0.1..=0.9).contains(&t.input_token_ratio) {
+            return Err(Error::invalid("app.tuning.input_token_ratio must be between 0.1 and 0.9."));
+        }
+        if t.default_context_size < 1024 || t.cjk_chars_per_token <= 0.0 || t.latin_chars_per_token <= 0.0 {
+            return Err(Error::invalid(
+                "app.tuning needs default_context_size of at least 1024 and positive chars per token.",
+            ));
+        }
+        Deployment::from_config(self).map(|_| ())
+    }
+
+    pub fn gated_mode(&self) -> bool {
+        self.app.access_key.is_some()
+    }
+}
+
+fn check_endpoint(key: &str, url: &Url) -> Result<(), Error> {
+    if !matches!(url.scheme(), "http" | "https") || url.host_str().is_none() {
+        return Err(Error::invalid(format!("{key} must be an http or https URL.")));
+    }
+    Ok(())
+}
+
+/// Splits `voice@model`. The voice may itself contain `@`, the model may not.
+pub fn parse_voice(v: &str) -> Option<(&str, &str)> {
+    let (voice, model) = v.rsplit_once('@')?;
+    let (voice, model) = (voice.trim(), model.trim());
+    (!voice.is_empty() && !model.is_empty()).then_some((voice, model))
+}
+
+/// A limit of 0 means none.
+pub fn limit(n: usize) -> Option<usize> {
+    (n > 0).then_some(n)
 }

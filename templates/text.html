@@ -1,0 +1,74 @@
+{% import "components/copy.html" as copy %}
+<h1 class="oc-sr-only">Translate</h1>
+{%- if let Some(e) = from_error %}
+<div class="oc-notice oc-notice--danger" role="status">{{ notice_icon|safe }}<span class="oc-notice__text">{{ e }}</span></div>
+{%- endif %}
+<div class="ti-translate" id="ti-translate"{% if let Some(l) = f.char_limit %} data-limit="{{ l }}"{% endif %} data-speech="{{ f.speech }}">
+<div class="ti-panes">
+  <section class="ti-pane" aria-label="Source">
+    <div class="ti-pane__head">
+      <label class="ti-label" for="ti-source-lang">From</label>
+      <select class="oc-input" id="ti-source-lang" data-oc-menu>
+        <option value="auto">Detect language</option>
+        {%- for (code, name) in languages %}
+        <option value="{{ code }}">{{ name }}</option>
+        {%- endfor %}
+      </select>
+      <span class="ti-detected" id="ti-detected" hidden></span>
+    </div>
+    <label class="oc-sr-only" for="ti-source">Text to translate</label>
+    <textarea class="oc-input ti-text" id="ti-source" spellcheck="true">{{ text }}</textarea>
+    <div class="ti-tools">
+      {%- if f.transcribe %}
+      <button type="button" class="oc-btn oc-btn--icon" id="ti-mic" aria-pressed="false" aria-label="Dictate" data-oc-tip="Dictate">{{ self.icon("mic")|safe }}</button>
+      <input class="oc-sr-only ti-file-input" type="file" id="ti-media" accept="audio/*,video/*" aria-label="Transcribe a recording">
+      <label class="oc-btn oc-btn--icon" for="ti-media" data-oc-tip="Transcribe a recording">{{ self.icon("upload")|safe }}</label>
+      {%- endif %}
+      {%- if !f.speech.is_empty() %}
+      <button type="button" class="oc-btn oc-btn--icon" id="ti-read-source" aria-pressed="false" aria-label="Read aloud" data-oc-tip="Read aloud" hidden>{{ self.icon("volume-2")|safe }}</button>
+      {%- endif %}
+      {%- if f.bitvault %}
+      <button type="button" class="oc-btn oc-btn--icon" id="ti-save-source" aria-label="Save to BitVault" data-oc-tip="Save to BitVault">{{ self.icon("save")|safe }}</button>
+      {%- endif %}
+      <span class="ti-count" id="ti-count" aria-live="off"></span>
+      <button type="button" class="oc-btn oc-btn--icon" id="ti-clear" aria-label="Clear" data-oc-tip="Clear">{{ self.icon("x")|safe }}</button>
+    </div>
+  </section>
+  <button type="button" class="oc-btn oc-btn--icon ti-swap" id="ti-swap" aria-label="Swap languages" data-oc-tip="Swap languages">{{ self.icon("arrow-left-right")|safe }}</button>
+  <section class="ti-pane" aria-label="Translation">
+    <div class="ti-pane__head">
+      <label class="ti-label" for="ti-target-lang">To</label>
+      <select class="oc-input" id="ti-target-lang" data-oc-menu>
+        {%- for (code, name) in languages %}
+        <option value="{{ code }}">{{ name }}</option>
+        {%- endfor %}
+        <option value="other">Other language</option>
+      </select>
+      <label class="oc-sr-only" for="ti-target-other">Language name</label>
+      <input class="oc-input ti-other" id="ti-target-other" type="text" maxlength="40" autocomplete="off" placeholder="Language name" hidden>
+    </div>
+    <div class="ti-output" id="ti-output" tabindex="0" aria-live="polite" aria-label="Translation" data-empty="Translation"></div>
+    <div class="ti-paragraphs" id="ti-paragraphs" hidden></div>
+    <div class="ti-tools">
+      <span class="ti-progress" id="ti-progress" hidden></span>
+      <span class="oc-status oc-status--warning" id="ti-incomplete" hidden>{{ self.icon("triangle-alert")|safe }}<span>Incomplete</span></span>
+      {%- if !f.speech.is_empty() %}
+      <button type="button" class="oc-btn oc-btn--icon" id="ti-read-output" aria-pressed="false" aria-label="Read aloud" data-oc-tip="Read aloud" hidden>{{ self.icon("volume-2")|safe }}</button>
+      {%- endif %}
+      <button type="button" class="oc-btn oc-btn--icon" id="ti-markdown" aria-pressed="false" aria-label="Show as Markdown" data-oc-tip="Show as Markdown" disabled>{{ self.icon("text-quote")|safe }}</button>
+      <button type="button" class="oc-btn oc-btn--icon" id="ti-side" aria-pressed="false" aria-label="Side by side" data-oc-tip="Side by side" disabled>{{ self.icon("columns-2")|safe }}</button>
+      {%- if f.bitvault %}
+      <button type="button" class="oc-btn oc-btn--icon" id="ti-save-output" aria-label="Save to BitVault" data-oc-tip="Save to BitVault" disabled>{{ self.icon("save")|safe }}</button>
+      {%- endif %}
+      <button type="button" class="oc-btn oc-btn--icon oc-copy" id="ti-copy" aria-label="Copy translation" data-oc-tip="Copy translation" data-oc-copy="" disabled>{{ copy_icons|safe }}</button>
+    </div>
+  </section>
+</div>
+<div class="ti-actions">
+  <div class="oc-field ti-context">
+    <label for="ti-context">Context</label>
+    <input class="oc-input" id="ti-context" type="text" maxlength="300" autocomplete="off" placeholder="medical, legal, casual">
+  </div>
+  <button type="button" class="oc-btn oc-btn--primary oc-fab" id="ti-go" data-oc-tip="Translate (Ctrl+Enter)">{{ self.icon("languages")|safe }}<span>Translate</span></button>
+</div>
+</div>

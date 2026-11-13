@@ -1,0 +1,126 @@
+<div class="oc-page-head"><h1>Settings</h1></div>
+{%- if let Some((kind, text)) = notice %}
+<div class="oc-notice oc-notice--{{ kind }}" role="status">{{ notice_icon|safe }}<span class="oc-notice__text">{{ text }}</span></div>
+{%- endif %}
+<div class="ti-settings">
+
+<section aria-labelledby="s-now">
+  <h2 id="s-now">In use</h2>
+  <dl class="oc-facts">
+    <dt>Access</dt><dd><span class="oc-value">{{ self.tier_label() }}</span></dd>
+    {%- if !host.is_empty() %}
+    <dt>Endpoint</dt><dd><span class="oc-value ti-mono">{{ host }}</span></dd>
+    {%- endif %}
+    {%- if !model.is_empty() %}
+    <dt>Model</dt><dd><span class="oc-value ti-mono">{{ model }}</span></dd>
+    {%- endif %}
+    <dt>Text limit</dt><dd><span class="oc-value">{% if let Some(l) = char_limit %}{{ l }} characters{% else %}none{% endif %}</span></dd>
+  </dl>
+</section>
+
+{%- if gated_mode && tier != Tier::Own %}
+<section aria-labelledby="s-access">
+  <h2 id="s-access">Access key</h2>
+  {%- if tier == Tier::Gated %}
+  <form method="post" action="/settings/lock" class="oc-form">
+    <p>Files and longer texts are unlocked.</p>
+    <div class="oc-form__actions"><button type="submit" class="oc-btn">Lock</button></div>
+  </form>
+  {%- else %}
+  <form method="post" action="/settings/unlock" class="oc-form">
+    <div class="oc-field">
+      <label for="s-key">Access key</label>
+      <input class="oc-input" id="s-key" name="key" type="password" autocomplete="current-password" required>
+    </div>
+    <div class="oc-form__actions"><button type="submit" class="oc-btn oc-btn--primary">Unlock</button></div>
+  </form>
+  {%- endif %}
+</section>
+{%- endif %}
+
+{%- if models.len() > 1 || transcription_models.len() > 1 %}
+<section aria-labelledby="s-models">
+  <h2 id="s-models">Models</h2>
+  <form method="post" action="/settings/models" class="oc-form">
+    {%- if models.len() > 1 %}
+    <div class="oc-field">
+      <label for="s-model">Translation</label>
+      <select class="oc-input" id="s-model" name="model" data-oc-menu>
+        {%- for m in models %}
+        <option value="{{ m }}"{% if *m == model %} selected{% endif %}>{{ m }}</option>
+        {%- endfor %}
+      </select>
+    </div>
+    {%- endif %}
+    {%- if transcription_models.len() > 1 %}
+    <div class="oc-field">
+      <label for="s-tmodel">Speech to text</label>
+      <select class="oc-input" id="s-tmodel" name="transcription_model" data-oc-menu>
+        {%- for m in transcription_models %}
+        <option value="{{ m }}"{% if *m == transcription_model %} selected{% endif %}>{{ m }}</option>
+        {%- endfor %}
+      </select>
+    </div>
+    {%- endif %}
+    <div class="oc-form__actions"><button type="submit" class="oc-btn">Save models</button></div>
+  </form>
+</section>
+{%- endif %}
+
+{%- if byok %}
+<section aria-labelledby="s-own">
+  <h2 id="s-own">Your own endpoint</h2>
+  {%- if let Some(o) = own %}
+  <form method="post" action="/settings/own/forget" class="oc-form">
+    <dl class="oc-facts">
+      <dt>Translation</dt><dd><span class="oc-value ti-mono">{{ o.url }}</span></dd>
+      {%- if !o.transcription_url.is_empty() %}
+      <dt>Speech to text</dt><dd><span class="oc-value ti-mono">{{ o.transcription_url }}</span></dd>
+      {%- endif %}
+      {%- if !o.speech_url.is_empty() %}
+      <dt>Text to speech</dt><dd><span class="oc-value ti-mono">{{ o.speech_url }}</span></dd>
+      {%- endif %}
+    </dl>
+    <div class="oc-form__actions"><button type="submit" class="oc-btn">Forget endpoint</button></div>
+  </form>
+  {%- else %}
+  <form method="post" action="/settings/own" class="oc-form">
+    <p class="ti-hint">Any OpenAI-compatible endpoint. This server forwards your requests and keeps the key until you close the browser.</p>
+    <div class="oc-field">
+      <label for="o-url">Address</label>
+      <input class="oc-input" id="o-url" name="url" type="url" inputmode="url" autocomplete="url" required>
+    </div>
+    <div class="oc-field">
+      <label for="o-key">API key</label>
+      <input class="oc-input" id="o-key" name="key" type="password" autocomplete="off">
+    </div>
+    <details class="ti-more">
+      <summary>Separate speech endpoints</summary>
+      <div class="oc-stack">
+        <div class="oc-field">
+          <label for="o-turl">Speech to text address</label>
+          <input class="oc-input" id="o-turl" name="transcription_url" type="url" inputmode="url" autocomplete="off">
+        </div>
+        <div class="oc-field">
+          <label for="o-tkey">Speech to text API key</label>
+          <input class="oc-input" id="o-tkey" name="transcription_key" type="password" autocomplete="off">
+        </div>
+        {%- if speech %}
+        <div class="oc-field">
+          <label for="o-surl">Text to speech address</label>
+          <input class="oc-input" id="o-surl" name="speech_url" type="url" inputmode="url" autocomplete="off">
+        </div>
+        <div class="oc-field">
+          <label for="o-skey">Text to speech API key</label>
+          <input class="oc-input" id="o-skey" name="speech_key" type="password" autocomplete="off">
+        </div>
+        {%- endif %}
+      </div>
+    </details>
+    <div class="oc-form__actions"><button type="submit" class="oc-btn{% if !(gated_mode && tier == Tier::Free) %} oc-btn--primary{% endif %}">Connect</button></div>
+  </form>
+  {%- endif %}
+</section>
+{%- endif %}
+
+</div>
