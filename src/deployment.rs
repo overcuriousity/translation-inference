@@ -76,7 +76,9 @@ impl Deployment {
 
     pub fn host_allowed(&self, host: &str) -> bool {
         if self.loopback_dev {
-            return LOOPBACK_NAMES.iter().any(|n| host == format!("{n}:{}", self.port) || (self.port == 80 && host == *n));
+            return LOOPBACK_NAMES
+                .iter()
+                .any(|n| host == format!("{n}:{}", self.port) || (self.port == 80 && host == *n));
         }
         host == self.public_host
     }

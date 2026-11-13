@@ -9,7 +9,14 @@ use crate::error::Error;
 const MAX_CHUNKS: usize = 256;
 
 /// Synthesises `text` as MP3, in chunks of at most `chunk_bytes` when that is not 0.
-pub async fn synthesize(http: &Client, ep: &Endpoint, voice: &str, model: &str, text: &str, chunk_bytes: usize) -> Result<Vec<u8>, Error> {
+pub async fn synthesize(
+    http: &Client,
+    ep: &Endpoint,
+    voice: &str,
+    model: &str,
+    text: &str,
+    chunk_bytes: usize,
+) -> Result<Vec<u8>, Error> {
     let chunks = split_into_chunks(text, (chunk_bytes > 0).then_some(chunk_bytes));
     if chunks.len() > MAX_CHUNKS {
         return Err(Error::invalid("The text is too long to read aloud. Shorten it and try again."));
@@ -105,11 +112,7 @@ fn split_sentences(text: &str) -> Vec<String> {
     while i < len {
         let ch = chars[i];
         // ASCII sentence terminators + fullwidth equivalents used in Japanese, Chinese, Korean.
-        if matches!(
-            ch,
-            '.' | '!' | '?' | '。' | '！' | '？' | '…' | '\u{203C}' | '\u{2049}'
-        ) || ch == '\n'
-        {
+        if matches!(ch, '.' | '!' | '?' | '。' | '！' | '？' | '…' | '\u{203C}' | '\u{2049}') || ch == '\n' {
             // Include the punctuation and any following whitespace in this span.
             let mut end = i + 1;
             while end < len && (chars[end] == ' ' || chars[end] == '\u{3000}') {

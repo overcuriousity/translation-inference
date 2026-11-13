@@ -53,6 +53,9 @@ impl Endpoint {
 /// The one HTTP client for every upstream. Redirects are not followed: an endpoint the visitor
 /// names must not bounce the server somewhere else.
 pub fn http_client() -> Result<Client, Error> {
+    // ring instead of aws-lc keeps the static musl build free of a C toolchain. Installing twice
+    // (tests build several apps) only reports that one is already there.
+    let _ = rustls::crypto::ring::default_provider().install_default();
     Client::builder()
         .redirect(reqwest::redirect::Policy::none())
         .connect_timeout(Duration::from_secs(10))
@@ -63,7 +66,8 @@ pub fn http_client() -> Result<Client, Error> {
 
 /// Turns a failed request or a non-success answer into an error the visitor can act on.
 pub async fn check(res: Result<reqwest::Response, reqwest::Error>, what: &str) -> Result<reqwest::Response, Error> {
-    let res = res.map_err(|e| Error::upstream(format!("The {what} endpoint could not be reached. Try again later."), e))?;
+    let res =
+        res.map_err(|e| Error::upstream(format!("The {what} endpoint could not be reached. Try again later."), e))?;
     let status = res.status();
     if status.is_success() {
         return Ok(res);
@@ -185,7 +189,8 @@ async fn probe_one(http: &Client, ep: &Endpoint, model: &str, kind: Kind) -> Opt
             "model": model, "messages": [{"role": "user", "content": "x"}], "max_tokens": 1
         })),
         Kind::Transcription => {
-            let part = reqwest::multipart::Part::bytes(silent_wav()).file_name("probe.wav").mime_str("audio/wav").ok()?;
+            let part =
+                reqwest::multipart::Part::bytes(silent_wav()).file_name("probe.wav").mime_str("audio/wav").ok()?;
             let form = reqwest::multipart::Form::new().text("model", model.to_owned()).part("file", part);
             ep.post(http, "/v1/audio/transcriptions").multipart(form)
         }

@@ -64,7 +64,14 @@ pub struct Extras {
     pub js: Vec<String>,
 }
 
-pub fn page_with(st: &AppState, shell: &Shell, current: &'static str, title: &str, body: String, extras: Extras) -> Result<Html<String>, Error> {
+pub fn page_with(
+    st: &AppState,
+    shell: &Shell,
+    current: &'static str,
+    title: &str,
+    body: String,
+    extras: Extras,
+) -> Result<Html<String>, Error> {
     let layout = shell::Layout {
         title: title.to_owned(),
         current,
@@ -101,7 +108,11 @@ pub fn icon(name: &str, size: IconSize) -> String {
         IconSize::Tool => "oc-icon",
         IconSize::Tab => "oc-icon oc-icon--tab",
     };
-    String::from_utf8_lossy(&file.data).trim_end().replacen("class=\"oc-icon\"", &format!("class=\"{class}\" data-icon=\"{name}\""), 1)
+    String::from_utf8_lossy(&file.data).trim_end().replacen(
+        "class=\"oc-icon\"",
+        &format!("class=\"{class}\" data-icon=\"{name}\""),
+        1,
+    )
 }
 
 /// The status symbol of a notice of `kind`, so no status is told by colour alone.

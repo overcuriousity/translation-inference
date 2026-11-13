@@ -234,10 +234,37 @@ pub fn load_from(file: Option<&Path>, vars: impl Iterator<Item = (String, String
     for pair in files {
         fig = fig.merge(pair);
     }
-    fig.extract().map_err(|e| Error::invalid(format!("Invalid configuration: {e}.")))
+    let mut cfg: Config = fig.extract().map_err(|e| Error::invalid(format!("Invalid configuration: {e}.")))?;
+    cfg.read_secret_files()?;
+    Ok(cfg)
+}
+
+/// A secret given as `file:///path` is the trimmed contents of that file.
+fn read_secret(value: &mut Option<String>) -> Result<(), Error> {
+    if let Some(path) = value.as_deref().and_then(|v| v.strip_prefix("file://")) {
+        let secret = std::fs::read_to_string(path)
+            .map_err(|e| Error::invalid(format!("Cannot read the secret file {path}: {e}.")))?;
+        *value = Some(secret.trim().to_owned());
+    }
+    Ok(())
 }
 
 impl Config {
+    fn read_secret_files(&mut self) -> Result<(), Error> {
+        let a = &mut self.app;
+        read_secret(&mut a.access_key)?;
+        for b in [&mut a.backend, &mut a.gated].into_iter().flatten() {
+            read_secret(&mut b.api_key)?;
+        }
+        if let Some(s) = &mut a.speech {
+            read_secret(&mut s.api_key)?;
+        }
+        if let Some(b) = &mut a.bitvault {
+            read_secret(&mut b.uploader_password)?;
+        }
+        Ok(())
+    }
+
     /// Stops start-up on a combination that cannot work, naming the key to fix.
     pub fn validate(&self) -> Result<(), Error> {
         let a = &self.app;

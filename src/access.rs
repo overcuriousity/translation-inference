@@ -99,7 +99,9 @@ impl Access {
         if let Some(own) = &self.session.own {
             return Ok(own.chat.clone());
         }
-        self.backend(st).map(Self::server_endpoint).ok_or(Error::NotConfigured("translation endpoint; connect your own in Settings"))
+        self.backend(st)
+            .map(Self::server_endpoint)
+            .ok_or(Error::NotConfigured("translation endpoint; connect your own in Settings"))
     }
 
     pub fn transcription(&self, st: &AppState) -> Result<Endpoint, Error> {
@@ -174,7 +176,9 @@ impl Access {
             Some(m) if models.translation.iter().any(|x| x == m) => Ok(m.to_owned()),
             // An own endpoint that lists no models still takes the name it was given.
             Some(m) if self.tier == Tier::Own && models.translation.is_empty() => Ok(m.to_owned()),
-            Some(_) if requested.is_some() => Err(Error::invalid("That model is not offered here. Choose one from /api/v1/models.")),
+            Some(_) if requested.is_some() => {
+                Err(Error::invalid("That model is not offered here. Choose one from /api/v1/models."))
+            }
             _ => models
                 .translation
                 .first()
@@ -219,7 +223,11 @@ impl FromRequestParts<AppState> for Access {
             && st.cfg.gated_mode()
         {
             check_key(st, parts.extensions.get::<ClientIp>().copied(), given)?;
-            return Ok(Self { tier: Tier::Gated, sid: None, session: Session { unlocked: true, ..Session::default() } });
+            return Ok(Self {
+                tier: Tier::Gated,
+                sid: None,
+                session: Session { unlocked: true, ..Session::default() },
+            });
         }
         let sid = parts.extensions.get::<Sid>().map(|s| s.0.clone()).or_else(|| cookie_id(&parts.headers, &st.dep));
         if let Some(id) = sid

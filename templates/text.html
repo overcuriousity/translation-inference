@@ -21,8 +21,8 @@
     <div class="ti-tools">
       {%- if f.transcribe %}
       <button type="button" class="oc-btn oc-btn--icon" id="ti-mic" aria-pressed="false" aria-label="Dictate" data-oc-tip="Dictate">{{ self.icon("mic")|safe }}</button>
-      <label class="oc-btn oc-btn--icon" for="ti-media" aria-label="Transcribe a recording" data-oc-tip="Transcribe a recording">{{ self.icon("upload")|safe }}</label>
-      <input class="oc-sr-only" type="file" id="ti-media" accept="audio/*,video/*" tabindex="-1">
+      <input class="oc-sr-only ti-file-input" type="file" id="ti-media" accept="audio/*,video/*" aria-label="Transcribe a recording">
+      <label class="oc-btn oc-btn--icon" for="ti-media" data-oc-tip="Transcribe a recording">{{ self.icon("upload")|safe }}</label>
       {%- endif %}
       {%- if !f.speech.is_empty() %}
       <button type="button" class="oc-btn oc-btn--icon" id="ti-read-source" aria-pressed="false" aria-label="Read aloud" data-oc-tip="Read aloud" hidden>{{ self.icon("volume-2")|safe }}</button>

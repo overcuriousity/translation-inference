@@ -11,7 +11,11 @@ use translation_inference::{app, config};
 const DRAIN: std::time::Duration = std::time::Duration::from_secs(25);
 
 #[derive(Parser)]
-#[command(name = "translation-inference", version, about = "Translate and transcribe through OpenAI-compatible endpoints")]
+#[command(
+    name = "translation-inference",
+    version,
+    about = "Translate and transcribe through OpenAI-compatible endpoints"
+)]
 struct Cli {
     /// TOML config file; TRANSLATION_INFERENCE__SECTION__KEY environment variables override it.
     #[arg(long)]
@@ -44,7 +48,9 @@ async fn run(cli: Cli) -> Result<(), Error> {
         tracing::warn!("Plain http is on: access keys and texts travel unencrypted on the network.");
     }
     app::warm_catalog(&st);
-    let listener = tokio::net::TcpListener::bind(bind).await.map_err(|e| Error::invalid(format!("Cannot listen on {bind}: {e}.")))?;
+    let listener = tokio::net::TcpListener::bind(bind)
+        .await
+        .map_err(|e| Error::invalid(format!("Cannot listen on {bind}: {e}.")))?;
     tracing::info!("Listening on {}", st.dep.origin);
     let _ = sd_notify::notify(&[sd_notify::NotifyState::Ready]);
     spawn_watchdog();

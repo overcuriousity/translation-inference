@@ -12,12 +12,7 @@ pub struct SubtitleCue {
 pub fn parse_srt(input: &str) -> Vec<SubtitleCue> {
     let mut cues = Vec::new();
     let normalised = input.replace("\r\n", "\n");
-    let blocks: Vec<&str> = normalised
-        .trim()
-        .split("\n\n")
-        .map(str::trim)
-        .filter(|b| !b.is_empty())
-        .collect();
+    let blocks: Vec<&str> = normalised.trim().split("\n\n").map(str::trim).filter(|b| !b.is_empty()).collect();
 
     for block in blocks {
         let lines: Vec<&str> = block.lines().collect();
@@ -35,10 +30,7 @@ pub fn parse_srt(input: &str) -> Vec<SubtitleCue> {
         if text_lines.is_empty() {
             continue;
         }
-        cues.push(SubtitleCue {
-            header,
-            lines: text_lines,
-        });
+        cues.push(SubtitleCue { header, lines: text_lines });
     }
     cues
 }
@@ -53,12 +45,7 @@ pub fn parse_vtt(input: &str) -> (Vec<String>, Vec<SubtitleCue>) {
     let mut metadata = Vec::new();
     let mut cues = Vec::new();
     let normalised = input.replace("\r\n", "\n");
-    let blocks: Vec<&str> = normalised
-        .trim()
-        .split("\n\n")
-        .map(str::trim)
-        .filter(|b| !b.is_empty())
-        .collect();
+    let blocks: Vec<&str> = normalised.trim().split("\n\n").map(str::trim).filter(|b| !b.is_empty()).collect();
 
     for block in blocks {
         let first_line = block.lines().next().unwrap_or("").trim();
@@ -85,25 +72,15 @@ pub fn parse_vtt(input: &str) -> (Vec<String>, Vec<SubtitleCue>) {
         };
 
         // Header: everything up to and including the timecode line.
-        let header = lines[..=timecode_idx]
-            .iter()
-            .map(|l| l.trim())
-            .collect::<Vec<_>>()
-            .join("\n");
+        let header = lines[..=timecode_idx].iter().map(|l| l.trim()).collect::<Vec<_>>().join("\n");
 
-        let text_lines: Vec<String> = lines[timecode_idx + 1..]
-            .iter()
-            .map(|l| l.trim().to_string())
-            .filter(|l| !l.is_empty())
-            .collect();
+        let text_lines: Vec<String> =
+            lines[timecode_idx + 1..].iter().map(|l| l.trim().to_string()).filter(|l| !l.is_empty()).collect();
 
         if text_lines.is_empty() {
             continue;
         }
-        cues.push(SubtitleCue {
-            header,
-            lines: text_lines,
-        });
+        cues.push(SubtitleCue { header, lines: text_lines });
     }
     (metadata, cues)
 }

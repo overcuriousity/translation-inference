@@ -4,11 +4,11 @@
 use std::time::Duration;
 
 use askama::Template;
+use axum::Router;
 use axum::extract::{Form, Query, State};
 use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::routing::{get, post};
-use axum::Router;
 use serde::Deserialize;
 
 use super::{Extras, Shell, page_with, render};
@@ -104,14 +104,17 @@ fn page(st: &AppState, access: &Access, notice: Option<(&'static str, String)>) 
 }
 
 fn respond(st: &AppState, shell: &Shell, status: StatusCode, notice: Option<(&'static str, String)>) -> Response {
-    match page(st, &shell.access, notice).and_then(|body| page_with(st, shell, "settings", "Settings", body, Extras::default())) {
+    match page(st, &shell.access, notice)
+        .and_then(|body| page_with(st, shell, "settings", "Settings", body, Extras::default()))
+    {
         Ok(html) => (status, html).into_response(),
         Err(e) => e.into_response(),
     }
 }
 
 async fn show(State(st): State<AppState>, shell: Shell, Query(q): Query<Done>) -> Response {
-    let notice = q.done.as_deref().and_then(|d| DONE.iter().find(|(k, _)| *k == d)).map(|(_, m)| ("success", (*m).to_owned()));
+    let notice =
+        q.done.as_deref().and_then(|d| DONE.iter().find(|(k, _)| *k == d)).map(|(_, m)| ("success", (*m).to_owned()));
     respond(&st, &shell, StatusCode::OK, notice)
 }
 
@@ -134,7 +137,12 @@ struct KeyForm {
     key: String,
 }
 
-async fn unlock(State(st): State<AppState>, shell: Shell, ip: Result<ClientIp, Error>, Form(f): Form<KeyForm>) -> Response {
+async fn unlock(
+    State(st): State<AppState>,
+    shell: Shell,
+    ip: Result<ClientIp, Error>,
+    Form(f): Form<KeyForm>,
+) -> Response {
     let ip = ip.ok();
     if !st.cfg.gated_mode() {
         return back("unlocked").into_response();
@@ -172,7 +180,12 @@ async fn models(State(st): State<AppState>, shell: Shell, Form(f): Form<ModelsFo
     let a = &shell.access;
     let chosen = (|| {
         let model = f.model.as_deref().filter(|m| !m.is_empty()).map(|m| a.model(&st, Some(m))).transpose()?;
-        let tmodel = f.transcription_model.as_deref().filter(|m| !m.is_empty()).map(|m| a.transcription_model(&st, Some(m))).transpose()?;
+        let tmodel = f
+            .transcription_model
+            .as_deref()
+            .filter(|m| !m.is_empty())
+            .map(|m| a.transcription_model(&st, Some(m)))
+            .transpose()?;
         Ok::<_, Error>((model, tmodel, sid(&shell)?.to_owned()))
     })();
     match chosen {
@@ -212,16 +225,19 @@ async fn connect(State(st): State<AppState>, shell: Shell, Form(f): Form<OwnForm
         return refuse(&st, &shell, &Error::Forbidden);
     }
     let result = async {
-        let chat = endpoint(Some(&f.url), f.key.as_deref(), "endpoint")?.ok_or_else(|| Error::invalid("Enter your endpoint's address."))?;
+        let chat = endpoint(Some(&f.url), f.key.as_deref(), "endpoint")?
+            .ok_or_else(|| Error::invalid("Enter your endpoint's address."))?;
         let transcription = endpoint(f.transcription_url.as_deref(), f.transcription_key.as_deref(), "transcription")?;
         let speech = endpoint(f.speech_url.as_deref(), f.speech_key.as_deref(), "speech")?;
         // The endpoint must answer before it is kept; probing every model can take a while.
-        let mut models = tokio::time::timeout(Duration::from_secs(90), upstream::discover(&st.http, &chat, None))
-            .await
-            .map_err(|_| Error::upstream("Your endpoint took too long to list its models. Try again.", "discover timed out"))??;
+        let mut models =
+            tokio::time::timeout(Duration::from_secs(90), upstream::discover(&st.http, &chat, None)).await.map_err(
+                |_| Error::upstream("Your endpoint took too long to list its models. Try again.", "discover timed out"),
+            )??;
         if let Some(t) = &transcription
             && t != &chat
-            && let Ok(Ok(m)) = tokio::time::timeout(Duration::from_secs(60), upstream::discover(&st.http, t, None)).await
+            && let Ok(Ok(m)) =
+                tokio::time::timeout(Duration::from_secs(60), upstream::discover(&st.http, t, None)).await
         {
             models.transcription = m.transcription;
         }

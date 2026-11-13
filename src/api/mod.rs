@@ -82,8 +82,11 @@ pub async fn json_errors(req: Request, next: Next) -> Response {
     if let Some(n) = res.extensions().get::<ErrorNotice>() {
         return error_json(n.code, &n.message, n.status);
     }
-    let is_json =
-        res.headers().get(header::CONTENT_TYPE).and_then(|v| v.to_str().ok()).is_some_and(|v| v.starts_with("application/json"));
+    let is_json = res
+        .headers()
+        .get(header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|v| v.starts_with("application/json"));
     if is_json {
         return res;
     }
@@ -197,13 +200,20 @@ pub struct TranslateRequest {
 impl TranslateRequest {
     fn job(self, st: &AppState, access: &Access) -> Result<Job, Error> {
         access.check_len(st, &self.text)?;
-        let target = languages::target(&self.target)
-            .ok_or_else(|| Error::invalid("Choose a target language: a code from /api/v1/languages or a language name."))?;
+        let target = languages::target(&self.target).ok_or_else(|| {
+            Error::invalid("Choose a target language: a code from /api/v1/languages or a language name.")
+        })?;
         let source = match self.source.as_deref().map(str::trim) {
             None | Some("") | Some("auto") => "auto".to_owned(),
             Some(s) => languages::target(s).ok_or_else(|| Error::invalid("That source language is not one I know."))?,
         };
-        Ok(Job { model: access.model(st, self.model.as_deref())?, source, target, text: self.text, context: self.context })
+        Ok(Job {
+            model: access.model(st, self.model.as_deref())?,
+            source,
+            target,
+            text: self.text,
+            context: self.context,
+        })
     }
 }
 
@@ -270,7 +280,11 @@ fn sse(stream: impl Stream<Item = Event> + Send + 'static) -> Response {
         (status = 413, description = "Longer than the tier allows (`TOO_LONG`).", body = ErrorBody),
     )
 )]
-async fn translate_stream(State(st): State<AppState>, access: Access, ApiJson(req): ApiJson<TranslateRequest>) -> Result<Response, Error> {
+async fn translate_stream(
+    State(st): State<AppState>,
+    access: Access,
+    ApiJson(req): ApiJson<TranslateRequest>,
+) -> Result<Response, Error> {
     let job = req.job(&st, &access)?;
     let ep = access.chat(&st)?;
     let pieces = translate::translate_stream(st.http.clone(), ep, job, st.cfg.app.tuning.clone());
@@ -345,7 +359,11 @@ pub struct DetectResponse {
     request_body = DetectRequest,
     responses((status = 200, body = DetectResponse), (status = 502, body = ErrorBody))
 )]
-async fn detect_language(State(st): State<AppState>, access: Access, ApiJson(req): ApiJson<DetectRequest>) -> Result<Json<DetectResponse>, Error> {
+async fn detect_language(
+    State(st): State<AppState>,
+    access: Access,
+    ApiJson(req): ApiJson<DetectRequest>,
+) -> Result<Json<DetectResponse>, Error> {
     let model = access.model(&st, None)?;
     let language = detect::detect(&st.http, &access.chat(&st)?, &model, &req.text).await?;
     Ok(Json(DetectResponse { language }))
@@ -357,11 +375,13 @@ async fn detect_language(State(st): State<AppState>, access: Access, ApiJson(req
 struct Upload {
     name: String,
     file: NamedTempFile,
-    len: usize,
 }
 
 /// Reads a multipart body: text fields into the map, the `file` part to a temporary file.
-async fn read_form(mut mp: Multipart, max: usize) -> Result<(std::collections::HashMap<String, String>, Option<Upload>), Error> {
+async fn read_form(
+    mut mp: Multipart,
+    max: usize,
+) -> Result<(std::collections::HashMap<String, String>, Option<Upload>), Error> {
     let bad = |_| Error::invalid("The upload could not be read. Try again.");
     let mut fields = std::collections::HashMap::new();
     let mut upload = None;
@@ -369,13 +389,21 @@ async fn read_form(mut mp: Multipart, max: usize) -> Result<(std::collections::H
         let name = field.name().unwrap_or_default().to_owned();
         if name == "file" {
             let filename = field.file_name().unwrap_or("upload").to_owned();
-            let ext = std::path::Path::new(&filename).extension().and_then(|e| e.to_str()).unwrap_or("bin").to_ascii_lowercase();
+            let ext = std::path::Path::new(&filename)
+                .extension()
+                .and_then(|e| e.to_str())
+                .unwrap_or("bin")
+                .to_ascii_lowercase();
             let ext: String = ext.chars().filter(char::is_ascii_alphanumeric).take(8).collect();
             let file = tempfile::Builder::new().suffix(&format!(".{ext}")).tempfile()?;
             let mut out = tokio::fs::File::from_std(file.reopen()?);
             let mut len = 0;
             while let Some(chunk) = field.chunk().await.map_err(|e| {
-                if e.status() == StatusCode::PAYLOAD_TOO_LARGE { Error::TooLarge } else { Error::invalid("The upload broke off. Try again.") }
+                if e.status() == StatusCode::PAYLOAD_TOO_LARGE {
+                    Error::TooLarge
+                } else {
+                    Error::invalid("The upload broke off. Try again.")
+                }
             })? {
                 len += chunk.len();
                 if len > max {
@@ -384,7 +412,7 @@ async fn read_form(mut mp: Multipart, max: usize) -> Result<(std::collections::H
                 out.write_all(&chunk).await?;
             }
             out.flush().await?;
-            upload = Some(Upload { name: filename, file, len });
+            upload = Some(Upload { name: filename, file });
         } else if !name.is_empty() {
             let text = field.text().await.map_err(bad)?;
             fields.insert(name, text);
@@ -425,7 +453,11 @@ pub struct TranscribeResponse {
         (status = 422, description = "Not an audio or video file (`INVALID`).", body = ErrorBody),
     )
 )]
-async fn transcribe_file(State(st): State<AppState>, access: Access, mp: Multipart) -> Result<Json<TranscribeResponse>, Error> {
+async fn transcribe_file(
+    State(st): State<AppState>,
+    access: Access,
+    mp: Multipart,
+) -> Result<Json<TranscribeResponse>, Error> {
     let ep = access.transcription(&st)?;
     let (fields, upload) = read_form(mp, upload_limit(&st)).await?;
     let upload = upload.ok_or_else(|| Error::invalid("Attach the audio or video as the file part."))?;
@@ -497,7 +529,6 @@ async fn translate_subtitles(State(st): State<AppState>, access: Access, mp: Mul
     let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("subtitles").to_owned();
     let lang_tag: String = base.target.chars().filter(|c| c.is_ascii_alphanumeric() || *c == '-').collect();
     let filename = format!("{stem}.{}.{ext}", if lang_tag.is_empty() { "translated" } else { &lang_tag });
-    let _ = upload.len;
     let stream = async_stream::stream! {
         let total = cues.len();
         for (i, cue) in cues.iter_mut().enumerate() {
@@ -542,7 +573,11 @@ pub struct SpeechRequest {
         (status = 503, description = "No speech endpoint (`NOT_CONFIGURED`).", body = ErrorBody),
     )
 )]
-async fn speak(State(st): State<AppState>, access: Access, ApiJson(req): ApiJson<SpeechRequest>) -> Result<Response, Error> {
+async fn speak(
+    State(st): State<AppState>,
+    access: Access,
+    ApiJson(req): ApiJson<SpeechRequest>,
+) -> Result<Response, Error> {
     if req.text.trim().is_empty() {
         return Err(Error::invalid("There is no text to read aloud."));
     }
@@ -576,7 +611,11 @@ pub struct SaveResponse {
         (status = 503, description = "No BitVault configured (`NOT_CONFIGURED`).", body = ErrorBody),
     )
 )]
-async fn save_to_bitvault(State(st): State<AppState>, _access: Access, ApiJson(req): ApiJson<SaveRequest>) -> Result<Json<SaveResponse>, Error> {
+async fn save_to_bitvault(
+    State(st): State<AppState>,
+    _access: Access,
+    ApiJson(req): ApiJson<SaveRequest>,
+) -> Result<Json<SaveResponse>, Error> {
     let bv = st.cfg.app.bitvault.as_ref().ok_or(Error::NotConfigured("BitVault"))?;
     Ok(Json(SaveResponse { url: bitvault::save(&st.http, bv, &req.text).await? }))
 }

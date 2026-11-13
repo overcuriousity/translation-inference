@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use axum::Router;
-use axum::middleware::{from_fn, from_fn_with_state};
+use axum::middleware::from_fn_with_state;
 
 use crate::config::Config;
 use crate::deployment::Deployment;
@@ -51,11 +51,8 @@ pub fn build_with(cfg: Config, ffmpeg: bool, extra: Router<AppState>) -> Result<
         .layer(from_fn_with_state(st.clone(), web::session))
         .with_state(st.clone());
     let rest = security::limited(rest, JSON_LIMIT, SLOW);
-    let router = security::secure(
-        uploads.merge(rest).merge(assets::router()).layer(from_fn(api::json_errors)),
-        st.dep.clone(),
-        st.cfg.trusted_proxies.clone(),
-    );
+    let router =
+        security::secure(uploads.merge(rest).merge(assets::router()), st.dep.clone(), st.cfg.trusted_proxies.clone());
     Ok((router, st))
 }
 
@@ -77,7 +74,9 @@ pub fn warm_catalog(st: &AppState) {
                     tracing::info!(endpoint = %ep.host(), translation = models.translation.len(), transcription = models.transcription.len(), "models found");
                     catalog.set_models(&ep, models);
                 }
-                Err(e) => tracing::warn!(endpoint = %ep.host(), detail = ?e.detail(), "the model list could not be fetched; only the configured default is offered"),
+                Err(e) => {
+                    tracing::warn!(endpoint = %ep.host(), detail = ?e.detail(), "the model list could not be fetched; only the configured default is offered")
+                }
             }
         });
     }

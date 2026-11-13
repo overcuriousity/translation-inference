@@ -62,7 +62,8 @@ impl Layout {
     }
 
     fn nav(&self) -> Vec<NavItem> {
-        let item = |href, label, icon, key| NavItem { href, label, icon, current: self.current == key, wide_only: false };
+        let item =
+            |href, label, icon, key| NavItem { href, label, icon, current: self.current == key, wide_only: false };
         let mut items = vec![item("/", "Text", "languages", "text")];
         if self.files {
             items.push(item("/files", "Files", "file-text", "files"));

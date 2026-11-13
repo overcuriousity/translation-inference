@@ -47,11 +47,18 @@ pub async fn render(State(st): State<AppState>, req: Request, next: Next) -> Res
     }
     let session = sid.as_deref().and_then(|id| st.sessions.get(id)).unwrap_or_default();
     let shell = Shell { access: Access::from_session(&st, sid, session) };
-    let (back, back_label) = if path.starts_with("/settings") { ("/settings", "Back to Settings") } else { ("/", "Back to the start") };
-    let page = ErrorPage { heading: heading(notice.status), icon: super::notice_icon("danger"), message: &notice.message, back, back_label }
-        .render()
-        .map_err(Error::internal)
-        .and_then(|body| page_with(&st, &shell, "", heading(notice.status), body, super::Extras::default()));
+    let (back, back_label) =
+        if path.starts_with("/settings") { ("/settings", "Back to Settings") } else { ("/", "Back to the start") };
+    let page = ErrorPage {
+        heading: heading(notice.status),
+        icon: super::notice_icon("danger"),
+        message: &notice.message,
+        back,
+        back_label,
+    }
+    .render()
+    .map_err(Error::internal)
+    .and_then(|body| page_with(&st, &shell, "", heading(notice.status), body, super::Extras::default()));
     match page {
         Ok(html) => (notice.status, html).into_response(),
         Err(_) => res,

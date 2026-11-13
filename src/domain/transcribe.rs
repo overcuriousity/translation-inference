@@ -57,7 +57,8 @@ async fn prepare(input: &Path) -> Result<(TempDir, Vec<std::path::PathBuf>), Err
         return Ok((dir, vec![wav]));
     }
     let pattern = dir.path().join("segment_%03d.wav");
-    let seg = ["-f", "segment", "-segment_time", "600", "-c", "copy", "-reset_timestamps", "1"].map(std::ffi::OsStr::new);
+    let seg =
+        ["-f", "segment", "-segment_time", "600", "-c", "copy", "-reset_timestamps", "1"].map(std::ffi::OsStr::new);
     let mut args = vec![std::ffi::OsStr::new("-i"), wav.as_os_str()];
     args.extend(seg);
     args.push(pattern.as_os_str());
@@ -81,7 +82,8 @@ struct Transcript {
 async fn send(http: &Client, ep: &Endpoint, model: &str, language: Option<&str>, wav: &Path) -> Result<String, Error> {
     let file = tokio::fs::File::open(wav).await?;
     let body = reqwest::Body::wrap_stream(tokio_util::io::ReaderStream::new(file));
-    let part = reqwest::multipart::Part::stream(body).file_name("audio.wav").mime_str("audio/wav").map_err(Error::internal)?;
+    let part =
+        reqwest::multipart::Part::stream(body).file_name("audio.wav").mime_str("audio/wav").map_err(Error::internal)?;
     let mut form = reqwest::multipart::Form::new().text("model", model.to_owned()).part("file", part);
     if let Some(lang) = language {
         form = form.text("language", lang.to_owned());
@@ -93,7 +95,13 @@ async fn send(http: &Client, ep: &Endpoint, model: &str, language: Option<&str>,
 
 /// Transcribes the audio or video in `input`. `language` is a two-letter hint, or `None` to let
 /// the model detect it.
-pub async fn transcribe(http: &Client, ep: &Endpoint, model: &str, language: Option<&str>, input: &NamedTempFile) -> Result<String, Error> {
+pub async fn transcribe(
+    http: &Client,
+    ep: &Endpoint,
+    model: &str,
+    language: Option<&str>,
+    input: &NamedTempFile,
+) -> Result<String, Error> {
     let (_dir, segments) = prepare(input.path()).await?;
     let mut parts = Vec::with_capacity(segments.len());
     for seg in &segments {
@@ -107,7 +115,8 @@ pub async fn transcribe(http: &Client, ep: &Endpoint, model: &str, language: Opt
 pub fn join_broken_words(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     for (i, line) in text.split('\n').enumerate() {
-        let joins = out.chars().next_back().is_some_and(char::is_alphabetic) && line.chars().next().is_some_and(char::is_lowercase);
+        let joins = out.chars().next_back().is_some_and(char::is_alphabetic)
+            && line.chars().next().is_some_and(char::is_lowercase);
         if i > 0 && !joins {
             out.push('\n');
         }

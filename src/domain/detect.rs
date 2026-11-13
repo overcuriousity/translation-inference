@@ -35,9 +35,12 @@ pub async fn detect(http: &Client, ep: &Endpoint, model: &str, text: &str) -> Re
         "max_tokens": 10,
     });
     let res = check(ep.post(http, "/v1/chat/completions").json(&body).send().await, "translation").await?;
-    let chat: ChatResponse = res.json().await.map_err(|e| Error::upstream("The detected language could not be read.", e))?;
+    let chat: ChatResponse =
+        res.json().await.map_err(|e| Error::upstream("The detected language could not be read.", e))?;
     let raw = chat.choices.into_iter().next().map(|c| c.message.content).unwrap_or_default();
-    parse_code(&raw).ok_or_else(|| Error::upstream("The language could not be detected.", format!("unparseable answer {:?}", raw.trim())))
+    parse_code(&raw).ok_or_else(|| {
+        Error::upstream("The language could not be detected.", format!("unparseable answer {:?}", raw.trim()))
+    })
 }
 
 /// A plausible language code from the model's answer: 2–3 lower-case letters and an optional

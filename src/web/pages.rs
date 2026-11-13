@@ -34,7 +34,13 @@ impl Features {
         let a = &shell.access;
         Self {
             char_limit: a.char_limit(st),
-            speech: st.cfg.app.speech.as_ref().map(|s| s.voices.keys().cloned().collect::<Vec<_>>().join(" ")).unwrap_or_default(),
+            speech: st
+                .cfg
+                .app
+                .speech
+                .as_ref()
+                .map(|s| s.voices.keys().cloned().collect::<Vec<_>>().join(" "))
+                .unwrap_or_default(),
             transcribe: a.transcription(st).is_ok() && a.transcription_model(st, None).is_ok(),
             bitvault: st.cfg.app.bitvault.is_some(),
         }

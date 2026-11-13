@@ -78,18 +78,13 @@ pub struct Chunk {
 /// the caller.
 pub fn split_into_chunks(text: &str, max_chars: usize) -> Vec<Chunk> {
     if text.chars().count() <= max_chars {
-        return vec![Chunk {
-            text: text.to_string(),
-        }];
+        return vec![Chunk { text: text.to_string() }];
     }
 
     // Reserve space for the overlap prefix injected at translation time (~10%)
     let chunk_budget = (max_chars * 9) / 10;
 
-    split_at_boundaries(text, chunk_budget)
-        .into_iter()
-        .map(|seg| Chunk { text: seg })
-        .collect()
+    split_at_boundaries(text, chunk_budget).into_iter().map(|seg| Chunk { text: seg }).collect()
 }
 
 /// Extract the last `n` sentences from a (translated) text block.
@@ -122,20 +117,11 @@ pub fn last_sentences(text: &str, n: usize) -> String {
 
     if ends.is_empty() {
         // No sentence boundaries — fall back to last ~200 characters
-        let start = text
-            .char_indices()
-            .rev()
-            .nth(199)
-            .map(|(i, _)| i)
-            .unwrap_or(0);
+        let start = text.char_indices().rev().nth(199).map(|(i, _)| i).unwrap_or(0);
         return text[start..].to_string();
     }
 
-    let start_idx = if ends.len() >= n {
-        ends[ends.len() - n]
-    } else {
-        0
-    };
+    let start_idx = if ends.len() >= n { ends[ends.len() - n] } else { 0 };
 
     text[start_idx..].to_string()
 }
@@ -164,11 +150,7 @@ fn split_at_boundaries(text: &str, max_chars: usize) -> Vec<String> {
 /// Find the best byte index to split `text` at, within `max_chars` characters.
 /// Prefers paragraph boundaries > sentence boundaries > word boundaries > hard cut.
 fn find_split_point(text: &str, max_chars: usize) -> usize {
-    let byte_limit = text
-        .char_indices()
-        .nth(max_chars)
-        .map(|(i, _)| i)
-        .unwrap_or(text.len());
+    let byte_limit = text.char_indices().nth(max_chars).map(|(i, _)| i).unwrap_or(text.len());
 
     let candidate = &text[..byte_limit];
 
@@ -207,14 +189,8 @@ mod tests {
 
     #[test]
     fn test_context_size_from_model_id() {
-        assert_eq!(
-            context_size_from_model_id("gpgpu/qwen3:14b-q5_k_m-32768", &cfg()),
-            32768
-        );
-        assert_eq!(
-            context_size_from_model_id("gpgpu/qwen3-5:9b-q5_k_m-40960", &cfg()),
-            40960
-        );
+        assert_eq!(context_size_from_model_id("gpgpu/qwen3:14b-q5_k_m-32768", &cfg()), 32768);
+        assert_eq!(context_size_from_model_id("gpgpu/qwen3-5:9b-q5_k_m-40960", &cfg()), 40960);
         assert_eq!(context_size_from_model_id("deepseek-chat", &cfg()), 4096);
     }
 
@@ -238,8 +214,7 @@ mod tests {
 
     #[test]
     fn test_chunking_splits_into_multiple() {
-        let long_text =
-            "First sentence. Second sentence. Third sentence. Fourth sentence. Fifth sentence.";
+        let long_text = "First sentence. Second sentence. Third sentence. Fourth sentence. Fifth sentence.";
         let chunks = split_into_chunks(long_text, 40);
         assert!(chunks.len() > 1);
     }

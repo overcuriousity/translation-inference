@@ -8,7 +8,9 @@ use regex::Regex;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
-use super::chunker::{context_size_from_model_id, last_sentences, max_output_tokens, split_into_chunks, usable_input_chars};
+use super::chunker::{
+    context_size_from_model_id, last_sentences, max_output_tokens, split_into_chunks, usable_input_chars,
+};
 use super::upstream::{Endpoint, check};
 use crate::config::Tuning;
 use crate::error::Error;
@@ -129,7 +131,8 @@ pub fn system_prompt(source: &str, target: &str, context: Option<&str>) -> Strin
 /// the model keeps terminology without translating it again.
 pub fn user_content(overlap: Option<&str>, text: &str) -> String {
     // Text that itself contains the delimiter tags must not close the fence.
-    let safe = text.replace("<source_text>", "<source\u{200b}_text>").replace("</source_text>", "</source\u{200b}_text>");
+    let safe =
+        text.replace("<source_text>", "<source\u{200b}_text>").replace("</source_text>", "</source\u{200b}_text>");
     match overlap {
         Some(prev) => format!(
             "PREVIOUS TRANSLATION (already done — do not repeat it, use it only for \
@@ -146,14 +149,21 @@ fn warn_if_short(input: &str, output: &str, min_ratio: f64) {
     if inp >= 100 && out > 0 {
         let ratio = out as f64 / inp as f64;
         if ratio < min_ratio {
-            tracing::warn!(input_chars = inp, output_chars = out, ratio, "translation much shorter than its input; the model may have summarised");
+            tracing::warn!(
+                input_chars = inp,
+                output_chars = out,
+                ratio,
+                "translation much shorter than its input; the model may have summarised"
+            );
         }
     }
 }
 
 fn warn_if_truncated(reason: Option<&str>) {
     if reason == Some("length") {
-        tracing::warn!("a chunk hit the output limit (finish_reason=length); lower app.tuning.input_token_ratio or use a larger context");
+        tracing::warn!(
+            "a chunk hit the output limit (finish_reason=length); lower app.tuning.input_token_ratio or use a larger context"
+        );
     }
 }
 
@@ -167,7 +177,14 @@ pub fn chunks(job: &Job, tuning: &Tuning) -> (Vec<String>, u32) {
     (parts, max_output_tokens(context, tuning))
 }
 
-async fn complete(http: &Client, ep: &Endpoint, model: &str, system: &str, user: &str, max_tokens: u32) -> Result<String, Error> {
+async fn complete(
+    http: &Client,
+    ep: &Endpoint,
+    model: &str,
+    system: &str,
+    user: &str,
+    max_tokens: u32,
+) -> Result<String, Error> {
     let body = ChatRequest {
         model,
         messages: [Message { role: "system", content: system }, Message { role: "user", content: user }],
@@ -189,7 +206,8 @@ pub async fn translate(http: &Client, ep: &Endpoint, job: &Job, tuning: &Tuning)
     let mut out = String::new();
     let mut overlap: Option<String> = None;
     for part in &parts {
-        let translated = complete(http, ep, &job.model, &system, &user_content(overlap.as_deref(), part), max_tokens).await?;
+        let translated =
+            complete(http, ep, &job.model, &system, &user_content(overlap.as_deref(), part), max_tokens).await?;
         warn_if_short(part, &translated, tuning.min_output_ratio);
         overlap = Some(last_sentences(&translated, 2));
         out.push_str(&translated);
@@ -208,7 +226,10 @@ pub async fn translate_whole(http: &Client, ep: &Endpoint, job: &Job, tuning: &T
 #[derive(Debug, Clone, PartialEq)]
 pub enum Piece {
     /// Chunk `index` (from 1) of `total` begins.
-    Chunk { index: usize, total: usize },
+    Chunk {
+        index: usize,
+        total: usize,
+    },
     Text(String),
     /// The model stopped at its output limit; the translation is incomplete.
     Truncated,
@@ -251,7 +272,12 @@ impl ThinkFilter {
     }
 }
 
-pub fn translate_stream(http: Client, ep: Endpoint, job: Job, tuning: Tuning) -> impl Stream<Item = Result<Piece, Error>> + Send + 'static {
+pub fn translate_stream(
+    http: Client,
+    ep: Endpoint,
+    job: Job,
+    tuning: Tuning,
+) -> impl Stream<Item = Result<Piece, Error>> + Send + 'static {
     async_stream::try_stream! {
         let (parts, max_tokens) = chunks(&job, &tuning);
         let system = system_prompt(&job.source, &job.target, job.context.as_deref());
@@ -307,7 +333,12 @@ pub fn translate_stream(http: Client, ep: Endpoint, job: Job, tuning: Tuning) ->
 }
 
 /// Paragraphs and their translations, kept in step through one request.
-pub async fn paragraphs(http: &Client, ep: &Endpoint, job: &Job, tuning: &Tuning) -> Result<Vec<(String, String)>, Error> {
+pub async fn paragraphs(
+    http: &Client,
+    ep: &Endpoint,
+    job: &Job,
+    tuning: &Tuning,
+) -> Result<Vec<(String, String)>, Error> {
     // A separator the model is told nothing about, and that text rarely contains.
     const SEP: &str = "\n§§§\n";
     let text = job.text.replace("\r\n", "\n").replace('\r', "\n");

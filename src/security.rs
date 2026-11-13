@@ -112,7 +112,11 @@ async fn headers(State(ctx): State<Arc<Ctx>>, req: Request, next: Next) -> Respo
 async fn host_check(State(ctx): State<Arc<Ctx>>, req: Request, next: Next) -> Response {
     let (mut parts, body) = req.into_parts();
     // Only `Host` counts: a proxy-supplied X-Forwarded-Host could be forged by the client.
-    let host = parts.headers.get(header::HOST).and_then(|v| v.to_str().ok()).or_else(|| parts.uri.authority().map(|a| a.as_str()));
+    let host = parts
+        .headers
+        .get(header::HOST)
+        .and_then(|v| v.to_str().ok())
+        .or_else(|| parts.uri.authority().map(|a| a.as_str()));
     if !host.is_some_and(|h| ctx.dep.host_allowed(h)) {
         return (StatusCode::MISDIRECTED_REQUEST, "This server does not answer for that host name.").into_response();
     }
@@ -166,6 +170,8 @@ pub fn secure(router: Router, dep: Arc<Deployment>, proxies: Vec<IpNet>) -> Rout
         .layer(CompressionLayer::new().compress_when(compressible()))
         .layer(from_fn_with_state(ctx.clone(), origin_check))
         .layer(from_fn_with_state(ctx.clone(), host_check))
+        // Inside the response headers, so refusals by the checks above get the JSON body under /api/.
+        .layer(axum::middleware::from_fn(crate::api::json_errors))
         .layer(from_fn_with_state(ctx, headers))
         .layer(TraceLayer::new_for_http().make_span_with(request_span))
         .layer(SetSensitiveRequestHeadersLayer::new([header::AUTHORIZATION, header::COOKIE]))
